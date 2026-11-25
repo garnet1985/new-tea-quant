@@ -31,17 +31,17 @@ def mysql_engine():
 
 
 def test_mysql_engine_table_operator_cached(mysql_engine):
-    a = mysql_engine.table_operator("sys_stock_list")
-    b = mysql_engine.table_operator("sys_stock_list")
+    a = mysql_engine.table_operator("sys_data_stock_list")
+    b = mysql_engine.table_operator("sys_data_stock_list")
     assert a is b
-    assert a.table_name == "sys_stock_list"
+    assert a.table_name == "sys_data_stock_list"
 
 
 def test_server_table_operator_load(mysql_engine):
     mysql_engine.connector.execute_query = MagicMock(
         return_value=[{"id": "1", "name": "a"}]
     )
-    op = mysql_engine.table_operator("sys_stock_list")
+    op = mysql_engine.table_operator("sys_data_stock_list")
     rows = op.load("id = %s", ("1",), limit=10)
     assert rows == [{"id": "1", "name": "a"}]
     sql = mysql_engine.connector.execute_query.call_args[0][0]

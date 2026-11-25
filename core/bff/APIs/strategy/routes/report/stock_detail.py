@@ -22,12 +22,9 @@ from core.modules.strategy.core.engines.shared.data_class.investment.enums impor
 )
 from core.modules.strategy.core.engines.shared.enum_result_contract import (
     EnumResult,
-    EnumResultsManager,
 )
 from core.modules.strategy.core.services.artifacts import (
-    ArtifactStore,
     GoalAchievementRow,
-    PriceFactorStore,
     PriceInvestmentRow,
 )
 from core.modules.strategy.core.engines.shared.services.strategy_settings import (
@@ -196,7 +193,7 @@ class WorkbenchStockDetail:
                 message="价格回测产物目录不可用，请重新执行价格回测",
             )
 
-        investments = PriceFactorStore.at(output_dir).investments(sid)
+        investments = Strategy.load_price_investments(output_dir, sid)
         if not investments:
             return cls._unavailable(
                 common,
@@ -291,8 +288,7 @@ class WorkbenchStockDetail:
         ):
             if not output_dir.is_dir():
                 continue
-            store = ArtifactStore.for_kind(step).at(output_dir)
-            if store.has_investments(entity_id):
+            if Strategy.step_dir_has_entity(step, output_dir, entity_id):
                 return output_dir
         return None
 
@@ -300,13 +296,7 @@ class WorkbenchStockDetail:
     def _load_enum_investments(
         output_dir: Path, entity_id: str
     ) -> List[EnumResult]:
-        try:
-            rows = list(EnumResultsManager.at(output_dir).results(entity_id))
-        except Exception:
-            logger.exception(
-                "读取枚举结果失败: %s %s", output_dir, entity_id
-            )
-            return []
+        rows = Strategy.load_enum_entity_results(output_dir, entity_id)
         return [
             row
             for row in rows
@@ -768,7 +758,7 @@ class WorkbenchStockDetail:
         """价格层已成交目标：优先本步 goal CSV（含跌停顺延后的成交日）。"""
         sid = str(entity_id or "").strip()
         try:
-            price_goals = list(PriceFactorStore.at(price_dir).goals(sid) or [])
+            price_goals = Strategy.load_price_goals(price_dir, sid)
         except Exception:
             logger.exception("读取价格回测已成交目标失败: %s %s", price_dir, sid)
             price_goals = []
@@ -792,7 +782,7 @@ class WorkbenchStockDetail:
         if not taken:
             return []
         try:
-            enum_rows = EnumResultsManager.at(enum_dir).results(sid)
+            enum_rows = Strategy.load_enum_entity_results(enum_dir, sid)
         except Exception:
             logger.exception("读取枚举已成交目标失败: %s %s", enum_dir, sid)
             return []
@@ -1171,11 +1161,13 @@ class WorkbenchStockDetail:
             logger.exception("单股指标批量计算失败")
             return []
 
+        from core.modules.indicator import field_naming
+
         for name, cfg, result in batch:
             if not isinstance(cfg, dict):
                 cfg = {}
             if isinstance(result, list):
-                field_key = cls._indicator_field_name(name, cfg)
+                field_key = field_naming.series_field_name(name, cfg)
                 render = resolve_indicator_render(
                     name, field_key=field_key, params=cfg
                 )
@@ -1197,8 +1189,9 @@ class WorkbenchStockDetail:
                 for sub_key, sub_values in result.items():
                     if not isinstance(sub_values, list):
                         continue
-                    # 用 pandas-ta 列名作 key，避免 name+length 再拼一次变成 vtxp_1414
-                    field_key = str(sub_key).strip().lower()
+                    field_key = field_naming.dict_field_name(
+                        name, cfg, str(sub_key)
+                    )
                     if should_skip_chart_series(
                         name=name, sub_key=str(sub_key), field_key=field_key
                     ):
@@ -1230,24 +1223,6 @@ class WorkbenchStockDetail:
         return [
             row for row in series_out if any(v is not None for v in row.get("data") or [])
         ]
-
-    @staticmethod
-    def _indicator_field_name(name: str, params: Dict[str, Any]) -> str:
-        name = str(name or "").lower()
-        length = params.get("length")
-        if length is not None:
-            try:
-                length_int = int(length)
-            except (TypeError, ValueError):
-                length_int = None
-            if length_int is not None:
-                return f"{name}{length_int}"
-        parts = [name]
-        for key in sorted(params.keys()):
-            value = params[key]
-            if isinstance(value, (int, float, str)):
-                parts.append(f"{key}{value}")
-        return "_".join(parts)
 
     @classmethod
     def _align_indicator_values(

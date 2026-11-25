@@ -11,11 +11,14 @@ from .APIs.platform import (
     runtime_api_bp,
     setup_api_bp,
     settings_api_bp,
-    assistant_api_bp,
+    ai_api_bp,
+    agent_api_bp,
 )
 from .APIs.data import data_contract_api_bp, data_source_api_bp
 from .APIs.strategy import strategy_api_bp
 from .APIs.tag import tag_api_bp
+from .APIs.post_process import post_process_api_bp
+from .APIs.series_relation import series_relation_api_bp
 from .conf import conf
 from .static_ui import (
     fed_build_ready,
@@ -52,10 +55,22 @@ def create_app():
     app.register_blueprint(strategy_api_bp, url_prefix="/api")
     app.register_blueprint(settings_api_bp, url_prefix="/api")
     app.register_blueprint(runtime_api_bp, url_prefix="/api")
-    app.register_blueprint(assistant_api_bp, url_prefix="/api")
+    app.register_blueprint(ai_api_bp, url_prefix="/api")
+    app.register_blueprint(agent_api_bp, url_prefix="/api")
     app.register_blueprint(data_contract_api_bp, url_prefix="/api")
     app.register_blueprint(data_source_api_bp, url_prefix="/api")
     app.register_blueprint(tag_api_bp, url_prefix="/api")
+    app.register_blueprint(post_process_api_bp, url_prefix="/api")
+    app.register_blueprint(series_relation_api_bp, url_prefix="/api")
+
+    try:
+        from .APIs.platform.runtime.job_handlers import register_job_pipeline_handlers
+
+        register_job_pipeline_handlers()
+    except Exception:  # noqa: BLE001
+        import logging
+
+        logging.getLogger(__name__).exception("register_job_pipeline_handlers failed")
 
     if not register_fed_static_routes(app, build_dir=build_dir):
 

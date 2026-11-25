@@ -45,7 +45,7 @@ _SOFT_CELLS = 20
 
 
 def resolve_path(key: str, layer: str = "") -> str:
-    """短名 → settings 路径。未登记的裸名在枚举层回落到 ``core.*``。"""
+    """短名 → settings 路径。未登记的裸名在机会盘点层回落到 ``core.*``。"""
     text = str(key or "").strip()
     if not text:
         raise ValueError("inputs 轴名不能为空")
@@ -274,7 +274,7 @@ def collect_joint_sweep(raw: Mapping[str, Any]) -> List[Tuple[str, ...]]:
             raise ValueError(f"joint_sweep[{i}] 须为轴名列表")
         paths: List[str] = []
         seen: set = set()
-        for j, name in enumerate(group):
+        for name in group:
             path = resolve_path(str(name), layer="campaign")
             if path in seen:
                 continue

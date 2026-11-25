@@ -69,6 +69,7 @@ export async function fetchStrategyList() {
 
 /**
  * 扫描页上下文：data.json 截至日 + 演示模式截止日（与后端 ScanDateResolver 一致）。
+ * ``enable_post_process`` 为 PostProcess prefs 只读镜像；写入见 ``setPostProcessRunEnabled``。
  */
 export async function fetchStrategyScanContext() {
   const json = await request.getJson(API_STRATEGY_SCAN_CONTEXT);
@@ -78,6 +79,7 @@ export async function fetchStrategyScanContext() {
   return {
     dataEnd: mapDataEnd(dataEnd),
     demoScanCutoffDate: cutoff,
+    enablePostProcess: m.enable_post_process !== false,
   };
 }
 
@@ -94,21 +96,31 @@ export async function fetchStrategyScanReadiness(strategyName, { demo = false } 
   // 缺省 can_scan 视为不可扫，避免「未定义 = 允许」的障眼法
   const canScanRaw = m.can_scan ?? m.canScan;
   const canScan = typeof canScanRaw === 'boolean' ? canScanRaw : false;
+  const currentWb = Number(m.current_workbench_version ?? m.currentWorkbenchVersion ?? 0);
   return {
     primary_action: m.primary_action === 'rerun' ? 'rerun' : 'run',
     report,
     can_scan: canScan,
     block_reason: blockReason || (canScanRaw === undefined ? '扫描就绪状态未知' : ''),
+    settings_stale: Boolean(m.settings_stale ?? m.settingsStale),
+    version_stale: Boolean(m.version_stale ?? m.versionStale),
+    current_workbench_version: Number.isFinite(currentWb) && currentWb > 0
+      ? Math.trunc(currentWb)
+      : 0,
   };
 }
 
 /**
  * 启动单策略扫描（机会扫描页使用）
- * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1&force=0|1`
+ * BFF：`POST /api/v1/strategy/{strategy_name}/scan?demo=0|1&force=0|1&post_process=0|1`
  */
-export async function startStrategyScan(strategyName, { demo = false, force = false } = {}) {
+export async function startStrategyScan(
+  strategyName,
+  { demo = false, force = false, runPostProcess = true } = {},
+) {
   const params = new URLSearchParams({ demo: demo ? '1' : '0' });
   if (force) params.set('force', '1');
+  params.set('post_process', runPostProcess ? '1' : '0');
   const json = await request.postJson(`${apiStrategyPath(strategyName)}/scan?${params.toString()}`);
   const m = json?.message || {};
   return {
@@ -116,6 +128,7 @@ export async function startStrategyScan(strategyName, { demo = false, force = fa
     job_id: m.job_id || '',
     demo: Boolean(m.demo),
     force: Boolean(m.force),
+    post_process: m.post_process !== false,
   };
 }
 
@@ -261,6 +274,25 @@ export async function persistStrategySettings(strategyKeyOrName, settings, opts 
 }
 
 /**
+ * 读写 ``settings.py`` 的 ``is_enabled``（列表 / 内页开关）。
+ * @returns {Promise<{ is_enabled: boolean, settings_rev: string }>}
+ */
+export async function setStrategyEnabled(strategyKeyOrName, enabled) {
+  const current = await fetchStrategySettingsCurrent(strategyKeyOrName);
+  const disk = current.disk_settings && typeof current.disk_settings === 'object'
+    ? current.disk_settings
+    : {};
+  const next = { ...disk, is_enabled: Boolean(enabled) };
+  const occupancy = await persistStrategySettings(strategyKeyOrName, next, {
+    settings_rev: current.settings_rev,
+  });
+  return {
+    is_enabled: Boolean(occupancy.disk_settings?.is_enabled ?? enabled),
+    settings_rev: occupancy.settings_rev,
+  };
+}
+
+/**
  * V2-03：读取策略工作台版本列表（至多 10 条）。
  * @param {string} strategyKeyOrName ``meta.key``（推荐）或 path name
  * @returns {Promise<{ versions: Array<{ version_id: string, version: number, created_at: string, updated_at: string, env_invalid: boolean, expires_soon: boolean }> }>}
@@ -368,6 +400,14 @@ export async function startStrategyRun(strategyName, targetStep, settings, optio
     { body, headers },
   );
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || ''),
+      reason: String(m.reason || '已加入管道队列').trim(),
+      settings_rev: String(m.settings_rev || ''),
+    };
+  }
   if (!m.is_triggered) {
     const reason = m.reason;
     throw new Error(typeof reason === 'string' ? reason : '启动失败');
@@ -409,7 +449,7 @@ export async function fetchStrategyStepReport(strategyKeyOrName, step, versionId
 }
 
 /**
- * V2-07b：枚举逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
+ * V2-07b：机会盘点逐股 ref（``entity_list.json``）。成功时 ``message.stock_ref`` 可为 ``null``（磁盘已清理），
  * 此时 ``stock_ref_available === false``；仅快照不存在时 HTTP 非 2xx。
  * GET /api/v1/strategy/:strategy_key_or_name/report/:step/:version_id/ref
  * @param {string} strategyKeyOrName
@@ -452,7 +492,7 @@ export async function fetchStrategyStepReportRef(strategyKeyOrName, step, versio
 export async function fetchStrategyRunProgress(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   return json?.message || null;
 }
@@ -503,7 +543,7 @@ export function mapWorkbenchRunProgressToPanel(envelope) {
   const curStep = envelope.step && typeof envelope.step === 'object' ? envelope.step : null;
   const progress_label = String(envelope.pipeline_description || '').trim()
     || ({
-      enum: '枚举',
+      enum: '机会盘点',
       price: '价格回测',
       portfolio: '投资模拟',
     }[pipeline] || '');
@@ -604,12 +644,20 @@ export async function startAttributeRun(strategyName, step, options = {}) {
     { body: { force_refresh: Boolean(options?.force_refresh) } },
   );
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || '').trim(),
+      reason: String(m.reason || '已加入管道队列').trim(),
+    };
+  }
   if (!m.is_triggered) {
     const reason = m.reason;
     throw new Error(typeof reason === 'string' ? reason : '启动归因失败');
   }
   const jid = String(m.job_id || '').trim();
   return {
+    queued: false,
     run_id: String(m.run_id || jid).trim(),
     job_id: jid,
     pipeline_name: String(m.pipeline_name || step).trim(),
@@ -626,7 +674,7 @@ export async function startAttributeRun(strategyName, step, options = {}) {
 export async function fetchAttributeRunProgress(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/attribute/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   return json?.message || null;
 }
@@ -679,7 +727,7 @@ export async function fetchAttributeReport(strategyName, step, groupId) {
 }
 
 /**
- * 滚动测试按钮是否可点。
+ * 滚动对照按钮是否可点。
  * GET /api/v1/strategy/:key/rolling/status
  * @param {string} strategyName
  */
@@ -712,12 +760,20 @@ export async function startRollingRun(strategyName, options = {}) {
     { body: { force_refresh: Boolean(options?.force_refresh) } },
   );
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || '').trim(),
+      reason: String(m.reason || '已加入管道队列').trim(),
+    };
+  }
   if (!m.is_triggered) {
     const reason = m.reason;
     throw new Error(typeof reason === 'string' ? reason : '启动滚动对照失败');
   }
   const jid = String(m.job_id || '').trim();
   return {
+    queued: false,
     run_id: String(m.run_id || jid).trim(),
     job_id: jid,
     pipeline_name: String(m.pipeline_name || 'rolling').trim(),
@@ -734,7 +790,7 @@ export async function startRollingRun(strategyName, options = {}) {
 export async function fetchRollingRunStatus(strategyName, jobId) {
   const json = await request.getJson(
     `${apiStrategyPath(strategyName)}/rolling/run/progress?job_id=${encodeURIComponent(jobId)}`,
-    { timeoutMs: HTTP_TIMEOUT_MS.POLL },
+    { timeoutMs: HTTP_TIMEOUT_MS.POLL_HEAVY },
   );
   const envelope = json?.message || null;
   if (!envelope) {

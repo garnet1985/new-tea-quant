@@ -1,13 +1,5 @@
 import React, { useCallback, useMemo, useState } from 'react';
-import NtqIcon from 'views/ntqIcon';
-import {
-  Accordion,
-  AccordionDetails,
-  AccordionSummary,
-  Box,
-  Stack,
-  Typography,
-} from '@mui/material';
+import { Accordion } from 'ui';
 import Editor from 'containers/editor';
 import {
   GoalSettingsEditor,
@@ -23,13 +15,13 @@ import {
   strategyFeesSchema,
   strategyPriceSimulatorSchema,
 } from 'containers/strategySettings';
-import SettingsAccordionTitle from 'views/settingsAccordionTitle';
 import {
   STRATEGY_DESIGN_SETTINGS_GLOBAL_TITLE,
   STRATEGY_DESIGN_SETTINGS_GLOBAL_TOOLTIP,
   STRATEGY_DESIGN_SETTINGS_STEP_TITLE,
 } from '../constants/strategyDesignSettingsLayout';
 import StrategyDesignPeerStrategies from '../peerStrategies';
+import './style.scss';
 
 function buildMarketProfileOnlySchema(marketProfileOptions) {
   const meta = buildStrategyMetaSchema(marketProfileOptions);
@@ -46,50 +38,19 @@ function buildMarketProfileOnlySchema(marketProfileOptions) {
 
 function CoreSettingsBlock({ showHint, coreEditorContext, settings }) {
   return (
-    <Box className="ntq-design-settings-core-wrap">
-      <Box className="ntq-design-settings-core-hint" aria-hidden={!showHint}>
+    <div className="ntq-design-settings-core-wrap">
+      <div className="ntq-design-settings-core-hint" aria-hidden={!showHint}>
         {showHint ? (
-          <Typography variant="caption" color="text.secondary" component="p">
-            修改核心参数后请回到枚举步重新运行。
-          </Typography>
+          <p className="ntq-muted">修改核心参数后请回到「机会盘点」重新运行。</p>
         ) : null}
-      </Box>
+      </div>
       <Editor
         schema={strategyCoreSchema}
         value={settings}
         onChange={() => {}}
         context={coreEditorContext}
       />
-    </Box>
-  );
-}
-
-function SectionAccordion({
-  title,
-  tooltip = '',
-  defaultExpanded = false,
-  nested = true,
-  children,
-  context = {},
-  helpTarget = '',
-}) {
-  const summaryTitle = (
-    <SettingsAccordionTitle title={title} tooltip={tooltip} context={context} />
-  );
-
-  return (
-    <Accordion
-      className={nested ? 'ntq-settings-sub-accordion' : undefined}
-      defaultExpanded={defaultExpanded}
-      disableGutters
-      TransitionProps={{ timeout: 0, unmountOnExit: false }}
-      data-ntq-help={helpTarget || undefined}
-    >
-      <AccordionSummary expandIcon={<NtqIcon name="expandMore" size={24} />}>
-        {summaryTitle}
-      </AccordionSummary>
-      <AccordionDetails>{children}</AccordionDetails>
-    </Accordion>
+    </div>
   );
 }
 
@@ -154,13 +115,13 @@ function StrategyDesignSettingsPanel({
     if (activeStep === 'enum') {
       return (
         <>
-          <SectionAccordion title="目标设置">
+          <Accordion title="目标设置" variant="nested">
             <GoalSettingsEditor
               goal={settings?.goal}
               onGoalChange={onGoalChange}
               context={editorContext}
             />
-          </SectionAccordion>
+          </Accordion>
           <Editor
             schema={strategyCoreSchema}
             value={settings}
@@ -175,14 +136,14 @@ function StrategyDesignSettingsPanel({
       return (
         <>
           {hasPriceSimulatorFields ? (
-            <SectionAccordion title="价格回测参数">
+            <Accordion title="价格回测参数" variant="nested">
               <SettingsSchemaEditor
                 schema={strategyPriceSimulatorSchema}
                 value={settings?.price_simulator}
                 onChange={onPriceSimulatorChange}
                 context={editorContext}
               />
-            </SectionAccordion>
+            </Accordion>
           ) : null}
           <CoreSettingsBlock
             showHint={showCoreHint}
@@ -196,22 +157,22 @@ function StrategyDesignSettingsPanel({
     if (activeStep === 'portfolio') {
       return (
         <>
-          <SectionAccordion title="投资模拟参数">
+          <Accordion title="投资模拟参数" variant="nested">
             <SettingsSchemaEditor
               schema={portfolioSchema}
               value={settings?.portfolio}
               onChange={onPortfolioChange}
               context={editorContext}
             />
-          </SectionAccordion>
-          <SectionAccordion title="交易费用">
+          </Accordion>
+          <Accordion title="交易费用" variant="nested">
             <SettingsSchemaEditor
               schema={strategyFeesSchema}
               value={settings?.fees}
               onChange={onFeesChange}
               context={editorContext}
             />
-          </SectionAccordion>
+          </Accordion>
           <CoreSettingsBlock
             showHint={showCoreHint}
             coreEditorContext={coreEditorContext}
@@ -235,69 +196,65 @@ function StrategyDesignSettingsPanel({
     showCoreHint,
   ]);
 
-  const globalSettingsBody = (
-    <Stack spacing={1}>
-      <SectionAccordion title="市场规则">
-        <SettingsSchemaEditor
-          schema={marketProfileSchema}
-          value={settings}
-          onChange={onSettingsChange}
-          context={editorContext}
-        />
-      </SectionAccordion>
-      <SectionAccordion title="数据设置">
-        <SettingsSchemaEditor
-          schema={strategyDataSchema}
-          value={settings}
-          onChange={onSettingsChange}
-          context={editorContext}
-        />
-      </SectionAccordion>
-      <SectionAccordion title="采样配置">
-        <SamplingSettingsEditor
-          sampling={settings?.sampling}
-          onSamplingChange={onSamplingChange}
-          schema={samplingSchema}
-          context={editorContext}
-        />
-      </SectionAccordion>
-      <SectionAccordion title="回测设置">
-        <SimulationSettingsEditor
-          simulation={settings?.simulation}
-          onSimulationChange={onSimulationChange}
-          schema={simulationSchema}
-          simulationTemplateProfiles={simulationTemplateProfiles}
-          errors={simulationEditorErrors}
-          onValidate={validateSimulationDates}
-          onValidationChange={setSimulationEditorErrors}
-          context={editorContext}
-        />
-      </SectionAccordion>
-    </Stack>
-  );
-
   return (
-    <Stack spacing={0} className="ntq-design-settings-panel">
-      <SectionAccordion
+    <div className="ntq-design-settings-panel">
+      <Accordion
         title={STRATEGY_DESIGN_SETTINGS_STEP_TITLE}
         defaultExpanded
-        nested={false}
-        helpTarget="design-settings-specific"
+        data-ntq-help="design-settings-specific"
       >
-        <Stack spacing={1}>{stepSettingsBody}</Stack>
-      </SectionAccordion>
-      <SectionAccordion
+        <div className="ntq-design-settings-panel__stack">
+          {stepSettingsBody}
+        </div>
+      </Accordion>
+      <Accordion
         title={STRATEGY_DESIGN_SETTINGS_GLOBAL_TITLE}
         tooltip={STRATEGY_DESIGN_SETTINGS_GLOBAL_TOOLTIP}
+        shine={Boolean(editorContext.defaultTooltipShine)}
         defaultExpanded
-        nested={false}
-        context={editorContext}
-        helpTarget="design-settings-global"
+        data-ntq-help="design-settings-global"
       >
-        {globalSettingsBody}
-      </SectionAccordion>
+        <div className="ntq-design-settings-panel__stack">
+          <Accordion title="市场规则" variant="nested">
+            <SettingsSchemaEditor
+              schema={marketProfileSchema}
+              value={settings}
+              onChange={onSettingsChange}
+              context={editorContext}
+            />
+          </Accordion>
+          <Accordion title="数据设置" variant="nested">
+            <SettingsSchemaEditor
+              schema={strategyDataSchema}
+              value={settings}
+              onChange={onSettingsChange}
+              context={editorContext}
+            />
+          </Accordion>
+          <Accordion title="采样配置" variant="nested">
+            <SamplingSettingsEditor
+              sampling={settings?.sampling}
+              onSamplingChange={onSamplingChange}
+              schema={samplingSchema}
+              context={editorContext}
+            />
+          </Accordion>
+          <Accordion title="回测设置" variant="nested">
+            <SimulationSettingsEditor
+              simulation={settings?.simulation}
+              onSimulationChange={onSimulationChange}
+              schema={simulationSchema}
+              simulationTemplateProfiles={simulationTemplateProfiles}
+              errors={simulationEditorErrors}
+              onValidate={validateSimulationDates}
+              onValidationChange={setSimulationEditorErrors}
+              context={editorContext}
+            />
+          </Accordion>
+        </div>
+      </Accordion>
       <StrategyDesignPeerStrategies />
-    </Stack>
+    </div>
   );
 }
 

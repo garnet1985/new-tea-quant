@@ -1,6 +1,7 @@
 # Data Contract API 文档
 
-**版本：** `0.4.3`  
+**模块：** `modules.data_contract` · **版本：** `0.4.3`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -54,7 +55,27 @@ kline = ContractIssuer.issue(
 
 - **状态：** `beta`
 
-常用：`get_contract`、`list_available_keys`、`list_system_keys`、`is_available`、`get_list_data_key`、`register_custom_declaration`、`get_declaration`、`system_registry_source_path`。
+常用：`get_contract`、`list_available_keys`、`list_system_keys`、`is_available`、`get_list_data_key`、`register_custom_declaration`、`get_declaration`、`system_registry_source_path`、`list_catalog_entries`、`list_ui_catalog_entries` / `fetch_ui_catalog_page`。
+
+#### list_catalog_entries / list_ui_catalog_entries / fetch_ui_catalog_page
+
+`ContractIssuer.list_catalog_entries() -> list[dict]`（classmethod）  
+`ContractIssuer.list_ui_catalog_entries(*, force_reload=False) -> list[dict]`（classmethod）  
+`ContractIssuer.fetch_ui_catalog_page(page, limit, *, force_reload=False) -> (items, total)`（classmethod）
+
+- **状态：** `beta`
+- **描述：** CLI 目录行 / BFF UI 目录行（含 origin、is_custom）。自动 discover；信道勿摸 `_discovered` / `_declarations_cache`
+
+#### scaffold_user_contract / write_user_contract_files / apply_user_data_key / validate_user_contract / describe_user_contract
+
+`ContractIssuer.scaffold_user_contract(*, key, data_key=None, const_name=None, contract_type="non_time_series", scope="global", list_data_key="", display_name="") -> dict`（staticmethod）  
+`ContractIssuer.write_user_contract_files(*, key, declaration_py="", loader_py="", contract_py="") -> dict`（staticmethod）  
+`ContractIssuer.apply_user_data_key(*, const_name, data_key) -> dict`（staticmethod）  
+`ContractIssuer.validate_user_contract(*, key, reload=True) -> dict`（staticmethod）  
+`ContractIssuer.describe_user_contract(*, data_key) -> dict`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** Userspace 契约脚手架与校验（实现在 `user_contracts`）。`key` 为目录相对路径；`data_key` 为点分键；`apply_user_data_key` 写 `USER_DATA_KEY`。校验默认可 `reload` 生效。
 
 #### reload
 

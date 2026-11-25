@@ -12,7 +12,7 @@ const EXPIRATION_MODE_OPTIONS = [
   {
     label: '开市日',
     value: 'open_day',
-    tooltip: '按开市日计数持有期（与 Investment 一致，常用）。',
+    tooltip: '按开市日计数持有期（常用）。',
   },
   {
     label: '交易日',
@@ -367,7 +367,9 @@ export function applyGoalActions(goal) {
     next.dynamic_loss = { ratio: -0.1, close_invest: true };
   }
 
-  if (next.take_profit?.stages) {
+  // 未配置的止盈 / 止损不要落成 ``{ stages: [] }``——后端会校验「有块则 stages 非空」；
+  // 省略整块才表示「不设止盈 / 不设止损」（如演示 7a 仅止损 + 到期）。
+  if (Array.isArray(next.take_profit?.stages) && next.take_profit.stages.length > 0) {
     next.take_profit = {
       ...next.take_profit,
       stages: next.take_profit.stages.map((stage) => {
@@ -375,13 +377,17 @@ export function applyGoalActions(goal) {
         return finalizeStageForSave({ ...rest, actions: takeProfitActionsFromAction(action) });
       }),
     };
+  } else {
+    delete next.take_profit;
   }
 
-  if (next.stop_loss?.stages) {
+  if (Array.isArray(next.stop_loss?.stages) && next.stop_loss.stages.length > 0) {
     next.stop_loss = {
       ...next.stop_loss,
       stages: next.stop_loss.stages.map(({ action, ...rest }) => finalizeStageForSave(rest)),
     };
+  } else {
+    delete next.stop_loss;
   }
 
   // 股票状态风控已迁至 simulation.risk_control
@@ -397,7 +403,7 @@ const goalBaseFields = [
     name: 'expirationEnabled',
     type: 'switch',
     label: '开启交易时限',
-    tooltip: '管理是否需要按照日期进行强制平仓',
+    tooltip: '开启后，持有到期将强制平仓',
   },
   {
     name: 'expiration.fixed_window_in_days',
@@ -411,7 +417,7 @@ const goalBaseFields = [
     name: 'expiration.mode',
     type: 'select',
     label: '到期计数模式',
-    tooltip: 'open_day / trading_day / natural_day，与 Investment 持有期计数一致。',
+    tooltip: '与开市日 / 交易日 / 自然日选项说明一致。',
     options: EXPIRATION_MODE_OPTIONS,
     visibleWhen: goalExpirationEnabled,
   },
@@ -471,7 +477,7 @@ const goalStageSchemas = [
         key: 'exit_ratio',
         type: 'number',
         label: '平仓比例',
-        tooltip: '这个阶段完成时卖出多少仓位，用小数表示百分比（0～1）',
+        tooltip: '这个阶段完成时卖出多少仓位，用 0～1 的小数表示比例（如 0.5 表示卖出一半）',
         parse: (raw) => toNumberOrEmpty(raw, ''),
         visibleWhen: ({ item }) => !item?.close_invest,
       },
@@ -505,7 +511,7 @@ const goalStageSchemas = [
         key: 'exit_ratio',
         type: 'number',
         label: '平仓比例',
-        tooltip: '这个阶段完成时卖出多少仓位，用小数表示百分比（0～1）',
+        tooltip: '这个阶段完成时卖出多少仓位，用 0～1 的小数表示比例（如 0.5 表示卖出一半）',
         parse: (raw) => toNumberOrEmpty(raw, ''),
         visibleWhen: ({ item }) => !item?.close_invest,
       },

@@ -12,7 +12,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, List
 
-from core.modules.indicator import Indicator
+from core.modules.indicator import Indicator, field_naming
 
 logger = logging.getLogger(__name__)
 
@@ -27,41 +27,17 @@ class ContractIndicators:
     """
 
     @staticmethod
-    def _field_name(name: str, params: Dict[str, Any]) -> str:
-        name = name.lower()
-        length = params.get("length")
-        if length is not None and isinstance(length, (int, float, str)):
-            return f"{name}{int(length)}"
-        parts = [name]
-        for key in sorted(params.keys()):
-            value = params[key]
-            if isinstance(value, (int, float, str)):
-                parts.append(f"{key}{value}")
-        return "_".join(parts)
-
-    @staticmethod
     def _apply_to_rows(
         rows: List[Dict[str, Any]],
         indicators_cfg: Dict[str, Any],
     ) -> None:
-        for name, cfg, result in Indicator.compute_batch(rows, indicators_cfg):
-            try:
-                if isinstance(result, list):
-                    field = ContractIndicators._field_name(name, cfg)
-                    for rec, val in zip(rows, result):
-                        rec[field] = val
-                elif isinstance(result, dict):
-                    for key, series in result.items():
-                        field = ContractIndicators._field_name(f"{name}_{key}", cfg)
-                        for rec, val in zip(rows, series):
-                            rec[field] = val
-            except Exception as exc:
-                logger.error(
-                    "写入指标失败: indicator=%s params=%s error=%s",
-                    name,
-                    cfg,
-                    exc,
-                )
+        try:
+            batch = Indicator.compute_batch(rows, indicators_cfg)
+            field_naming.apply_batch_to_rows(rows, batch)
+        except ValueError:
+            raise
+        except Exception as exc:
+            logger.error("写入指标失败: error=%s", exc, exc_info=True)
 
     @staticmethod
     def apply(

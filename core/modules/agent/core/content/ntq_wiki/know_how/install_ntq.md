@@ -1,0 +1,69 @@
+---
+title: install NTQ 安装
+aliases:
+  - install
+  - setup
+  - launcher
+  - 安装
+  - 安装向导
+  - 第一次
+summary: 用 launcher 走图形化安装向导；完成后从制定策略开始。
+---
+
+# 如何安装 NTQ
+
+## 前置条件
+
+- Python **3.11 或以上**
+- 在能看到 `launcher.py` 的项目根目录操作
+
+开发者若要改 UI，另外需要 Node.js。日常使用只跑 launcher 即可。默认数据库是 DuckDB，不必先装 MySQL / PostgreSQL。
+
+## 步骤
+
+1. 拿到代码（任选）：
+
+```bash
+git clone https://github.com/garnet1985/new-tea-quant.git
+cd new-tea-quant
+```
+
+或从 GitHub / Gitee 下载 ZIP，解压后进入与 `launcher.py` 同级的目录。
+
+2. 启动安装向导：
+
+```bash
+python launcher.py
+```
+
+Windows PowerShell 可用 `python .\launcher.py`。若 `python` 指向旧版本，改用 `python3 launcher.py`。
+
+3. 浏览器里按向导走完（多数保持默认即可）：
+
+   1. 安装核心 Python 依赖
+   2. 初始化 `userspace`
+   3. 配置数据库（默认 DuckDB；可选 MySQL / PostgreSQL）
+   4. 演示数据：立刻导入公开包（约 300 只 × 三年），或稍候注册会员后再导全市场数据
+   5. 是否安装机器学习依赖（分析库用，可跳过）
+
+4. 进入欢迎页后，点导航 **制定策略**。使用统计已包含在使用条款里，安装结束不再单独询问。
+
+## 验证
+
+- 项目下出现 `userspace/`（策略、配置、库文件都在这里）
+- 能打开制定策略列表，里面有 demo 策略
+- 若导入了演示数据：大约 2023-01～2025-12、约 300 只股票，仅供学习，勿商用
+
+## 日常与升级
+
+| 场景 | 做法 |
+| --- | --- |
+| 以后打开 UI | 再执行 `python launcher.py` |
+| 只补 CLI / Python 依赖 | 已安装过且只是 `requirements.txt` 变了：`python install.py --if-needed`（或直接跑 `python cli.py`）。不会重导演示数据 |
+| 命令行安装（默认含演示数据） | `python install.py`（从官网下载演示包并导入，会覆盖同名表）。开始前须输入 `y` 同意使用条款；无终端时加 `--accept-license`。跳过演示数据：`python install.py --skip-demo-data`；之后可 `python cli.py id` 补导。参数说明：`python install.py -h` |
+| 升级已安装的应用 | 拉取新代码，**保留** `userspace/`，然后 `python cli.py u` |
+| 从头再走向导 | 设置 → 安装与维护 → 重新安装（可能覆盖库连接；导入演示数据可能覆盖表） |
+| 补装机器学习依赖 | 设置 → 安装与维护，或向导里那一步 |
+| 换演示包 | `userspace/.ntq/packages/demo/` 里只留 **1 个** zip，或 `python cli.py id -f` 重新下载并重导；导入成功后默认保留本地包，可在「设置 → 缓存管理」清理 |
+
+换库见 [切换数据库](switch_database.md)。在界面里调策略见 [从界面制定策略](use_strategy_workbench.md)。填聊天密钥见 [配置 AI Key](configure_ai_key.md)。

@@ -1,5 +1,5 @@
 """
-sys_stock_st_periods 表 Model
+sys_data_stock_st_periods 表 Model
 """
 from typing import Any, Dict, List, Optional, Sequence
 

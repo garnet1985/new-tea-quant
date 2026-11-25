@@ -3,6 +3,7 @@ from typing import Any, Dict, List
 import logging
 
 from core.modules.data_source.core.reserved_dependencies import RESERVED_DEPENDENCY_KEYS
+from core.modules.data_source.core.service.run_status import assert_weights_match_dependencies
 
 
 logger = logging.getLogger(__name__)
@@ -29,6 +30,9 @@ class HandlerMapping:
             if not data_source_info.get("handler"):
                 raise ValueError(f"mapping 中缺失或错误配置了 {data_source_key} 的 handler 属性.")
 
+        assert_weights_match_dependencies(self.data_sources)
+
+        for data_source_key, data_source_info in self.data_sources.items():
             if not data_source_info.get("is_enabled", True):
                 logger.info(f"mapping 中 {data_source_key} 配置了 is_enabled 为 false，跳过.")
                 continue

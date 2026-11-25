@@ -1,20 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import NtqIcon from 'views/ntqIcon';
-import {
-  Alert,
-  Box,
-  Button,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Paper,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Button, Dialog, Message, TextArea } from 'ui';
 import EditorFieldLabel from './editorFieldLabel';
+import './style.scss';
 
-/** 与 ``TextField`` multiline 输入一致，供只读 JSON / diff 视图复用核心设置编辑区观感 */
+/** 与 dict 编辑区一致，供 JSON / diff 视图复用 */
 export const DICT_PARSER_TEXT_FONT = {
   fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
   fontSize: 'var(--ntq-form-control-font-size, 14px)',
@@ -23,74 +12,50 @@ export const DICT_PARSER_TEXT_FONT = {
 
 const COMPACT_EDITOR_HEIGHT = 300;
 
-function getTextFieldSx({ fullscreen = false } = {}) {
-  return {
-    ...(fullscreen ? { height: '100%', display: 'flex', flexDirection: 'column' } : {}),
-    '& .MuiOutlinedInput-root': {
-      padding: '8px 12px',
-      alignItems: 'flex-start',
-      ...(fullscreen ? { flex: 1, height: '100%' } : {}),
-    },
-    '& .MuiInputBase-inputMultiline': {
-      height: fullscreen ? '100% !important' : `${COMPACT_EDITOR_HEIGHT}px !important`,
-      minHeight: fullscreen ? 'min(72vh, 720px) !important' : undefined,
-      overflow: 'auto !important',
-      padding: '0 !important',
-      boxSizing: 'border-box',
-      whiteSpace: 'pre',
-      tabSize: 2,
-      ...DICT_PARSER_TEXT_FONT,
-    },
-  };
-}
-
 function DictParserStatusAlerts({ parser }) {
   return (
-    <>
+    <div className="ntq-dict-parser-field__status">
       {parser.parseError ? (
-        <Alert severity="error" sx={{ mb: 1 }}>
-          <Typography variant="body2">{parser.parseError}</Typography>
-          {parser.lineHint ? (
-            <Typography variant="caption" component="div" sx={{ mt: 0.5 }}>
-              {parser.lineHint}
-            </Typography>
-          ) : null}
-          {parser.errorLine > 0 ? (
-            <Typography variant="caption" component="div" sx={{ mt: 0.5 }}>
-              定位到第 {parser.errorLine} 行，第 {parser.errorColumn} 列。
-            </Typography>
-          ) : null}
-        </Alert>
+        <Message status="error">
+          <div className="ntq-dict-parser-field__alert-body">
+            <p className="ntq-dict-parser-field__alert-text">{parser.parseError}</p>
+            {parser.lineHint ? (
+              <p className="ntq-dict-parser-field__alert-meta">{parser.lineHint}</p>
+            ) : null}
+            {parser.errorLine > 0 ? (
+              <p className="ntq-dict-parser-field__alert-meta">
+                定位到第 {parser.errorLine} 行，第 {parser.errorColumn} 列。
+              </p>
+            ) : null}
+          </div>
+        </Message>
       ) : (
-        <Alert severity="success" sx={{ mb: 1 }}>
+        <Message status="success">
           格式正确
-        </Alert>
+        </Message>
       )}
 
       {parser.parseError && Array.isArray(parser.errorContext) && parser.errorContext.length > 0 ? (
-        <Paper variant="outlined" sx={{ mb: 1, p: 1, backgroundColor: 'grey.50' }}>
-          <Typography variant="caption" color="text.secondary">
+        <div className="ntq-dict-parser-field__context">
+          <p className="ntq-dict-parser-field__context-label ntq-muted">
             错误上下文（已高亮）
-          </Typography>
-          <Box component="pre" sx={{ m: 0, mt: 0.5, fontSize: 12, overflowX: 'auto' }}>
+          </p>
+          <pre className="ntq-dict-parser-field__context-pre">
             {parser.errorContext.map((row) => (
-              <Box
+              <div
                 key={row.lineNo}
-                component="div"
-                sx={{
-                  px: 0.5,
-                  borderRadius: 0.5,
-                  backgroundColor: row.isError ? 'error.light' : 'transparent',
-                  color: row.isError ? 'error.contrastText' : 'text.primary',
-                }}
+                className={[
+                  'ntq-dict-parser-field__context-line',
+                  row.isError ? 'is-error' : '',
+                ].filter(Boolean).join(' ')}
               >
                 {String(row.lineNo).padStart(4, ' ')} | {row.text}
-              </Box>
+              </div>
             ))}
-          </Box>
-        </Paper>
+          </pre>
+        </div>
       ) : null}
-    </>
+    </div>
   );
 }
 
@@ -102,19 +67,47 @@ function DictParserTextarea({
   autoFocus = false,
 }) {
   return (
-    <TextField
-      multiline
-      fullWidth
+    <TextArea
+      labelPlacement="none"
+      maxWidth={false}
       autoFocus={autoFocus}
       inputRef={inputRef}
-      error={Boolean(parser.parseError)}
       value={parser.value}
       onChange={(e) => parser.onChange(e.target.value)}
       onBlur={parser.onBlur}
       onKeyUp={parser.onKeyUp}
       onPaste={parser.onPaste}
       placeholder={field.placeholder || '输入 settings.core（dict）'}
-      sx={getTextFieldSx({ fullscreen })}
+      className={[
+        'ntq-dict-parser-field__textarea',
+        fullscreen ? 'ntq-dict-parser-field__textarea--fullscreen' : 'ntq-dict-parser-field__textarea--compact',
+        parser.parseError ? 'is-error' : '',
+      ].filter(Boolean).join(' ')}
+      // 紧凑模式勿用大 minRows：MUI 按行高测算时会吃到固定 height，叠出上千 px
+      rows={fullscreen ? 24 : 4}
+      InputProps={{
+        sx: fullscreen
+          ? { flex: 1, height: '100%', alignItems: 'flex-start' }
+          : {
+            alignItems: 'flex-start',
+            height: COMPACT_EDITOR_HEIGHT,
+            maxHeight: COMPACT_EDITOR_HEIGHT,
+            overflow: 'hidden',
+          },
+      }}
+      inputProps={{
+        style: {
+          ...DICT_PARSER_TEXT_FONT,
+          whiteSpace: 'pre',
+          tabSize: 2,
+          height: '100%',
+          maxHeight: fullscreen ? undefined : '100%',
+          minHeight: fullscreen ? 'min(72vh, 720px)' : 0,
+          overflow: 'auto',
+          boxSizing: 'border-box',
+          resize: fullscreen ? undefined : 'none',
+        },
+      }}
     />
   );
 }
@@ -131,8 +124,7 @@ function DictParserToolbar({
 }) {
   const resetBtn = canReset ? (
     <Button
-      size="small"
-      variant="outlined"
+      variant="glass"
       onClick={parser.onResetToDefault}
       disabled={isAtDefault}
     >
@@ -142,18 +134,16 @@ function DictParserToolbar({
 
   const windowBtn = variant === 'fullscreen' ? (
     <Button
-      size="small"
-      variant="outlined"
-      startIcon={<NtqIcon name="delete" size={18} />}
+      variant="glass"
+      icon="delete"
       onClick={onCollapse}
     >
       回到侧边栏
     </Button>
   ) : (
     <Button
-      size="small"
-      variant="outlined"
-      startIcon={<NtqIcon name="add" size={18} />}
+      variant="glass"
+      icon="add"
       onClick={onExpand}
     >
       在大窗口编辑
@@ -161,19 +151,13 @@ function DictParserToolbar({
   );
 
   return (
-    <Stack spacing={1} sx={{ mb: 1 }}>
-      <EditorFieldLabel field={field} context={context} sx={{ mb: 0 }} />
-      <Stack
-        direction="row"
-        spacing={0.75}
-        alignItems="center"
-        useFlexGap
-        flexWrap="wrap"
-      >
+    <div className="ntq-dict-parser-field__toolbar">
+      <EditorFieldLabel field={field} context={context} noMargin />
+      <div className="ntq-dict-parser-field__actions">
         {windowBtn}
         {resetBtn}
-      </Stack>
-    </Stack>
+      </div>
+    </div>
   );
 }
 
@@ -193,9 +177,9 @@ function DictParserField({ field, context = {} }) {
 
   if (!parser) {
     return (
-      <Alert severity="warning">
+      <Message status="warning">
         Dict parser source not found: <strong>{sourceKey}</strong>
-      </Alert>
+      </Message>
     );
   }
 
@@ -213,7 +197,7 @@ function DictParserField({ field, context = {} }) {
   };
 
   return (
-    <Box className="ntq-dict-parser-field">
+    <div className="ntq-dict-parser-field">
       <DictParserToolbar {...toolbarProps} />
       <DictParserStatusAlerts parser={parser} />
       <DictParserTextarea
@@ -226,8 +210,7 @@ function DictParserField({ field, context = {} }) {
         fullScreen
         open={fullscreenOpen}
         onClose={() => setFullscreenOpen(false)}
-      >
-        <DialogTitle sx={{ py: 1.25 }}>
+        title={(
           <DictParserToolbar
             field={field}
             context={context}
@@ -237,29 +220,20 @@ function DictParserField({ field, context = {} }) {
             variant="fullscreen"
             onCollapse={() => setFullscreenOpen(false)}
           />
-        </DialogTitle>
-        <DialogContent
-          dividers
-          sx={{
-            display: 'flex',
-            flexDirection: 'column',
-            pt: 1.5,
-            pb: 2,
-          }}
-        >
-          <DictParserStatusAlerts parser={parser} />
-          <Box sx={{ flex: 1, minHeight: 'min(72vh, 720px)', display: 'flex' }}>
-            <DictParserTextarea
-              parser={parser}
-              field={field}
-              inputRef={parser.fullscreenInputRef}
-              fullscreen
-              autoFocus
-            />
-          </Box>
-        </DialogContent>
+        )}
+      >
+        <DictParserStatusAlerts parser={parser} />
+        <div className="ntq-dict-parser-field__fullscreen-body">
+          <DictParserTextarea
+            parser={parser}
+            field={field}
+            inputRef={parser.fullscreenInputRef}
+            fullscreen
+            autoFocus
+          />
+        </div>
       </Dialog>
-    </Box>
+    </div>
   );
 }
 

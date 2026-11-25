@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """
-从 sys_stock_list 按「上市状态 × 板块 × 交易所」分层抽样，生成固定样本名单文件。
+从 sys_data_stock_list 按「上市状态 × 板块 × 交易所」分层抽样，生成固定样本名单文件。
 
-默认 500 只、种子与 ``setup.core.scripts.init_data.config`` 对齐，便于与演示数据包一致。
+默认 500 只、种子与 ``setup.core.steps.import_data.export.config`` 对齐，便于与演示数据包一致。
 
 用法（仓库根目录）::
 
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 from core.modules.data_manager import DataManager
-from core.infra.setup.core.scripts.init_data.config import SAMPLE_RANDOM_SEED, TARGET_STOCK_COUNT
+from core.infra.setup.core.steps.import_data.export.config import SAMPLE_RANDOM_SEED, TARGET_STOCK_COUNT
 
 from .sample_stock_list import SampleStockList
 

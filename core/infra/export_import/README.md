@@ -1,31 +1,32 @@
 # Export / Import（`infra.export_import`）
 
-为 New Tea Quant（简称 **NTQ**）提供 userspace 制品**打包与安装**公用能力：目录收集、zip 归档、`manifest.json`、冲突预检与按策略落盘。对外门面类（Facade）为 `ExportImport`。词条见 [glossary.yaml](./glossary.yaml)。
+**模块：** `infra.export_import` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
+
+## 简介
+
+打包和安装。把策略包 / 扩展包打成 zip 导出去，或者从 zip 装进来。安装前可以选择冲突时拒绝、跳过已有、还是覆盖。
 
 ## 适用场景
 
-- 策略包 / 扩展包导出为 zip、再安装到另一环境的 userspace
-- 安装前按 `reject` / `skip_existing` / `overwrite` 做冲突预检
+- A 机器写好了一个策略，想打 zip 给 B 机器装上
+- 从别人那拿到一个 zip，装到自己的 userspace
 
 ## 模块依赖
 
-无硬性模块依赖（路径由调用方传入）。
+无硬依赖
 
 ## 设计初衷
 
-- **要解决的问题：** 把打包 / 落盘从具体业务编排中抽离，避免 strategy 等模块重复实现 zip 与冲突逻辑。
-- **明确不做：** 不解析业务依赖图（tag / adapter）；不负责导入后的 discovery / validate。
-
-## 常见问题
-
-**Q：该 import 什么？**  
-A：`from core.infra.export_import import ExportImport`；类型用 `ExportImport.types` 或 `contracts`。见 [API.md](./API.md)。
+- **要解决的问题：** 打包、冲突检查、落盘这一套逻辑不该让 Strategy 和 DataSource 各写一遍。
+- **明确不做：** 不解析业务依赖图（装完之后发现什么、校验什么，由各业务模块自己做）。
 
 ## 相关文档
 
-- [快速开始](./QUICKSTART.md)
+- [用户指南](./docs/USER_GUIDE.md)
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)
 - [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
-- [测试用例](./__test__/TEST_CASES.md)
+- [快速开始](./QUICKSTART.md)
+- [决策](./docs/DECISIONS.md)

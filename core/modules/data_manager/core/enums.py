@@ -4,6 +4,6 @@ from enum import Enum
 
 
 class BaseTableNames(Enum):
-    STOCK_KLINES = "sys_stock_klines"
-    ADJ_FACTOR_EVENTS = "sys_adj_factor_events"
-    STOCK_LIST = "sys_stock_list"
+    STOCK_KLINES = "sys_data_stock_klines"
+    ADJ_FACTOR_EVENTS = "sys_data_adj_factor_events"
+    STOCK_LIST = "sys_data_stock_list"

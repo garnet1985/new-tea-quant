@@ -1,6 +1,6 @@
 # 价格三层：qfq 信号 / hfq ROI / raw 成交
 
-**状态：** 口径已锁定（2026-09-09）。数据层已给三层价；enumerate 止盈止损 / `weighted_roi` 已切 hfq；price_factor 已聚合枚举 hfq ROI；portfolio 平仓已按 `股数 × 买入 raw × hfq ROI` 记账。  
+**状态：** 口径已锁定（2026-09-09）。数据层已给三层价；enumerate 止盈止损 / `weighted_roi` 已切 hfq；price_factor 已聚合机会盘点 hfq ROI；portfolio 平仓已按 `股数 × 买入 raw × hfq ROI` 记账。  
 **取代：** [CORPORATE_ACTION_CASH_ACCOUNTS.md](../../core/CORPORATE_ACTION_CASH_ACCOUNTS.md)（分红送转双账户 + Tushare `dividend` 不再做）。  
 **三层共用：** enumerate / price_factor / portfolio 同一套尺，禁止一层 qfq、一层 raw 冻股数。
 
@@ -34,7 +34,7 @@ ROI     = (卖出 hfq − 买入 hfq) / 买入 hfq
 
 **不接** Tushare `dividend`，不拆分红 / 送股 / 转增。
 
-表里**没有单独的 hfq 列**，也不需要再爬一种因子。`sys_adj_factor_events.factor` 就是 Tushare `adj_factor` 的绝对 F：一套因子，前复权除以最新 F 并加 C，后复权只乘 F。
+表里**没有单独的 hfq 列**，也不需要再爬一种因子。`sys_data_adj_factor_events.factor` 就是 Tushare `adj_factor` 的绝对 F：一套因子，前复权除以最新 F 并加 C，后复权只乘 F。
 
 当时不用 Tushare 的是 **qfq 行情**（和腾讯差一截平移），不是这根 F。Handler 用腾讯 qfq 锚 `C`，F 链仍来自 Tushare。ROI **不要**去拉 Tushare `pro_bar(adjust=hfq)`，也不要加 `C`。
 
@@ -86,17 +86,17 @@ qfq(t) = raw(t) × F(段)/F(最新) + C   # 信号；C 来自腾讯锚
 - 资金买卖：买入扣 `entry_price_raw × 股数`；平仓盈利 = `股数 × 买入 raw × hfq ROI`（费用另扣）
 - 资金日频盯市：`mark_px = entry_raw × (1 + (hfq_close − entry_hfq) / entry_hfq)`，不是 raw 收盘 × 冻结股数（10 送 10 会假腰斩）
 - 代码：`portfolio/data_class/event.py`、`trade.py`、`simulator.py`、`report_manager/daily_mtm.py`
-- 枚举 `_apply_exit` / 比例止盈止损 / 峰谷 / `weighted_roi` 用 hfq；产物带 `*_hfq`
-- price_factor 无顺延吃枚举 `weighted_roi`；跌停顺延用 bar `hfq` 对 `entry_price_hfq` 重算；`roi × enter_hfq` 记均利（不是资金层现金）
+- 机会盘点 `_apply_exit` / 比例止盈止损 / 峰谷 / `weighted_roi` 用 hfq；产物带 `*_hfq`
+- price_factor 无顺延吃机会盘点 `weighted_roi`；跌停顺延用 bar `hfq` 对 `entry_price_hfq` 重算；`roi × enter_hfq` 记均利（不是资金层现金）
 
-算术只许 [`HfqRoi`](../../core/engines/shared/services/hfq_roi/hfq_roi.py)：`ratio` / `is_target_hit` / `cash_profit` / `mark_value`。枚举成交与止盈止损、price_factor 顺延、portfolio 盯市与 `Trade`、决策者 holdings 都调它。记录的百分比用 `ratio`；是否触达档位用 `is_target_hit`（`ratio>0` 向上、`ratio<=0` 向下，价格比较，避免 `8/10−1` 浮点漏档）。手续费另扣，不进 ROI 分母。禁止 `(qfq 收盘 − raw 买价) / raw 买价`。
+算术只许 [`HfqRoi`](../../core/engines/shared/services/hfq_roi/hfq_roi.py)：`ratio` / `is_target_hit` / `cash_profit` / `mark_value`。机会盘点成交与止盈止损、price_factor 顺延、portfolio 盯市与 `Trade`、决策者 holdings 都调它。记录的百分比用 `ratio`；是否触达档位用 `is_target_hit`（`ratio>0` 向上、`ratio<=0` 向下，价格比较，避免 `8/10−1` 浮点漏档）。手续费另扣，不进 ROI 分母。禁止 `(qfq 收盘 − raw 买价) / raw 买价`。
 
 ---
 
 ## 5. 落地时三层对齐
 
 1. **enumerate：** 成交股数用 raw；止盈止损与 `weighted_roi` 用 hfq。胜负看 hfq ROI 符号。
-2. **price_factor：** 继续聚合枚举的 `weighted_roi`，自己不要用 qfq 再算一遍收益。
+2. **price_factor：** 继续聚合机会盘点的 `weighted_roi`，自己不要用 qfq 再算一遍收益。
 3. **portfolio：** 买入 `entry_price_raw` × 买入股数扣现金；平仓盈利 = 买入股数 × 买入 raw × 该笔 hfq ROI（费用另扣）。日频盯市用同一把尺反推同股等价市值。不要第二种 ROI。
 
 缺合法买入 raw 的笔不进资金层。hfq 分母须 `> 0`（后复权应满足；不满足则该笔不算收益）。

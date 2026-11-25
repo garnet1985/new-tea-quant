@@ -1,6 +1,8 @@
 # Machine Capacity — 架构
 
-**版本：** `0.2.1`
+**模块：** `infra.machine_capacity` · **版本：** `0.2.1`
+
+**最低支持核心版本：** `>=0.5.0`
 
 门面 `MachineInfo` + 契约 `MachineCapacity`。本模块体量小，实现内联在门面文件中。
 
@@ -39,9 +41,19 @@ core/infra/machine_capacity/
            └── types → contracts.MachineCapacity
 ```
 
+```mermaid
+flowchart LR
+  Caller --> MachineInfo
+  MachineInfo --> Capacity[get_capacity / resolve_*]
+  MachineInfo --> Mem[virtual_memory_mb]
+  MachineInfo --> Types[contracts]
+```
+
 ---
 
 ## 相关文档
 
-- [DESIGN.md](./DESIGN.md)
+- [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
+- [术语表](../glossary.yaml)
+- [决策](./DECISIONS.md)

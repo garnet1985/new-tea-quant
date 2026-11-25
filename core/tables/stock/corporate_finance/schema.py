@@ -6,7 +6,8 @@ data_corporate_finance 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_corporate_finance",
-    "name": "sys_corporate_finance",
+    "kind": "data",
+    "name": "sys_data_corporate_finance",
     "primaryKey": ["id", "quarter"],
     "fields": [
         {"name": "id", "type": "varchar", "length": 16, "isRequired": True, "nullable": False, "description": "股票代码ts_code"},

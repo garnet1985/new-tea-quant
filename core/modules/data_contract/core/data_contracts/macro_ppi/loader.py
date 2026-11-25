@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class MacroPpiLoader(BaseDataContractLoader):
-    """加载全局 sys_ppi（月度序列）。"""
+    """加载全局 sys_data_ppi（月度序列）。"""
 
     def load(self, params: Mapping[str, Any], context: Optional[Mapping[str, Any]] = None) -> Any:
         dm = DataManager()

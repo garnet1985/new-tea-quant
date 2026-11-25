@@ -165,7 +165,11 @@ class StrategyDataResolver:
             return {}
         if not isinstance(raw, dict):
             raise ValueError("indicators 必须为 dict")
-        return dict(raw)
+        from core.modules.indicator import field_naming
+
+        out = dict(raw)
+        field_naming.validate_indicators_config(out)
+        return out
 
     def _normalize_declaration(
         self,

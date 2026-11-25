@@ -1,4 +1,4 @@
-"""SampleListResolver：sampling → to_sample_list → sorted unique。"""
+"""SampleListResolver：filter → sampling → to_sample_list → sorted unique。"""
 from __future__ import annotations
 
 from types import SimpleNamespace
@@ -42,7 +42,7 @@ class _FilterHooks(StrategyHooks):
         _ = ctx
         return [sid for sid in stock_list if sid.endswith(".SZ")] + ["ghost.SH"]
 
-    def has_opportunity(self, ctx: StrategyContext) -> bool:
+    def is_opportunity(self, ctx: StrategyContext, records) -> bool:
         _ = ctx
         return False
 
@@ -133,3 +133,64 @@ def test_resolve_sampling_then_hook(monkeypatch: pytest.MonkeyPatch) -> None:
         universe=[f"{i:06d}.SZ" for i in range(1, 6)] + ["600000.SH"],
     )
     assert out == ["000001.SZ", "000003.SZ", "000005.SZ"]
+
+
+def test_resolve_filter_before_sampling(monkeypatch: pytest.MonkeyPatch) -> None:
+    calls: list[list[str]] = []
+
+    class _ListApi:
+        def filter_ids(self, *, include=None, exclude=None, universe=None, order_by="id"):
+            _ = (include, exclude, order_by)
+            # 模拟：只保留 .SZ
+            out = [sid for sid in (universe or []) if str(sid).endswith(".SZ")]
+            calls.append(list(out))
+            return out
+
+    class _Stock:
+        list = _ListApi()
+
+    class _DM:
+        stock = _Stock()
+
+    monkeypatch.setattr(
+        "core.modules.strategy.core.services.entity_loader.sample_list_resolver.DataManager",
+        lambda: _DM(),
+    )
+    monkeypatch.setattr(
+        SampleListResolver,
+        "_apply_hook",
+        classmethod(lambda cls, si, s, sl: list(sl)),
+    )
+    settings = _settings(
+        {
+            "data": {
+                "stock_list_filter": {
+                    "include": {"list_status": ["L"]},
+                }
+            },
+            "sampling": {
+                "use_sampling": True,
+                "strategy": "uniform",
+                "sampling_amount": 2,
+            },
+        }
+    )
+    out = SampleListResolver.resolve(
+        _info(),
+        settings,
+        universe=["000001.SZ", "600000.SH", "000002.SZ", "000003.SZ", "600001.SH"],
+    )
+    assert calls and calls[0] == ["000001.SZ", "000002.SZ", "000003.SZ"]
+    # filter 后 3 只 .SZ，uniform amount=2 → step=1 → 000001 / 000002
+    assert out == ["000001.SZ", "000002.SZ"]
+
+
+def test_data_settings_rejects_unknown_filter_dim() -> None:
+    from core.modules.strategy.core.engines.shared.services.strategy_settings.data_settings import (
+        DataSettings,
+    )
+
+    with pytest.raises(ValueError, match="未知维度"):
+        DataSettings.normalize_stock_list_filter(
+            {"include": {"sector": ["主板"]}}
+        )

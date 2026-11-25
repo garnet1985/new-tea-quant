@@ -1,18 +1,13 @@
 # Data Manager 架构文档
 
-**模块：** `modules.data_manager` · **版本：** `0.2.2`
+**模块：** `modules.data_manager` · **版本：** `0.2.3`
 
----
+**最低支持核心版本：** `>=0.5.0`
 
-## 模块介绍
+## 模块结构图
 
 提供 **Facade + 领域服务**：`DataManager` 管理单例、库初始化与表注册；领域逻辑在 **`core/data_services/`**，经属性链访问（`data_mgr.stock.kline.load`）。
-
 公开 Facade：**`DataManager`**。
-
----
-
-## 分层结构
 
 ```text
 modules.data_manager/
@@ -36,7 +31,7 @@ modules.data_manager/
 
 ---
 
-## 流程
+## 数据流（若有）
 
 ```mermaid
 flowchart TB
@@ -53,7 +48,7 @@ flowchart TB
 
 ---
 
-## 边界
+## 职责与边界（结论）
 
 **In scope：** 已落地表读写、领域查询、Model 实例化、开发样本股票宇宙  
 **Out of scope：** 抓取（`data_source`）；`DataKey` 签发（`data_contract`）
@@ -62,6 +57,7 @@ flowchart TB
 
 ## 相关文档
 
-- [DESIGN.md](./DESIGN.md)
+- [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
+- [决策](./DECISIONS.md)

@@ -52,9 +52,23 @@ class FileNamespace:
         return FileUtils.load_yaml(file_path)
 
     @staticmethod
+    def parse_yaml_text(text: str) -> Optional[Any]:
+        """解析 YAML 文本"""
+        return FileUtils.parse_yaml_text(text)
+
+    @staticmethod
     def load_text(file_path: Path, *, encoding: str = 'utf-8') -> Optional[str]:
         """加载文本文件"""
         return FileUtils.load_text(file_path, encoding=encoding)
+
+    @staticmethod
+    def load_python_namespace(
+        file_path: Path,
+        *,
+        module_name: str = "__main__",
+    ) -> Optional[Dict[str, Any]]:
+        """exec 受信 Python 文件并返回命名空间（如 userspace tool.py）。"""
+        return FileUtils.load_python_namespace(file_path, module_name=module_name)
 
     @staticmethod
     def load_python_config(file_path: Path, var_name: str = "settings") -> Optional[Dict[str, Any]]:

@@ -19,7 +19,6 @@ from typing import Any, Dict, List, Optional, Tuple
 import logging
 
 from core.modules.data_source.core.enums import TermType, UpdateMode
-from core.infra.project_context import ProjectContext
 
 from core.modules.data_source.core.service.renew.renew_common_helper import RenewCommonHelper
 from core.infra.utils import Utils
@@ -51,11 +50,13 @@ def normalize_date_value(date_value: Any) -> Optional[str]:
 
 def compute_last_update_map(context: Dict[str, Any]) -> Dict[str, Optional[str]]:
     """
-    计算所有实体的“原始”最近更新时间（latest_date）映射（不考虑 renew_mode）。
+    各实体已经更新到的数据日期（不考虑 renew_mode）。
 
-    - per-entity 场景：一次性查询整张表，返回 {entity_id: latest_date_str}；
-    - 非 per-entity 场景：查询整表最新一条记录，返回 {"_global": latest_date_str}；
-    - 如果表为空或查询失败，对应值为 None 或空 dict。
+    优先读 sys_meta_data_renew_progress。这张表还没补记好时，才退回扫业务表：
+    - 按实体：{entity_id: 数据日期}。
+    - 有周期：{entity_id::term: 数据日期}，每个已有周期单独一条。
+    - 整表：{"_global": 数据日期}。
+    - 还没有记录时返回空 dict，调用方按“还没更新过”处理。
     """
     data_manager = context.get("data_manager")
     config = context.get("config")
@@ -72,6 +73,12 @@ def compute_last_update_map(context: Dict[str, Any]) -> Dict[str, Optional[str]]
         if config.get_renew_mode() != UpdateMode.REFRESH:
             logger.warning("table_name 或 date_field 未配置，无法计算 last_update 映射")
         return {}
+
+    from core.modules.data_source.core.service.renew_progress import last_updates_for
+
+    recorded = last_updates_for(data_manager, config)
+    if recorded is not None:
+        return recorded
 
     last_update_map: Dict[str, Optional[str]] = {}
 
@@ -163,8 +170,9 @@ def calc_last_update_based_on_renew_mode(
             data_manager, date_format, context
         )
     except Exception:  # pragma: no cover - 防御性兜底
-        # 极端情况下回退到全局配置
-        default_start_date = ProjectContext.config.get_default_start_date()
+        from core.infra.project_context import ProjectContext
+
+        default_start_date = str(ProjectContext.config.get_default_start_date() or "").strip()
 
     # REFRESH：全量刷新，直接从默认起点开始
     if renew_mode == UpdateMode.REFRESH:
@@ -348,7 +356,7 @@ def compute_entity_date_ranges(
                         f"{i('clipboard')} [renew_if_over_days] last_update_map 为空，已单独查询 gate_field={gate_field}，"
                         f"得到 {len(renew_gate_map)} 条用于过滤"
                     )
-                    # 注入 context 供 handler 使用（如 on_after_single_api_job_bundle_complete 中的 last_check）
+                    # 注入 context，供按实体判断上次更新时间。
                     context["_last_update_map"] = renew_gate_map
 
     def should_trigger(last_update: Optional[str], composite_key: Optional[str] = None) -> bool:

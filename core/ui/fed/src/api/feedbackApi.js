@@ -15,7 +15,7 @@ export async function fetchFeedbackSettings() {
     prompts_disabled: Boolean(m.prompts_disabled),
     decided_at: String(m.decided_at || '').trim(),
     source: String(m.source || '').trim(),
-    contact_url: String(m.contact_url || 'https://new-tea.cn/zh-hans/contact?from=ntq_app').trim(),
+    contact_url: String(m.contact_url || '').trim(),
   };
 }
 

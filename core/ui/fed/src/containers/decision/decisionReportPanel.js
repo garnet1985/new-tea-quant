@@ -1,18 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Alert,
-  Box,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  MenuItem,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
 import { fetchDecisionReport } from '../../api/decisionApi';
-import InlineLoadingState from '../../views/inlineLoadingState';
-import NtqButton from 'views/ntqButton';
+import { Loading } from 'ui';
+import { Button, Dialog, Message, Select } from 'ui';
 import { isHttpStatusError } from 'service/request';
 import {
   COMPARE_EMPTY_OTHER_VERSION_ZH,
@@ -21,6 +10,7 @@ import {
   normalizeCapitalMetricsFromSummary,
   slotFromResultReport,
 } from 'containers/strategyReport';
+import './decisionReportPanel.scss';
 
 const PORTFOLIO_COMPARE_ID = 'portfolio';
 
@@ -66,9 +56,9 @@ export default function DecisionReportPanel({
   );
 
   const compareOptions = useMemo(() => {
-    const rows = [{ id: PORTFOLIO_COMPARE_ID, label: '投资模拟' }];
+    const rows = [{ value: PORTFOLIO_COMPARE_ID, label: '投资模拟' }];
     completedOthers.forEach((row) => {
-      rows.push({ id: `session:${row.dmId}`, label: `模拟回测 #${row.dmId}` });
+      rows.push({ value: `session:${row.dmId}`, label: `模拟回测 #${row.dmId}` });
     });
     return rows;
   }, [completedOthers]);
@@ -145,32 +135,32 @@ export default function DecisionReportPanel({
 
   const current = metricsFromSlot(slot);
   const compared = metricsFromSlot(compareSlot);
-  const compareLabel = compareOptions.find((row) => row.id === compareId)?.label || '对比';
+  const compareLabel = compareOptions.find((row) => row.value === compareId)?.label || '对比';
   const canCompare = Boolean(portfolioSlot) || completedOthers.length > 0;
 
   if (loading) {
-    return <InlineLoadingState block message="正在加载决策报告…" />;
+    return <Loading variant="inline" message="正在加载决策报告…" className="is-block" />;
   }
   if (error) {
-    return <Alert severity="error" variant="outlined">{error}</Alert>;
+    return <Message status="error">{error}</Message>;
   }
 
   return (
-    <Box className="ntq-design-step-report ntq-design-decision-report">
-      <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 1.5 }}>
-        <Typography variant="subtitle2" fontWeight={600}>
+    <div className="ntq-design-step-report ntq-design-decision-report">
+      <div className="ntq-design-decision-report__head">
+        <h3 className="ntq-design-decision-report__title">
           决策模拟回测报告 · #{sessionId}
-        </Typography>
+        </h3>
         {canCompare ? (
-          <NtqButton
+          <Button
             type="button"
             variant="attention"
             onClick={() => setCompareOpen(true)}
           >
             对比结果
-          </NtqButton>
+          </Button>
         ) : null}
-      </Stack>
+      </div>
       <CapitalAllocationReport
         title="决策模拟报告"
         hideTitle
@@ -178,62 +168,62 @@ export default function DecisionReportPanel({
         stockRows={current.stockRows}
       />
 
-      <Dialog open={compareOpen} onClose={() => setCompareOpen(false)} maxWidth="lg" fullWidth>
-        <DialogTitle>
-          <Stack direction="row" spacing={2} alignItems="center" justifyContent="space-between">
-            <Typography variant="h6" component="span">对比结果</Typography>
-            <TextField
-              select
-              size="small"
+      <Dialog
+        open={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        size="lg"
+        title={(
+          <span className="ntq-design-decision-report__compare-title">
+            <span>对比结果</span>
+            <Select
               label="对比对象"
+              labelPlacement="none"
+              maxWidth={false}
+              className="ntq-design-decision-report__compare-select"
               value={compareId}
-              onChange={(event) => setCompareId(event.target.value)}
-              sx={{ minWidth: 180 }}
-            >
-              {compareOptions.map((row) => (
-                <MenuItem key={row.id} value={row.id}>{row.label}</MenuItem>
-              ))}
-            </TextField>
-          </Stack>
-        </DialogTitle>
-        <DialogContent dividers>
-          <Box className="ntq-report-compare__grid">
-            <Box>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                当前模拟回测（#{sessionId}）
-              </Typography>
+              options={compareOptions}
+              onChange={(e) => setCompareId(e.target.value)}
+              aria-label="对比对象"
+            />
+          </span>
+        )}
+      >
+        <div className="ntq-report-compare__grid">
+          <div>
+            <h4 className="ntq-design-decision-report__col-title">
+              当前模拟回测（#{sessionId}）
+            </h4>
+            <CapitalAllocationReport
+              hideTitle
+              metrics={current.capitalMetrics}
+              stockRows={current.stockRows}
+            />
+          </div>
+          <div>
+            <h4 className="ntq-design-decision-report__col-title">
+              {compareLabel}
+            </h4>
+            {compareBusy ? (
+              <Loading variant="inline" message="正在加载对比报告…" className="is-block" />
+            ) : null}
+            {compareError ? (
+              <p className="ntq-muted">{compareError}</p>
+            ) : null}
+            {!compareBusy && !compareError && compared.capitalMetrics ? (
               <CapitalAllocationReport
                 hideTitle
-                metrics={current.capitalMetrics}
-                stockRows={current.stockRows}
+                metrics={compared.capitalMetrics}
+                stockRows={compared.stockRows}
               />
-            </Box>
-            <Box>
-              <Typography variant="subtitle2" fontWeight={600} sx={{ mb: 1 }}>
-                {compareLabel}
-              </Typography>
-              {compareBusy ? (
-                <InlineLoadingState block message="正在加载对比报告…" />
-              ) : null}
-              {compareError ? (
-                <Typography variant="body2" color="text.secondary">{compareError}</Typography>
-              ) : null}
-              {!compareBusy && !compareError && compared.capitalMetrics ? (
-                <CapitalAllocationReport
-                  hideTitle
-                  metrics={compared.capitalMetrics}
-                  stockRows={compared.stockRows}
-                />
-              ) : null}
-              {!compareBusy && !compareError && !compared.capitalMetrics && compareId === PORTFOLIO_COMPARE_ID ? (
-                <Typography variant="body2" color="text.secondary">
-                  {COMPARE_EMPTY_OTHER_VERSION_ZH}
-                </Typography>
-              ) : null}
-            </Box>
-          </Box>
-        </DialogContent>
+            ) : null}
+            {!compareBusy && !compareError && !compared.capitalMetrics && compareId === PORTFOLIO_COMPARE_ID ? (
+              <p className="ntq-muted">
+                {COMPARE_EMPTY_OTHER_VERSION_ZH}
+              </p>
+            ) : null}
+          </div>
+        </div>
       </Dialog>
-    </Box>
+    </div>
   );
 }

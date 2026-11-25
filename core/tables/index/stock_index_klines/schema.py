@@ -6,7 +6,8 @@ index_klines 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "index_stock_index_klines",
-    "name": "sys_index_klines",
+    "kind": "data",
+    "name": "sys_data_index_klines",
     "primaryKey": ["id", "term", "date"],
     "fields": [
         {"name": "id", "type": "varchar", "length": 16, "isRequired": True, "nullable": False, "description": "股指代码"},
@@ -23,8 +24,6 @@ schema = {
         {"name": "amount", "type": "float", "isRequired": False, "nullable": True},
     ],
     "indexes": [
-        {"name": "idx_id_term_date", "fields": ["id", "term", "date"], "unique": True},
         {"name": "idx_id_date", "fields": ["id", "date"]},
-        {"name": "idx_id_term", "fields": ["id", "term"]},
     ],
 }

@@ -1,6 +1,7 @@
 # Project Context API 文档
 
-**版本：** `0.2.0`  
+**模块：** `infra.project_context` · **版本：** `0.2.1`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -49,13 +50,15 @@
 
 `ProjectContext.path.get_core_root() -> Path`  
 `ProjectContext.path.get_userspace_root() -> Path`  
+`ProjectContext.path.bind_userspace_package(root: str | Path | None = None) -> Path`  
 `ProjectContext.path.resolve_userspace_target(raw: str | Path | None = None) -> Path`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.2.0`（`resolve_userspace_target`：`0.6.x`）
+- **引入版本：** `0.2.0`（`resolve_userspace_target`：`0.6.x`；`bind_userspace_package`：`0.6.x`）
 - **描述：**
-  - `get_userspace_root`：运行时 SOT。优先级：`NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`。已配置路径即使目录尚不存在也直接返回，**不**静默回落。
+  - `get_userspace_root`：运行时 SOT。优先级：`NEW_TEA_QUANT_USERSPACE_ROOT` → `NTQ_USERSPACE_ROOT` → `{project_root}/.ntq/userspace-path.json` → `{project_root}/userspace`。已配置路径即使目录尚不存在也直接返回，**不**静默回落。解析后会 `bind_userspace_package`，保证 `import userspace…` 落到该根（外置路径不再误用仓库内 `userspace/`）。
+  - `bind_userspace_package`：把 `sys.modules["userspace"]` 的 `__path__` 绑到当前或指定根；路径变更后 `clear_userspace_cache` 会丢掉已缓存的 `userspace.*`。
   - `resolve_userspace_target`：仅安装 / BFF precheck。规范化为绝对路径并校验可写；`raw` 为空时沿用已有 json，否则默认 `<repo>/userspace`；失败抛 `ValueError` / `PermissionError`。
 
 #### coerce_strategy_folder
@@ -76,15 +79,29 @@
 - **引入版本：** `0.5.0`
 - **描述：** `userspace/system/backup/data/`
 
-#### get_strategies_root / get_tags_root
+#### get_packages_root / get_data_package_directory / get_install_demo_package_directory
 
-`ProjectContext.path.get_strategies_root() -> Path`  
-`ProjectContext.path.get_tags_root() -> Path`
+`ProjectContext.path.get_packages_root() -> Path`  
+`ProjectContext.path.get_data_package_directory(kind="demo") -> Path`  
+`ProjectContext.path.get_install_demo_package_directory() -> Path`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
-- **描述：** `userspace/strategies/`；`userspace/extensions/tags/`
+- **引入版本：** `0.2.1`（分类型目录为后续增补）
+- **描述：** `userspace/.ntq/packages/`；`packages/{demo|member|full}/`；`get_install_demo_package_directory` 等同 `get_data_package_directory("demo")`（`devcli.py ex` 导出与安装下载共用）
+
+#### get_strategies_root / get_tags_root / get_series_relation_root
+
+`ProjectContext.path.get_strategies_root() -> Path`  
+`ProjectContext.path.get_tags_root() -> Path`  
+`ProjectContext.path.get_series_relation_root() -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.3.0`（series_relation 路径为后续增补）
+- **描述：** `userspace/strategies/`；`userspace/extensions/tags/`；`userspace/extensions/series_relation/`
+
+另有：`get_series_relation_directory` / `get_series_relation_settings_path` / `get_series_relation_results_directory`。
 
 #### get_strategy_directory / get_tag_directory
 
@@ -106,6 +123,14 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **描述：** 策略仿真与扫描结果目录（PathManager 规范命名）
+
+#### get_user_prefs_root
+
+`ProjectContext.path.get_user_prefs_root() -> Path`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **描述：** `userspace/system/prefs/` — 用户偏好与一次性状态（trace 同意、反馈开关、UI helper 关闭账本）。与 `get_user_config_root()`（default_config 合并）分离；不进 `.ntq/`（避免 `cgc` 清掉）。
 
 #### 其他 path 辅助
 
@@ -149,12 +174,12 @@ userspace = ProjectContext.path.get_userspace_root()
 - **引入版本：** `0.2.0`
 - **描述：** 加载合并后的 `data.json`
 
-#### get_default_start_date / get_as_of_latest_completed_trading_date / get_use_sample_stock_list / get_default_market_profile_key / get_decimal_places / get_adj_factor_event_decimal_places / get_database_type / get_simulation_results_max_stale_envs / get_workbench_db_max_versions / get_scan_results_max_versions
+#### get_default_start_date / get_assumed_latest_completed_trading_date / get_use_sample_stock_list / get_default_market_profile_key / get_decimal_places / get_adj_factor_event_decimal_places / get_database_type / get_simulation_results_max_stale_envs / get_workbench_db_max_versions / get_scan_results_max_versions
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.1`（as_of / sample）；`0.2.0`（start_date）；`0.5.0`（decimal / database_type 访问器）；`0.5.0`（retention 访问器，不 bump）
-- **描述：** `data.json` 与 database 常用字段访问器；必填键缺省/非法值报错（`as_of` / `use_sample_stock_list` 允许 null）。`simulation_results_max_stale_envs` 为过时 `env_fp` 组保留上限；`scan_results_max_versions` 为 scan 日期目录 keep-N。`workbench_db_max_versions` 为遗留键（工作台 DB 快照已退役，runtime 不再用它做清理）。
+- **引入版本：** `0.3.1`（assumed / sample）；`0.2.0`（start_date）；`0.5.0`（decimal / database_type 访问器）；`0.5.0`（retention 访问器，不 bump）
+- **描述：** `data.json` 与 database 常用字段访问器；必填键缺省/非法值报错（`assumed_latest_completed_trading_date` / `use_sample_stock_list` 允许 null）。`simulation_results_max_stale_envs` 为过时 `env_fp` 组保留上限；`scan_results_max_versions` 为 scan 日期目录 keep-N。`workbench_db_max_versions` 为遗留键（工作台 DB 快照已退役，runtime 不再用它做清理）。详见 `docs/DATA_JSON.md`。
 
 #### load_benchmark_stock_index_list
 

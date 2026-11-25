@@ -21,9 +21,11 @@
   - CorporateFinanceService: 企业财务数据服务（StockService 的子服务）
 """
 from core.infra.cmd_layout import i
-from typing import Dict, Any, Optional, Type
+from typing import Any, Dict, List, Optional, Type
 import logging
+import sys
 import threading
+import types
 import importlib
 import importlib.util
 import inspect
@@ -217,7 +219,7 @@ class DataManager:
                     self._data_service.index.sync_list_from_config()
                 except Exception as e:
                     logger.warning(
-                        "sys_index_list 配置同步失败（可稍后由 renew 重试）: %s", e
+                        "sys_data_index_list 配置同步失败（可稍后由 renew 重试）: %s", e
                     )
 
                 self._initialized = True
@@ -241,7 +243,7 @@ class DataManager:
         
         Args:
             table_folder_path: 表文件夹路径（core/tables/xxx 或 userspace/extensions/tables/xxx）
-            from_core: 若为 True 表示来自 core/tables，则 schema["name"] 须以 sys_ 开头，否则跳过
+            from_core: 若为 True 表示来自 core/tables，则 schema["name"] 须以 sys_ 开头，否则跳过。userspace 表须为 cust_{kind}_主题。
         
         Returns:
             Model 类（继承自 DbBaseModel），若校验不通过或加载失败返回 None
@@ -297,15 +299,17 @@ class DataManager:
                 return None
             
             try:
-                spec = importlib.util.spec_from_file_location("table_model", model_file_path)
-                if spec is None or spec.loader is None:
+                model_module = self._load_table_model_module(
+                    table_folder=table_folder,
+                    model_file_path=str(model_file_path),
+                    table_name=str(table_name),
+                )
+                if model_module is None:
                     logger.error(f"{i('error')} 无法加载模块: {model_file_path}")
                     return None
-                model_module = importlib.util.module_from_spec(spec)
-                spec.loader.exec_module(model_module)
-                
+
                 model_class = None
-                for name, obj in inspect.getmembers(model_module):
+                for _, obj in inspect.getmembers(model_module):
                     if (inspect.isclass(obj) and issubclass(obj, DbBaseModel) and obj != DbBaseModel):
                         model_class = obj
                         break
@@ -328,18 +332,69 @@ class DataManager:
         except Exception as e:
             logger.error(f"{i('error')} 注册 Table 失败: {table_folder_path}, error={e}")
             return None
+
+    @staticmethod
+    def _load_table_model_module(
+        *,
+        table_folder: Path,
+        model_file_path: str,
+        table_name: str,
+    ):
+        """按表目录加载 model.py，支持 ``from .schema import …``。
+
+        ``spec_from_file_location`` 默认无 package，相对导入会报
+        ``attempted relative import with no known parent package``。
+        """
+        safe = "".join(ch if ch.isalnum() else "_" for ch in str(table_name or "table"))
+        pkg = f"_ntq_table_{safe}"
+        folder = Path(table_folder)
+        pkg_mod = types.ModuleType(pkg)
+        pkg_mod.__path__ = [str(folder)]
+        sys.modules[pkg] = pkg_mod
+
+        schema_py = folder / "schema.py"
+        if schema_py.is_file():
+            schema_name = f"{pkg}.schema"
+            schema_spec = importlib.util.spec_from_file_location(schema_name, str(schema_py))
+            if schema_spec is not None and schema_spec.loader is not None:
+                schema_mod = importlib.util.module_from_spec(schema_spec)
+                schema_mod.__package__ = pkg
+                sys.modules[schema_name] = schema_mod
+                schema_spec.loader.exec_module(schema_mod)
+
+        model_name = f"{pkg}.model"
+        model_spec = importlib.util.spec_from_file_location(model_name, model_file_path)
+        if model_spec is None or model_spec.loader is None:
+            return None
+        model_mod = importlib.util.module_from_spec(model_spec)
+        model_mod.__package__ = pkg
+        sys.modules[model_name] = model_mod
+        model_spec.loader.exec_module(model_mod)
+        return model_mod
     
     def _discover_tables(self):
         """
         配合 PathManager 递归发现 core/tables 与 userspace/extensions/tables 下的表并缓存。
         不依赖目录层级：递归查找所有 schema.py，以其所在目录为表目录并注册。
         - core/tables：仅注册 schema["name"] 以 sys_ 开头的表，否则跳过。
-        - userspace/extensions/tables：表名无限制，全部注册。
+        - userspace/extensions/tables：表名须为 cust_{kind}_主题，kind 见 schema。
         仅在初始化时调用一次，结果缓存在 _table_cache 中。
         """
         def _dirs_with_schema(root: Path) -> set:
-            """递归收集包含 schema.py 的目录。"""
-            return {p.parent for p in root.rglob("schema.py") if p.is_file()}
+            """递归收集包含 schema.py 的目录；跳过路径段以 ``_`` 开头的目录（如 ``_template``）。"""
+            found: set = set()
+            for schema_py in root.rglob("schema.py"):
+                if not schema_py.is_file():
+                    continue
+                folder = schema_py.parent
+                try:
+                    rel = folder.relative_to(root)
+                except ValueError:
+                    continue
+                if any(part.startswith("_") for part in rel.parts):
+                    continue
+                found.add(folder)
+            return found
 
         try:
             # 1. core/tables（仅接受 sys_ 前缀）
@@ -348,7 +403,7 @@ class DataManager:
                 for table_folder in sorted(_dirs_with_schema(core_tables_dir)):
                     self.register_table(str(table_folder), from_core=True)
 
-            # 2. userspace/extensions/tables（表名无限制）
+            # 2. userspace/extensions/tables（cust_{kind}_主题）
             userspace_tables_dir = ProjectContext.path.get_extensions_tables_directory()
             if userspace_tables_dir.exists():
                 for table_folder in sorted(_dirs_with_schema(userspace_tables_dir)):
@@ -364,14 +419,121 @@ class DataManager:
     # Table 访问（基础表 + 自定义表）
     # ------------------------------------------------------------------
 
+    def list_tables(self) -> List[str]:
+        """已发现并注册的逻辑表名（排序后）。
+
+        供 CLI ``list tables`` 等 catalog 使用；不含未注册的 orphan 物理表。
+        """
+        return sorted(self._table_cache.keys())
+
+    # ------------------------------------------------------------------
+    # Userspace 自定义表用例（脚手架 / 校验 / 物理表；实现在 user_tables）
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    def scaffold_user_table(
+        *,
+        key: str,
+        kind: str = "data",
+        table_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """在 ``userspace/extensions/tables`` 从模板新建 cust_* 表骨架。拒写 core/tables。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.scaffold(key=key, kind=kind, table_name=table_name)
+
+    @staticmethod
+    def write_user_table_files(
+        *,
+        key: str,
+        schema_py: str = "",
+        model_py: str = "",
+    ) -> Dict[str, Any]:
+        """覆盖已有 userspace 表的 schema.py / model.py（至少一份）。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.write_files(
+            key=key, schema_py=schema_py, model_py=model_py
+        )
+
+    def validate_user_table(self, *, key: str) -> Dict[str, Any]:
+        """校验 userspace 表并 ``register_table``；不建物理表。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.validate(self, key=key)
+
+    def ensure_user_table(self, *, key: str) -> Dict[str, Any]:
+        """校验通过后为 cust_* 调用 Model.create_table()。sys_* 拒绝。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.ensure_physical(self, key=key)
+
+    def describe_table(self, *, table_name: str) -> Dict[str, Any]:
+        """只读表 schema 摘要（sys_/cust_ 均可读）。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.describe(self, table_name=table_name)
+
+    def list_tables_by_owner(self, *, owner: str = "all") -> Dict[str, Any]:
+        """按 owner 过滤 ``list_tables``（all / sys / cust）。"""
+        from core.modules.data_manager.core.user_tables import UserTableOps
+
+        return UserTableOps.list_names(self, owner=owner)
+
+    def export_adj_factor_events_csv(
+        self,
+        *,
+        base_date: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        file_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """导出 ``sys_data_adj_factor_events`` 到 CSV；返回 path / rows / 区间。"""
+        import os
+
+        adj = self.get_table("sys_data_adj_factor_events")
+        if adj is None:
+            return {
+                "ok": False,
+                "error": "表未注册: sys_data_adj_factor_events",
+                "path": "",
+                "rows": 0,
+            }
+        resolved_start = (
+            str(start_date).replace("-", "")[:8]
+            if start_date
+            else adj.get_min_event_date()
+        )
+        end = end_date or adj.get_max_event_date()
+        if file_path:
+            out = str(file_path)
+        elif base_date and not end_date and start_date is None:
+            file_name = adj.get_current_quarter_csv_name(base_date=base_date)
+            out = os.path.join(adj.csv_dir, file_name)
+        else:
+            out = os.path.join(
+                adj.csv_dir,
+                f"adj_factor_events_{resolved_start or 'earliest'}_{end or 'latest'}.csv",
+            )
+        rows = adj.export_to_csv(
+            file_path=out, start_date=start_date, end_date=end_date
+        )
+        return {
+            "ok": True,
+            "path": out,
+            "rows": int(rows),
+            "start": resolved_start or "",
+            "end": str(end or ""),
+        }
+
     def get_table(self, table_name: str) -> Any:
         """
         获取指定表对应的 Model 实例（内部方法，仅供 DataService 使用）。
         
-        表名由 DataManager 发现并注册（core 表 sys_ 前缀，userspace 表无限制）。
+        表名由 DataManager 发现并注册（core 表 sys_{kind}_，userspace 表 cust_{kind}_）。
         
         Args:
-            table_name: 实际表名，如 "sys_stock_list"。
+            table_name: 实际表名，如 "sys_data_stock_list"。
             
         Returns:
             对应的 Model 实例（已自动绑定默认 db），如果未找到则返回 None

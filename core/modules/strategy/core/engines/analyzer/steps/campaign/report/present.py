@@ -381,7 +381,7 @@ class CampaignPresenter:
                     conclusion = str(block.get("conclusion") or "").strip()
                     if conclusion:
                         CmdLayout.text.print_indent(f"结论：{conclusion}", stream=out)
-            # 枚举层不写建议
+            # 机会盘点层不写建议
 
     def _present_conclusion(
         self,

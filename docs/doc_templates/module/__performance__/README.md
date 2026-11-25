@@ -6,7 +6,9 @@
 -->
 
 **模块：** `<namespace.module_name>`  
-**版本：** `<module.version>`
+**模块：** `<namespace.module_name>` · **版本：** `<module.version>`
+
+**最低支持核心版本：** `<compatible_core_versions>`
 
 ## 用途
 

@@ -1,6 +1,7 @@
 """Data source 跨模块公开类型（Provider / Handler / Job / Config / 规范化工具）。"""
 
 from core.modules.data_source.core.base_class.base_handler import BaseHandler
+from core.modules.data_source.core.hooks.base import DataSourceHooks
 from core.modules.data_source.core.base_class.base_provider import BaseProvider
 from core.modules.data_source.core.data_class.api_config import ApiConfig
 from core.modules.data_source.core.data_class.api_job import ApiJob
@@ -17,6 +18,7 @@ __all__ = [
     "ApiJobBundle",
     "BaseHandler",
     "BaseProvider",
+    "DataSourceHooks",
     "DataSourceConfig",
     "NormalizationHelper",
     "UpdateMode",

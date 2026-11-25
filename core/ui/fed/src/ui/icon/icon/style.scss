@@ -1,0 +1,95 @@
+.ntq-icon-wrap {
+  display: inline-flex;
+  line-height: 0;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
+.ntq-icon {
+  display: block;
+  flex-shrink: 0;
+  fill: currentColor;
+  transform-origin: center;
+}
+
+.ntq-icon--size-sm {
+  width: var(--ntq-icon-sm);
+  height: var(--ntq-icon-sm);
+}
+
+.ntq-icon--size-md {
+  width: var(--ntq-icon-md);
+  height: var(--ntq-icon-md);
+}
+
+.ntq-icon--size-lg {
+  width: var(--ntq-icon-lg);
+  height: var(--ntq-icon-lg);
+}
+
+.ntq-icon--size-xl {
+  width: var(--ntq-icon-xl);
+  height: var(--ntq-icon-xl);
+}
+
+.ntq-icon--size-xxl {
+  width: var(--ntq-icon-xxl);
+  height: var(--ntq-icon-xxl);
+}
+
+.ntq-icon--expand-more {
+  transform: rotate(90deg);
+}
+
+.ntq-icon--muted {
+  color: var(--ntq-text-muted);
+}
+
+.ntq-icon--success {
+  color: var(--ntq-green);
+}
+
+.ntq-icon--error {
+  color: var(--ntq-error);
+}
+
+.ntq-icon--warning {
+  color: var(--ntq-warning);
+}
+
+.ntq-icon--disabled {
+  color: var(--ntq-text-muted);
+  opacity: 0.55;
+}
+
+.ntq-icon--cyan {
+  color: var(--ntq-cyan);
+}
+
+.ntq-icon--violet {
+  color: var(--ntq-violet);
+}
+
+.ntq-icon--spin {
+  animation: ntq-icon-spin 1s linear infinite;
+}
+
+.ntq-icon--expand-more.ntq-icon--spin {
+  animation: ntq-icon-spin-expand 1s linear infinite;
+}
+
+@keyframes ntq-icon-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes ntq-icon-spin-expand {
+  from { transform: rotate(90deg); }
+  to { transform: rotate(450deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-icon--spin {
+    animation: none;
+  }
+}

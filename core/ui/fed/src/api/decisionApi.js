@@ -1,4 +1,5 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
+import { formatCalendarDate } from 'service/format/formatDateTime';
 
 function formatMoney(value) {
   const n = Number(value);
@@ -52,12 +53,9 @@ function unwrapMessage(json) {
   return json?.message && typeof json.message === 'object' ? json.message : {};
 }
 
-/** BFF ``YYYYMMDD`` → 页面 ``YYYY-MM-DD``。 */
+/** BFF 日历日 → 页面 ``YYYY-MM-DD``。 */
 export function formatDecisionDate(raw) {
-  const s = String(raw || '').trim();
-  if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
-  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  return s;
+  return formatCalendarDate(raw);
 }
 
 export function readSimulationRange(settings) {
@@ -118,7 +116,7 @@ function mapOpportunity(row) {
     id: localId,
     ticker: String(raw.entity_id || ''),
     name: String(raw.name || ''),
-    // 现场 chip 走 D1-12 live 查询；枚举触发日戳不用于展示
+    // 现场 chip 走 D1-12 live 查询；机会盘点触发日戳不用于展示
     statusTags: [],
     price: Number(raw.entry_price) || 0,
     wr: stats ? stats.winRateLabel : '—',
@@ -272,7 +270,7 @@ export function mapDecisionHoldings(message) {
       id: `${row.entity_id || 'h'}-${row.buy_date || index}`,
       ticker: String(row.entity_id || ''),
       name: String(row.name || ''),
-      // 现场 chip 走 D1-12；持仓枚举触发日戳不用于展示
+      // 现场 chip 走 D1-12；持仓机会盘点触发日戳不用于展示
       statusTags: [],
       shares,
       buyDate,

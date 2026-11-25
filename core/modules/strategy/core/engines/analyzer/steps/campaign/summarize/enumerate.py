@@ -1,4 +1,4 @@
-"""枚举层战役总结（sea）：非交叉时按旋钮讲取值阶梯（最多/最少/趋势/对照表）。"""
+"""机会盘点层战役总结（sea）：非交叉时按旋钮讲取值阶梯（最多/最少/趋势/对照表）。"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -56,7 +56,7 @@ _SECTION_META = (
 
 
 class EnumerateSummarize(SummarizeBase):
-    """枚举层总结：机会数和出场结构。"""
+    """机会盘点层总结：机会数和出场结构。"""
 
     LAYER = "enum"
     KIND = SimulateKind.ENUMERATE
@@ -72,7 +72,7 @@ class EnumerateSummarize(SummarizeBase):
         executed: Optional[Mapping[str, Any]] = None,
         joint_groups: Sequence[Sequence[str]] = (),
     ) -> Dict[str, Any]:
-        """生成枚举层总结。"""
+        """生成机会盘点层总结。"""
         base = super().run(attributed, layer=layer or cls.LAYER)
         root = Path(folder) if folder is not None else None
         baseline_vid = ladders.baseline_version_id(

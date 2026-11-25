@@ -1,6 +1,7 @@
 # Trace API 文档
 
-**版本：** `0.1.2`  
+**模块：** `infra.trace` · **版本：** `0.1.3`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -44,6 +45,15 @@
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
 - **描述：** 安装流水线事件（`install.complete` / `install.step_failed`）
+
+#### track_member_bind
+
+`Trace.track_member_bind(*, source: str = "", force: bool = False) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.3`
+- **描述：** 已装载会员凭证时上报 `member.bind`（带 Bearer），把本机 `installation_id` 绑到官网 uid。不依赖使用统计同意；`force=True` 总是发送（凭证保存后），否则按本地 marker 去重
 
 #### queue
 
@@ -105,7 +115,7 @@
 | `userspace/system/config/trace.json` | 中 | 可选 tunables（`target_url` 等）；**不含**同意开关 |
 | [`core/defaults.py`](./core/defaults.py) `TraceDefaults` | 最低 | **改内置默认地址改这里** |
 
-同意：`userspace/system/config/trace_consent.json`；另有 `NTQ_TRACE_SKIP` / `NTQ_TRACE_ENABLED`。
+同意：`userspace/system/prefs/trace_consent.json`；另有 `NTQ_TRACE_SKIP` / `NTQ_TRACE_ENABLED`。
 
 `trace.json` 示例：
 

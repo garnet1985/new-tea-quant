@@ -7,9 +7,8 @@
 from __future__ import annotations
 
 import logging
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Sequence, Tuple, Union
 
-from core.modules.strategy.core.engines.shared.data_class import CalendarAsOfResult
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
@@ -118,16 +117,17 @@ class StrategyHookRuntime:
             return True
         return getattr(impl, "__func__", impl) is not base
 
-    def call(self, method: str, ctx: StrategyContext, **kwargs: Any) -> Any:
+    def call(self, method: str, ctx: StrategyContext, *args: Any, **kwargs: Any) -> Any:
         hook = getattr(self.hooks, method, None)
         if not callable(hook):
             raise AttributeError(f"StrategyHooks has no method {method!r}")
         try:
-            result = hook(ctx, **kwargs) if kwargs else hook(ctx)
-            if method == "on_calendar_asof" and not isinstance(result, CalendarAsOfResult):
-                raise TypeError(
-                    f"{method} 必须返回 CalendarAsOfResult，实际: {type(result).__name__}"
-                )
+            result = hook(ctx, *args, **kwargs)
+            if method == "on_calendar_slice":
+                if isinstance(result, (str, bytes)) or not isinstance(result, Sequence):
+                    raise TypeError(
+                        f"{method} 必须返回 id 列表，实际: {type(result).__name__}"
+                    )
             return result
         except Exception as exc:
             logger.error(
@@ -139,10 +139,12 @@ class StrategyHookRuntime:
             )
             raise
 
-    def call_if_overridden(self, method: str, ctx: StrategyContext, **kwargs: Any) -> Any:
+    def call_if_overridden(
+        self, method: str, ctx: StrategyContext, *args: Any, **kwargs: Any
+    ) -> Any:
         if not self.is_overridden(method):
             return None
-        return self.call(method, ctx, **kwargs)
+        return self.call(method, ctx, *args, **kwargs)
 
 
 __all__ = ["StrategyHookRuntime"]

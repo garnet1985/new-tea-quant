@@ -1,6 +1,8 @@
 # Strategy — 快速开始
 
-**模块：** `modules.strategy` · **版本：** `0.10.0`
+**模块：** `modules.strategy` · **版本：** `0.12.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 ## 最小示例
 
@@ -11,7 +13,7 @@ names = Strategy.list_strategies()
 print(names[:3])
 ```
 
-## 枚举一步
+## 机会盘点一步
 
 ```python
 result = Strategy.enumerate("demo/random/random_v1_null_baseline")

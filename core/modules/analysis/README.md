@@ -1,34 +1,32 @@
 # Analysis（`modules.analysis`）
 
-**统计 / ML 原语工具箱**（无业务、无 I/O）。解释一次策略 run 的 **编排与产物** 在 `strategy/engines/analyzer`。
+**模块：** `modules.analysis` · **版本：** `0.1.0`
 
-## 职责
+**最低支持核心版本：** `>=0.5.0`
 
-- 提供分桶、相关、回归等 **纯函数**（输入列向量 → 输出统计结构）
-- 后期：XGBoost / SHAP 等同模块 `core/ml/`
-- **不提供：** 读 `simulations/`、step 配置、report 文案、simulate 调度
+## 简介
 
-## 消费者
+纯数学计算工具箱。输入一列数字，输出分桶、相关性、回归等统计结果——不读文件、不管业务、也不写报告文案。策略回测的归因解释不走这里，那是 `strategy/engines/analyzer` 的事。
 
-- `strategy/engines/analyzer` — AttributionPipeline stages
-- 日后 factor 等模块可复用同一套数学，但不经过 strategy 产物路径
+## 适用场景
 
-## 实施计划
+- 策略跑完了，想算一下因子分桶、收益率相关性、回归系数
+- 给因子做 IC、滚动窗口等统计时，不想自己写 pandas 代码
 
-见 [TODO.md](./TODO.md)（与 analyzer 侧 [TODO.md](../strategy/core/engines/analyzer/TODO.md) 四步对齐）。
+## 模块依赖
 
-## 当前状态
+无硬依赖（运行需 Python `pandas`；ML 部分可选 `scikit-learn`）
 
-- Facade `Analysis` 仍为占位
-- 行为 API 尚未导出；第二步起在 `core/classical/` 添加 stub
+## 设计初衷
 
-## 明确不做
-
-- 全市场因子 IC / 滚动 / 挖掘（未来 factor 模块）
-- 重复 strategy overall 报告中的胜率、净值
+- **要解决的问题：** 把"纯数学"和"业务归因"分开——业务归因读策略产物、管文案；本模块只做数字计算。
+- **明确不做：** 不读回测文件、不管配置、不产生报告；不做全市场因子挖掘。
 
 ## 相关文档
 
-- [TODO.md](./TODO.md) — **当前权威实施清单**
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — 部分表述待与 TODO 同步
-- [API.md](./API.md) — 行为 API 定稿后更新
+- [用户指南](./docs/USER_GUIDE.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [概念](./docs/CONCEPTS.md)
+- [决策](./docs/DECISIONS.md)

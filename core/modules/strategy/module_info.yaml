@@ -1,14 +1,17 @@
 name: modules.strategy
-version: "0.10.0"
+version: "0.12.2"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "策略模块 (Strategy)"
+site_display_title: "验证，调试和感受您的策略 - Strategy模块"
 dependencies:
   - modules.data_manager
   - modules.data_contract
   - modules.indicator
   - modules.backtest_engine
-  - modules.adapter
+  - modules.post_process
   - modules.analysis
   - modules.market_profile
   - modules.data_source
@@ -19,7 +22,29 @@ dependencies:
   - infra.cmd_layout
   - infra.utils
   - infra.trace
+  - infra.progress
 changelog:
+  - version: "0.12.2"
+    changes:
+      - "Facade 增加进度轮询/登记（get/seed/bind pipeline & scan）与 load_hooks_class，供 agent 等跨模块调用"
+  - version: "0.12.1"
+    changes:
+      - "ProgressRecorder 改为包装 Progress.channel；不再经 contracts 导出；去掉 for_tag_run（tag 直连 Progress.channel）"
+  - version: "0.12.0"
+    changes:
+      - 股票池流水线：data.stock_list_filter → sampling → to_sample_list（hooks 在过滤之后，不替换过滤）
+      - settings.data.stock_list_filter：按 area/industry/board/market/list_status 做 include/exclude（查询经 DataManager.stock.list.filter_ids）
+      - Series 增加窗口统计 / 穿越 / streak，波峰波谷与 to_trend，以及 K 线结构（body/wick/TR、突破、gap、retracement）
+      - Records 增加 has/keys/field/info、in_position、unrealized_pnl_pct、holding_bars、align/both_rising/crossed_on；goal 钩子 position 带入 entry_date
+      - CalendarSlice / Opportunities 增加轻量导航快捷（count/as_of/has/iter_records；remaining_slots/held_ids/head/exclude_held 等）
+      - 钩子与载荷工具专文：agent ntq_wiki know_how/use_strategy_hooks.md（guider allowlist 已收录）
+  - version: "0.11.0"
+    changes:
+      - 用户钩子改为显式载荷：is_opportunity(ctx, records)、on_calendar_slice(ctx, calendar_slice)、select_portfolio_entries(ctx, opportunities)。注入的数据在 records，不在 ctx。
+      - 跨日状态改为 ctx.state，归因仍用 ctx.capture。
+      - 删除 has_opportunity、on_calendar_asof、on_pick_portfolio_member、calendar_asof_needs_by_entity、on_before_scan / on_after_scan，以及 signal_date / core_int / core_float / deterministic_roll。
+      - select_portfolio_entries 只交回 Opportunity，不接受 id 字符串。
+      - 注入序列统一从 Series 取：latest、first、get_by_date、index_of、last、last_index_of。base 可直接写在 records 上，其它 data key 用 records.series(key)。
   - version: "0.10.0"
     changes:
       - 重新定义价格回测层。现在价格回测层是减少机会噪音后等全交易的普遍收益率。
@@ -30,7 +55,7 @@ changelog:
   - version: "0.9.0"
     changes:
       - 加入决策者模式，支持手动回测
-      - 将枚举结果变成契约，后续价格，组合，决策者模式都可以共用
+      - 将机会盘点结果变成契约，后续价格，组合，决策者模式都可以共用
       - 在资金回测层加入夏普 / Sortino 比率，无风险取隔夜 SHIBOR
       - 回测过程中所有ROI算法统一，并且建立共用hfq ROI服务
       - 自定义止盈/止损阶段必须写 description，供策略顶栏展示
@@ -104,14 +129,14 @@ changelog:
       - 引入指纹概念，对设计变化产生的结果进行数据库缓存
   - version: "0.2.2"
     changes:
-      - 收紧枚举范围，不再全量枚举所有股票而是按需枚举
+      - 收紧机会盘点范围，不再全量机会盘点所有股票而是按需机会盘点
   - version: "0.2.1"
     changes:
       - 引入价格回测概念，支持了真实资金投资模拟
   - version: "0.2.0"
     changes:
       - 重构了核心模拟器的代码，将整个声明周期分成了预处理，执行和后期处理三个部分
-      - 对回测进行了业务分层，使用全局枚举对后期回测进行数据缓存和复用
+      - 对回测进行了业务分层，使用全局机会盘点对后期回测进行数据缓存和复用
   - version: "0.1.1"
     changes:
       - 加入目标配置，支持动态止损和保护性止盈

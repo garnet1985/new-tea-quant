@@ -23,7 +23,10 @@ class UserCommands:
         "sdd": "strategy_decision_delete",
         "sdv": "strategy_delete_version",
         "r": "renew",
+        "ls": "list",
         "t": "tag",
+        "srel": "series_relation",
+        "a": "agent",
         "ex": "export_strategy",
         "im": "import_strategy",
         "id": "import_data",
@@ -47,11 +50,15 @@ class UserCommands:
             "strategy_rolling",
             "strategy_delete_version",
             "renew",
+            "list",
             "export_adj_factor",
             "tag",
+            "series_relation",
+            "agent",
             "export_strategy",
             "import_strategy",
             "import_data",
+            "auth",
             "update",
             "version",
         }
@@ -80,6 +87,7 @@ class UserCommands:
             "export_strategy",
             "import_strategy",
             "import_data",
+            "auth",
         }
     )
 

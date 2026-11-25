@@ -45,6 +45,42 @@ class TestDataManagerApi(unittest.TestCase):
         physical = dm.get_physical_table_name(BaseTableNames.STOCK_LIST.value)
         self.assertTrue(str(physical))
 
+    def test_list_tables(self):
+        from core.modules.data_manager import DataManager
+        from core.modules.data_manager.contracts import BaseTableNames
+
+        dm = DataManager(force_new=True, is_verbose=False)
+        names = dm.list_tables()
+        self.assertIsInstance(names, list)
+        self.assertIn(BaseTableNames.STOCK_LIST.value, names)
+        self.assertEqual(names, sorted(names))
+
+    def test_user_table_facade_methods(self):
+        from core.modules.data_manager import DataManager
+
+        for name in (
+            "scaffold_user_table",
+            "write_user_table_files",
+            "validate_user_table",
+            "ensure_user_table",
+            "describe_table",
+            "list_tables_by_owner",
+            "export_adj_factor_events_csv",
+        ):
+            self.assertTrue(callable(getattr(DataManager, name)), name)
+
+    def test_list_tables_by_owner_and_describe(self):
+        from core.modules.data_manager import DataManager
+        from core.modules.data_manager.contracts import BaseTableNames
+
+        dm = DataManager(force_new=True, is_verbose=False)
+        listed = dm.list_tables_by_owner(owner="sys")
+        self.assertTrue(listed.get("ok"))
+        self.assertIn(BaseTableNames.STOCK_LIST.value, listed.get("tables") or [])
+        desc = dm.describe_table(table_name=BaseTableNames.STOCK_LIST.value)
+        self.assertTrue(desc.get("ok"))
+        self.assertEqual(desc.get("owner"), "sys")
+
     def test_normalize_delist_date(self):
         from core.modules.data_manager import DataManager
 
@@ -77,10 +113,10 @@ class TestDataManagerApi(unittest.TestCase):
     def test_contracts_base_table_names(self):
         from core.modules.data_manager.contracts import BaseTableNames
 
-        self.assertEqual(BaseTableNames.STOCK_LIST.value, "sys_stock_list")
-        self.assertEqual(BaseTableNames.STOCK_KLINES.value, "sys_stock_klines")
+        self.assertEqual(BaseTableNames.STOCK_LIST.value, "sys_data_stock_list")
+        self.assertEqual(BaseTableNames.STOCK_KLINES.value, "sys_data_stock_klines")
         self.assertEqual(
-            BaseTableNames.ADJ_FACTOR_EVENTS.value, "sys_adj_factor_events"
+            BaseTableNames.ADJ_FACTOR_EVENTS.value, "sys_data_adj_factor_events"
         )
 
     def test_singleton_helpers(self):

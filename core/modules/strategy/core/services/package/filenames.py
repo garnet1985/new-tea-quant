@@ -9,6 +9,7 @@ _SINGLE_SUFFIX = {
     "strategy": "-strategy-only.zip",
     "tag": "-tag.zip",
     "adapter": "-adapter.zip",
+    "post_processor": "-post-processor.zip",
 }
 _SINGLE_KINDS = frozenset(_SINGLE_SUFFIX)
 
@@ -36,7 +37,7 @@ def parse_export_target(raw: str) -> Tuple[str, str]:
     Parse export target.
 
     Returns ``("bundle", strategy_name)`` or ``(kind, name)`` for single export
-    when ``kind`` is one of ``strategy``, ``tag``, ``adapter``.
+    when ``kind`` is one of ``strategy``, ``tag``, ``adapter``, ``post_processor``.
     """
     text = str(raw or "").strip()
     if not text:
@@ -48,8 +49,8 @@ def parse_export_target(raw: str) -> Tuple[str, str]:
     name = name.strip()
     if kind not in _SINGLE_KINDS:
         raise ValueError(
-            f"unknown export kind {kind!r}; use tag:NAME, adapter:NAME, strategy:NAME, "
-            "or bare strategy bundle name"
+            f"unknown export kind {kind!r}; use tag:NAME, adapter:NAME, "
+            "post_processor:NAME, strategy:NAME, or bare strategy bundle name"
         )
     if not name:
         raise ValueError(f"export target {text!r} requires a name after ':'")

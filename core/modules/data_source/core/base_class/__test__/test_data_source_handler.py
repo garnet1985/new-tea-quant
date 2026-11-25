@@ -15,7 +15,6 @@ class TestBaseHandler:
         schema = {"name": "test_table", "fields": [{"name": "id", "type": "string"}]}
         config_dict = {
             "table": "sys_test",
-            "save_mode": "unified",
             "renew": {
                 "type": "incremental",
                 "last_update_info": {"date_field": "date", "date_format": "day"},
@@ -46,7 +45,6 @@ class TestBaseHandler:
         config = DataSourceConfig.from_dict(
             {
                 "table": "t",
-                "save_mode": "unified",
                 "renew": {
                     "type": "incremental",
                     "last_update_info": {"date_field": "date", "date_format": "day"},
@@ -67,4 +65,13 @@ class TestBaseHandler:
             "stock_list",
             "latest_completed_trading_date",
         ]
+        assert handler.renew_mode_label() == "incremental"
+        assert handler.renew_mode_label(force=True) == "refresh"
+
+    def test_format_run_seconds(self):
+        from core.modules.data_source.core.base_class.base_handler import format_run_seconds
+
+        assert format_run_seconds(4) == "4s"
+        assert format_run_seconds(4.24) == "4.2s"
+        assert format_run_seconds(16.4) == "16s"
 

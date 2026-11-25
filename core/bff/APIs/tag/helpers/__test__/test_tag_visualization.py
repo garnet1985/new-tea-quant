@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from core.bff.APIs.tag.helpers.tag_visualization import (
+from core.modules.tag.core.services.visualization.tag_visualization import (
     build_entity_rows,
     build_intervals,
     build_snapshots,

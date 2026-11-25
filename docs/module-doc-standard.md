@@ -1,14 +1,14 @@
 # 模块文档规范
 
-**版本：** 1.2.1  
-**最后更新：** 2026-09-07  
+**版本：** 1.7.0  
+**最后更新：** 2026-11-19  
 **适用范围：** `core/modules/*`、`core/infra/*`（及其他按 core 模块标准收口的主模块）的**文档**
 
 > **文档 SSOT：** 模块文档的格式、清单、位置与维护规则以**本文**为准。  
 > **模块规则（代码 / 测试结构 / 版本 / Facade 等）：** [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)  
 > **可 copy 骨架：** [`docs/doc_templates/module/`](doc_templates/module/)（与真实模块同结构；整棵 copy 后替换 `<xxx>`，删除不需要的可选文件）
 
-**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；`DECISIONS` → `docs/DESIGN.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。
+**命名迁移：** `OVERVIEW` → `docs/CONCEPTS.md`；glossary 在模块根；临时笔记 → `docs/notes/`；用例索引 → `__test__/TEST_CASES.md`；本模块正式性能 → `__performance__/`。**v1.4.0 起**：`docs/DESIGN.md` 废弃，设计目标、方案思路与拍板决策合并进 `docs/DECISIONS.md`（v1.3.0 的 DESIGN/DECISIONS 分离做法撤销）。**v1.5.0 起**：架构图 / 组件关系图以 **Mermaid** 为 SSOT；禁止用 Unicode/ASCII 方框「手绘」流程图（见 §3.1）。**v1.6.0 起**：标准 Markdown 文首统一为两行（模块·版本 + 最低支持核心版本）；站点 `ntq_md2html` 按此解析。**v1.7.0 起**：`glossary.yaml` 以**代码中出现的英文概念解释**为主（是什么、为何存在、在代码里对应什么、关键对比）；`aliases` / `avoid` 仍保留但降为辅。
 
 ---
 
@@ -21,15 +21,16 @@
 | 模块根 `README.md` | **是什么 / 干什么**：**纯文字**介绍；**不含**代码块 |
 | 模块根 `API.md` | **怎么调**：公开调用面；与 `__test__/test_api.py` 成对 |
 | 模块根 `QUICKSTART.md` | **可选**；最短可运行路径 |
-| 模块根 `glossary.yaml` | **名词表**：定义 + aliases + avoid；与 CONCEPTS 分离 |
+| 模块根 `glossary.yaml` | **代码概念解释**：英文标识/领域词是什么、为何存在、代码对应、关键对比；aliases/avoid 辅；与 CONCEPTS 分离 |
 | 模块根 `module_info.yaml` | 模块元数据（字段见 [CORE 指标 4](../CORE_MODULE_STANDARDS.md)） |
 | 模块 `docs/ARCHITECTURE.md` | 高阶已定结论：结构图、架构图、数据流（若有） |
-| 模块 `docs/DESIGN.md` | **可选**；设计点（初衷/背景/多方案/决定）；已合并原 DECISIONS |
+| 模块 `docs/DECISIONS.md` | **可选**（有非平凡设计过程或关键选型时必写）；设计目标、方案思路与拍板决策合一——"为什么这么设计、定了什么" |
 | 模块 `docs/CONCEPTS.md` | **可选**；运作原理与多步骤关系（**不是**词条表） |
+| 模块 `docs/USER_GUIDE.md` | **必须**；用户教程：能干嘛、怎么配、常见坑 |
 | 模块根 `__performance__/` | **可选**；正式本模块性能（目录结构见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)） |
 | 仓库根 `docs/` | 全局文档、模块准则、本文、可 copy 模板 |
 
-**根目录 vs `docs/`（硬性）：** 若存在下列文件，**必须**在模块根：`README.md`、`API.md`、`QUICKSTART.md`、`glossary.yaml`、`module_info.yaml`。标准模块文档（`ARCHITECTURE` / `DESIGN` / `CONCEPTS`）放在模块 `docs/` 根下（与 `notes/` 同级）。正式性能套件在模块根 `__performance__/`（不要放进 `docs/notes/`）。
+**根目录 vs `docs/`（硬性）：** 若存在下列文件，**必须**在模块根：`README.md`、`API.md`、`QUICKSTART.md`、`glossary.yaml`、`module_info.yaml`。标准模块文档（`ARCHITECTURE` / `DECISIONS` / `CONCEPTS`）放在模块 `docs/` 根下（与 `notes/` 同级）。正式性能套件在模块根 `__performance__/`（不要放进 `docs/notes/`）。
 
 **临时 / 开发者自用笔记：** 不设模板、不进 must 清单。草稿、边界碎记、迁移草稿、用完即删的材料等，**一律放在** `docs/notes/`（可再分子目录）。
 
@@ -43,9 +44,10 @@
 |---------|------|------|---------|
 | `README.md`（根） | 使用者 | 是什么、干什么 | 文件在模块根 |
 | `API.md`（根） | 调用方 | 公开接口；须有测试覆盖 | 模块根 + `__test__/test_api.py` |
-| `glossary.yaml`（根） | 全员 | 名词定义、aliases、avoid | 文件在模块根 |
+| `glossary.yaml`（根） | 读代码的人 | 本模块英文概念解释（定义要能帮人读代码） | 文件在模块根；见 §3 glossary |
 | `module_info.yaml`（根） | 维护者 | 元数据 | 见 CORE 指标 4 |
 | `docs/ARCHITECTURE.md` | 维护者 | 结构图、架构图、数据流（若有）；有版本 | 在 `docs/` |
+| `docs/USER_GUIDE.md` | 普通用户 | 能干嘛、怎么配、常见坑 | 在 `docs/`；非空 |
 
 ### 可选文档
 
@@ -53,47 +55,57 @@
 |---------|------|------|---------|
 | `QUICKSTART.md`（根） | 要马上跑起来的人 | 最短可运行路径 | API 单条举例不够时 |
 | `docs/CONCEPTS.md` | 要懂原理的人 | 运作原理、多步骤关系（非词条表） | 复杂模块 |
-| `docs/DESIGN.md` | 维护者 | 设计点：初衷/背景/多方案/决定（含原 DECISIONS） | 有重要选型时 |
+| `docs/DECISIONS.md` | 维护者 + 未来维护者 | 设计目标、方案思路、拍板决策（每条独立编号） | 有非平凡设计过程或关键选型时 |
 
 ### 受众分工
 
 | 目标 | 文档 |
 |------|------|
 | 是什么、干什么 | `README.md` |
-| 名词 / 别名 / 易混名 | `glossary.yaml`（与 CONCEPTS **分开**） |
+| 代码里出现的英文概念（是什么 / 对比 / 对应符号） | `glossary.yaml`（与 CONCEPTS **分开**） |
 | 工作原理、多步骤关系 | `docs/CONCEPTS.md`（可选） |
 | 快速上手 | `QUICKSTART.md`（可选）+ `API.md` |
 | 正确调用 | `API.md` |
+| 怎么用、怎么配 | `docs/USER_GUIDE.md`（必须） |
 | 高阶已定架构 | `docs/ARCHITECTURE.md` |
-| 设计选型与决定 | `docs/DESIGN.md`（可选） |
+| 为什么这么做、定了什么 | `docs/DECISIONS.md`（可选；有选型时必写） |
 
 ### 模板用法
 
-新建或整改模块时，整棵 copy [`doc_templates/module/`](doc_templates/module/) 到目标模块根，将 `<xxx>` 占位符替换为模块内容；不需要的可选文件（`QUICKSTART` / `docs/CONCEPTS` / `docs/DESIGN` / `__performance__/`）整份删除。固定章节以骨架内文件为准。
+新建或整改模块时，整棵 copy [`doc_templates/module/`](doc_templates/module/) 到目标模块根，将 `<xxx>` 占位符替换为模块内容；不需要的可选文件（`QUICKSTART` / `docs/CONCEPTS` / `docs/DECISIONS` / `__performance__/`）整份删除。固定章节以骨架内文件为准。
 
 ### 命名与位置
 
-- 根目录文件名固定；`docs/` 下 `ARCHITECTURE.md` / `DESIGN.md` / `CONCEPTS.md` 使用大写（不要小写变体）。
-- **不再使用** `DECISIONS.md`（内容并入 `DESIGN.md`）。
+- 根目录文件名固定；`docs/` 下 `ARCHITECTURE.md` / `DECISIONS.md` / `CONCEPTS.md` / `USER_GUIDE.md` 使用大写（不要小写变体）。
 - ❌ 不并行维护 `api.yaml` / `docs/API.md` 与根目录 `API.md` 多套 API 真源。
 - ❌ 不把唯一人读 API 文档只放在 `docs/` 而模块根缺失 `API.md`。
 
-### ARCHITECTURE vs DESIGN
+### ARCHITECTURE vs DECISIONS
 
-| | ARCHITECTURE | DESIGN（可选） |
-|--|--------------|----------------|
-| 抽象层级 | High level | 具体设计点 |
-| 内容 | **已定结论**（结构图、架构图、数据流） | 初衷、背景、**多方案**、决定（按时间追加） |
+| | ARCHITECTURE | DECISIONS（可选） |
+|--|--------------|------------------|
+| 核心回答 | 长啥样、怎么搭起来的 | "为什么这么设计、定了什么" |
+| 内容 | **已定结论**（结构图、架构图、数据流） | 设计目标、方案与思路（候选方案怎么比较）、拍板决策（每条独立编号：是什么 / 为什么选它 / 放弃了什么） |
+| 有无历史 | 无（只看当前） | 每条决策独立，天然可追溯 |
+| 受众 | 所有人、未来维护者 | 维护者、代码审查者 |
 | 版本 | 必须 | 有则必须 |
+| 互链 | 被 DECISIONS 引用 | 引用 ARCHITECTURE |
 
 ### glossary vs CONCEPTS
 
-glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述。二者**不合并**。
+| | `glossary.yaml` | `docs/CONCEPTS.md` |
+|--|-----------------|-------------------|
+| 写什么 | **单个英文概念**：是什么、为何存在、代码里叫什么、与相近概念差在哪 | **链路与协作**：多步骤怎么串、模式怎么选、边界在哪 |
+| 形态 | 按词条；`definition` 用可读短段（可多句），不是一句话标签 | 叙述文；不要做成词典表 |
+| 不写什么 | 完整调用教程、目录树、历史选型 | 把每个词再抄一遍短定义 |
+
+二者**不合并**。范例：[`core/modules/data_contract/glossary.yaml`](../core/modules/data_contract/glossary.yaml)。
 
 ### 交叉链接（最低要求）
 
-- `README.md` 链到 `API.md`、`glossary.yaml`、`docs/ARCHITECTURE.md`；若有则链 QUICKSTART / docs/CONCEPTS / docs/DESIGN
-- `docs/ARCHITECTURE.md` 链到 `../API.md`、`../glossary.yaml`；若有 DESIGN / CONCEPTS 则链
+- `README.md` 链到 `API.md`、`glossary.yaml`、`docs/ARCHITECTURE.md`、`docs/USER_GUIDE.md`；若有则链 QUICKSTART / docs/CONCEPTS / docs/DECISIONS
+- `docs/ARCHITECTURE.md` 链到 `../API.md`、`../glossary.yaml`、`USER_GUIDE.md`；若有 DECISIONS / CONCEPTS 则链
+- `docs/DECISIONS.md` 的「方案与思路」部分引用 `ARCHITECTURE.md` 的现状描述，不重复粘贴
 
 ### 版本一致性
 
@@ -106,13 +118,22 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 | `module_info.yaml` | `version` / `changelog[0].version` | `0.4.0` |
 | `module_info.yaml` | `compatible_core_versions` | `>=0.4.5` |
 | `module_info.yaml` | `name` | `modules.strategy` / `modules.cli` / `ui` / `bff` / `tables` |
-| Markdown 文首 | `**版本：**` | `**版本：** 0.4.0` |
-| `API.md` 文首另须 | `**最低支持核心版本：**` | `**最低支持核心版本：** >=0.4.5` |
-| `glossary.yaml` 头注释 | `# Version:` | `# Version: 0.4.0` |
+| `module_info.yaml`（可选） | `site_title` / `site_display_title` | 站点文档 Title / Display title；见 CORE 指标 4 |
+| Markdown 文首第 1 行 | `**模块：**` · `**版本：**` | `**模块：** `modules.cli` · **版本：** `0.4.5`` |
+| Markdown 文首第 2 行 | `**最低支持核心版本：**` | `**最低支持核心版本：** `>=0.5.0`` |
+| `glossary.yaml` 头注释 | `# Version:` / `# Compatible-Core:` | `# Version: 0.4.0` / `# Compatible-Core: >=0.5.0` |
 
-禁止用 `**覆盖版本：**`、`**当前基线版本：**` 表示模块版本。
+禁止用 `**覆盖版本：**`、`**当前基线版本：**`、`**最低核心版本：**` 表示模块 / 核心兼容版本。
 
-**须带标准版本字段的文件（存在则检查）：** `API.md`、`glossary.yaml`、`QUICKSTART.md`、`docs/ARCHITECTURE.md`、`docs/DESIGN.md`、`docs/CONCEPTS.md`、模块内全部 `**/TEST_CASES.md`、`__performance__/README.md`、`__performance__/CASES.md`。`README.md` 与 `docs/` 根下其它 md 若文首已写版本字段，也必须等于 SSOT。`docs/notes/` 不检查。
+**统一 Markdown 文首（紧跟 `#` 标题之后；两行之间空一行）：**
+
+```markdown
+**模块：** `<module_info.name>` · **版本：** `<module_info.version>`
+
+**最低支持核心版本：** `<module_info.compatible_core_versions>`
+```
+
+**须带标准文首的文件（存在则检查；范围与 `devcli.py p` 一致）：** `API.md`、`glossary.yaml`、`QUICKSTART.md`、`docs/ARCHITECTURE.md`、`docs/CONCEPTS.md`、`__performance__/README.md`、`__performance__/CASES.md`、模块内全部 `**/TEST_CASES.md`。`README.md` 与 `docs/` 根下其它 md（如 `USER_GUIDE` / `DECISIONS`）若文首已写版本字段，也必须是完整两行头且等于 SSOT。`docs/notes/` 不检查。
 
 版本 bump 语义见 [CORE 指标 11](../CORE_MODULE_STANDARDS.md)。
 
@@ -127,8 +148,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 **文首：**
 
-- 模块显示名、`**版本：**`（= `module_info.yaml` 的 `version`）
-- `**最低支持核心版本：**`（= `module_info.yaml` 的 `compatible_core_versions`）
+- 统一两行头：`**模块：**` · `**版本：**` + `**最低支持核心版本：**`（见 §1 版本一致性）
 - 说明：本文件是公开调用面的唯一人读文档；所列入口须有 `__test__/test_api.py` 覆盖
 
 **层级（固定）：**
@@ -180,11 +200,12 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 | 文档 | 必需内容 | 检查方式 |
 |------|---------|---------|
 | `README.md` | 见下「README 结构」；偏使用者 | 含必须章节；版式见模板 |
-| `glossary.yaml`（根） | 见下「glossary 结构」 | terms 含 definition；建议 aliases/avoid |
+| `glossary.yaml`（根） | 见下「glossary 结构」 | terms 含可读 `definition`；建议 `in_code` / aliases / avoid |
 | `QUICKSTART.md`（根，可选） | 见下「QUICKSTART 结构」 | 有则含最小示例 |
 | `docs/CONCEPTS.md`（可选） | 见下「CONCEPTS 结构」；原理与关系 | 有则文首有版本；非词条表 |
 | `docs/ARCHITECTURE.md` | 见下「ARCHITECTURE 结构」 | 文首有版本；结构图 + 架构图 |
-| `docs/DESIGN.md`（可选） | 见下「DESIGN 结构」；含原 DECISIONS | 有则每点四段齐全 |
+| `docs/DECISIONS.md`（可选） | 见下「DECISIONS 结构」；设计目标 + 方案思路 + 拍板决策 | 有则有版本 |
+| `docs/USER_GUIDE.md` | 见下「USER_GUIDE 结构」 | 有则有版本；非空 |
 | `API.md`（模块根） | 见上文 §2；且有 `__test__/test_api.py` 覆盖 | 签名与代码一致；测试存在 |
 
 ### `README.md`（纯文字；模板见 [`README.md`](doc_templates/module/README.md)）
@@ -212,14 +233,17 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### `glossary.yaml`（模板见 [`glossary.yaml`](doc_templates/module/glossary.yaml)）
 
-> 解释模块名词；同一事物在不同背景下的叫法用 `aliases` / `avoid` 区分。  
+> **目的（v1.7）：** 帮读代码的人理解本模块里出现的**英文概念**（标识符、枚举值、领域词），不是做中英对照表或「门面/命名空间」这类跨模块通用词堆砌。  
+> **收录标准：** 代码 / API / declaration 里真实出现、且读者常会问「这是什么 / 和那个有什么区别」的词。跨模块通用词（如 Facade）最多一句带过，或省略。  
+> **写法：** `definition` 用短段回答——是什么、为何存在、和相近概念差在哪；可用 `in_code` 点出类型/字段/调用。`aliases` / `avoid` 保留，用于命名纪律，**不能代替解释**。  
 > **不与** `docs/CONCEPTS.md` 合并。
 
-| 字段 | 说明 |
-|------|------|
-| `terms.<Name>.definition` | 本模块中的含义 |
-| `terms.<Name>.aliases` | 可接受别名 / 其他上下文叫法 |
-| `terms.<Name>.avoid` | 易混淆、不应混用的名称 |
+| 字段 | 必须 / 建议 | 说明 |
+|------|-------------|------|
+| `terms.<Name>.definition` | 必须 | 可读短段（可多句 YAML `|`）；写清本模块含义与关键对比 |
+| `terms.<Name>.in_code` | 建议 | 对应符号：类名 / 枚举 / 字段 / 典型调用 |
+| `terms.<Name>.aliases` | 建议 | 可接受别名 / 其他上下文叫法 |
+| `terms.<Name>.avoid` | 建议 | 易混、不应混用的名称 |
 
 ### `QUICKSTART.md`（可选；模板见 [`QUICKSTART.md`](doc_templates/module/QUICKSTART.md)）
 
@@ -234,28 +258,84 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### `docs/ARCHITECTURE.md`（模板见 [`docs/ARCHITECTURE.md`](doc_templates/module/docs/ARCHITECTURE.md)）
 
-> **High level + 已定结论**。不写方案对比（→ DESIGN）。**必须有版本。**
+> **High level + 已定结论**。不写方案对比（→ DECISIONS）。**必须有版本。**  
+> 图示写法见下 **§3.1**。
 
 | 章节 | 必须 / 可选 | 说明 |
 |------|------------|------|
 | 文首版本 + 定位 | 必须 | 版本 = `module_info.yaml` |
 | 职责与边界（负责 / 不负责） | 必须 | 已定结论；勿用 In/Out of scope 作标题 |
-| 模块结构图 | 必须 | 目录 / 包结构 |
-| 架构图 | 必须 | 组件 / 分层 / 主调用关系 |
-| 数据流 | 可选 | 有显著数据流时写 |
+| 模块结构图 | 必须 | 目录 / 包结构（` ```text ` 树即可） |
+| 架构图 | 必须 | 组件 / 分层 / 主调用关系（**必须** ` ```mermaid `） |
+| 数据流 | 可选 | 有显著数据流时写（短步骤可用 `text`；关系复杂则用 Mermaid） |
 | 依赖 | 建议 | 对齐 `module_info.yaml` |
-| 相关文档 | 必须 | API、glossary；（若有）DESIGN / CONCEPTS |
+| 相关文档 | 必须 | API、glossary；（若有）DECISIONS / CONCEPTS |
 
-### `docs/DESIGN.md`（可选；模板见 [`docs/DESIGN.md`](doc_templates/module/docs/DESIGN.md)）
+### 3.1 图示约定（Mermaid SSOT）
 
-> 按**设计点**组织。每点必须含四段。无必要设计点时**省略整文件**。
+> 目标：仓库内架构图可在 GitHub / IDE / 官网文档管道中稳定渲染；**不再**依赖自研 ASCII 方框解析。
 
-| 每设计点章节 | 必须 |
-|-------------|------|
-| 设计初衷 | 解决什么问题 |
-| 设计背景 | 约束与上下文 |
-| 解决方案 | 多个方案及优劣 |
-| 决定 | 采用哪案、理由、影响 |
+| 用途 | 写法 | 说明 |
+|------|------|------|
+| **架构图 / 组件关系 / 分层调用** | **` ```mermaid `** | **SSOT**。优先 `flowchart TB` 或 `flowchart LR`；节点用短 id + 方括号标签 |
+| **目录 / 包结构树** | **` ```text `** | `├──` / `└──` 树；**不要**用 Mermaid |
+| **短线性步骤**（≤ ~8 步、无分支） | **` ```text `** | 可用 `→` 链式；也可改成 Mermaid |
+| **有分支 / 并行 / 多出口的数据流** | **` ```mermaid `** | 与架构图同一语法 |
+
+**允许的 Mermaid 子集（正式文档）：**
+
+- 推荐：`flowchart TB` / `flowchart LR`（含 `-->`、`---`、`\|label\|`、`{}` 判断节点）
+- 可用：`sequenceDiagram`（仅当时序是主叙事）
+- **不要**在正式 ARCHITECTURE 里用：`gantt`、`pie`、`gitGraph`、复杂 `classDiagram`（易碎、难审）
+
+**源码可读性（硬性习惯）：**
+
+- 节点标签**短**（一个名字 / 一层包名即可）；**禁止**在标签里堆职责列表或写 `<br/>`
+- 图只表达**谁连谁**；职责、文件、方法名放在目录树或图下一二句说明
+- 对照好例子：[`tag/docs/ARCHITECTURE.md`](../core/modules/tag/docs/ARCHITECTURE.md) 的架构图——裸源码也能扫出调用关系
+- 若一张图在**未渲染**时都扫不动，说明写复杂了，应拆图或改回短标签，而不是把 ASCII 方框原文塞进 Mermaid
+
+**禁止：**
+
+- ❌ 用 `┌─┐` / `└─┘` / `│` 画的 **Unicode 方框图** 表达架构或调用关系（存量迁到 Mermaid）
+- ❌ 用 `+---+` 一类 ASCII 边框图表达同上
+- ❌ 同一关系既维护一份 ASCII 方框又维护一份 Mermaid（只留 Mermaid）
+
+**官网 / md2html：** Mermaid 围栏原样进入富文本（如 `<pre class="mermaid">`），由前台渲染；目录树与短 `text` 步骤按普通 `<pre>` 输出，不做方框解析。
+
+**存量：** 发现方框图即改为 Mermaid；仅目录树与短步骤的 `text` 可保留。
+
+### `docs/DECISIONS.md`（可选；模板见 [`docs/DECISIONS.md`](doc_templates/module/docs/DECISIONS.md)）
+
+> 设计与决策合一文档——"为什么这么设计、定了什么"。有非平凡设计过程或关键选型时必写；都没有时**省略整文件**。
+
+| 章节 | 必须 / 可选 | 说明 |
+|------|------------|------|
+| 文首（模块名 + 版本 + 一句话说明） | 必须 | 版本 = `module_info.yaml` |
+| 设计目标 | 必须 | 要解决什么——业务目标、性能目标或其他；写清约束与上下文 |
+| 方案与思路 | 必须 | 当时有哪些候选方案、怎么比较的、为什么这么走；可引用 ARCHITECTURE 现状，不重复粘贴 |
+| 决策点（`## DEC-01:`、`## DEC-02:`…） | 必须 | 每条独立编号，追加在末尾不回头改历史 |
+
+| 每个决策点的固定结构 | 必须 |
+|-------------------|------|
+| 编号 + 标题 | 如 `## DEC-01: 数据库引擎选择` |
+| 是什么 | 一句话决定（选 DuckDB 作为默认引擎） |
+| 为什么选它 | 核心理由（多进程 worker 池支持好、列式存储、开箱即用） |
+| 放弃了什么 | 列方案 B / C 及放弃理由（Postgres：安装重；MySQL：列式支持差） |
+| 影响（可选） | 这个决定带来的约束或后续事项 |
+
+### `docs/USER_GUIDE.md`（必须；模板见 [`docs/USER_GUIDE.md`](doc_templates/module/docs/USER_GUIDE.md)）
+
+> 偏**普通用户**——"这个模块能干嘛、怎么配、常见坑"。与 `QUICKSTART.md`（最短可运行路径）和 `API.md`（调用契约）受众不同。
+
+| 章节 | 必须 / 可选 | 说明 |
+|------|------------|------|
+| 文首（模块名 + 版本 + 一句话定位） | 必须 | 版本 = `module_info.yaml` |
+| 功能总览 | 必须 | 用用户听得懂的话，列能做什么 |
+| 配置说明 | 必须 | 配什么、在哪配、默认值 |
+| 常见使用方式 | 必须 | 3～5 个常见场景的操作步骤（不贴 API 细节） |
+| 常见坑与注意事项 | 可选 | 用户容易踩的雷 |
+| 相关文档 | 必须 | README、API.md、ARCHITECTURE.md、glossary.yaml |
 
 ### 写作约束
 
@@ -265,7 +345,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
   2）收入本模块 [`glossary.yaml`](doc_templates/module/glossary.yaml)，正文可写「见术语表」。  
   不要在 README 首句堆未解释的英文黑话。
 - **README 尽量不出现代码块**；上手代码放 `QUICKSTART`（若有）或 `API.md` 举例；原理放 `CONCEPTS`（若有）
-- 非 `API.md` / `docs/DESIGN.md` 不写历史沿革，只描述当前事实（DESIGN 内按设计点追加历史）
+- 非 `API.md` / `docs/DECISIONS.md` 不写历史沿革，只描述当前事实（DECISIONS 每条独立、追加式，天然可追溯）
 - 避免多文档大段重复：重复处用相对链接
 - `QUICKSTART` / `API.md`（及 CONCEPTS 内示意代码）须可运行或明确标注占位
 - 所有相对链接须在仓库内可打开
@@ -284,7 +364,7 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 ### `__test__/TEST_CASES.md`
 
-> 每个 `__test__` 目录维护一份；**取代** `test_cases.yaml`。  
+> 模块根 `__test__` 必须维护一份；功能包级可选；**取代** `test_cases.yaml`。  
 > 模板：[`__test__/TEST_CASES.md`](doc_templates/module/__test__/TEST_CASES.md)。  
 > 测试类型与目录职责见 [CORE 指标 2](../CORE_MODULE_STANDARDS.md)。
 
@@ -313,13 +393,15 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 
 | 检查项 | 说明 |
 |--------|------|
-| 文档齐全 | 根：README + API + glossary + module_info；docs：ARCHITECTURE；（可选）DESIGN / CONCEPTS / QUICKSTART |
+| 文档齐全 | 根：README + API + glossary + module_info；docs：ARCHITECTURE + USER_GUIDE；（可选）QUICKSTART / DECISIONS / CONCEPTS |
 | 从模板 copy | 章节与 [`doc_templates/module/`](doc_templates/module/) 一致 |
 | 版本号一致 | module_info 与各文档文首 `**版本：**` / `# Version:` 一致；`devcli.py p` 闸门 |
 | 文档同步 | 与代码一致；触发见 §3 |
 | 根目录 `API.md` | 签名 / 状态 / 参数表对齐代码；有 `test_api.py` |
 | 无双源 | 无并行 `api.yaml` / `docs/API.md` |
 | `TEST_CASES.md` | scenario/case 与 pytest 对齐；无遗留 `test_cases.yaml` |
+| DECISIONS 结构 | 含设计目标 + 方案与思路 + DEC 编号决策点；无遗留 `docs/DESIGN.md` |
+| 图示 | ARCHITECTURE「架构图」为 Mermaid；无 Unicode/ASCII 方框流程图；目录树用 `text`（§3.1） |
 
 模块创建 / 维护 / 清理的完整清单（含代码与测试）见 [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)。
 
@@ -330,4 +412,4 @@ glossary = 词条（定义/别名/易混）；CONCEPTS = 原理与关系叙述�
 - [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md) — 模块创建与维护准则
 - [`doc_templates/module/`](doc_templates/module/) — 可 copy 骨架
 - [`docs/README.md`](README.md) — 仓库文档导航
-- 术语表示例：[`core/infra/project_context/glossary.yaml`](../core/infra/project_context/glossary.yaml)
+- 术语表示例（概念解释向）：[`core/modules/data_contract/glossary.yaml`](../core/modules/data_contract/glossary.yaml)

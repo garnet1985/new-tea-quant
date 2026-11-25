@@ -1,4 +1,4 @@
-"""Portfolio 入场挑选与 ``on_pick_portfolio_member`` 编排。
+"""Portfolio 入场挑选与 ``select_portfolio_entries`` 编排。
 
 本文件:
 - EntrySelector: 按 max_portfolio_size + 顺序选 Opportunity（不算 sizing）
@@ -8,8 +8,9 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
 from dataclasses import dataclass
-from typing import Any, Dict, List, Optional, Sequence, Set
+from typing import Any, Callable, Dict, List, Optional, Sequence, Set
 
 from core.modules.strategy.core.engines.portfolio.data_class import PortfolioEvent
 from core.modules.strategy.core.engines.portfolio.opportunity_ranker import (
@@ -19,7 +20,7 @@ from core.modules.strategy.core.engines.shared.data_class.opportunity import Opp
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
-from core.modules.strategy.core.hooks.hook_params import StrategyContext, StrategyData, StrategyInfo
+from core.modules.strategy.core.hooks.hook_params import Opportunities, open_context
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 
 
@@ -120,7 +121,7 @@ class EntrySelector:
         ]
 
     def account_snapshot(self, held_entity_ids: Set[str]) -> Dict[str, Any]:
-        """供钩子 ctx['account'] 使用的容量快照。"""
+        """供 ``Opportunities.account`` 使用的容量快照。"""
         held = sorted(
             str(x or "").strip() for x in held_entity_ids if str(x or "").strip()
         )
@@ -134,7 +135,7 @@ class EntrySelector:
 
 @dataclass
 class EnterSelection:
-    """``on_pick_portfolio_member`` 编排：按日选仓并过滤事件。"""
+    """``select_portfolio_entries`` 编排：按日选仓并过滤事件。"""
 
     settings: StrategySettings
     strategy_name: str
@@ -162,42 +163,21 @@ class EnterSelection:
         available: Sequence[Opportunity],
         selected: Optional[Sequence[Any]],
     ) -> List[str]:
-        """将钩子返回值规范为 selection_key 列表（仅保留当日 available 内的 id）。"""
+        """将钩子返回的 Opportunity 规范为 selection_key 列表。
+
+        只认当日 available 里的对象。字符串和其它类型忽略。
+        """
         available_ids = {
             EntrySelector.opportunity_selection_key(opp)
             for opp in available
             if EntrySelector.opportunity_selection_key(opp)
         }
-        # 兼容钩子只返回裸 investment_id
-        bare_to_keys: Dict[str, List[str]] = {}
-        for opp in available or []:
-            bare = EntrySelector.opportunity_id(opp)
-            key = EntrySelector.opportunity_selection_key(opp)
-            if bare and key:
-                bare_to_keys.setdefault(bare, []).append(key)
         out: List[str] = []
         seen: Set[str] = set()
         for item in selected or []:
-            oid = ""
-            if isinstance(item, Opportunity):
-                oid = EntrySelector.opportunity_selection_key(item)
-            elif isinstance(item, str):
-                oid = item.strip()
-            elif isinstance(item, dict):
-                meta = item.get("meta") if isinstance(item.get("meta"), dict) else {}
-                oid = str(
-                    meta.get("opportunity_id") or item.get("opportunity_id") or ""
-                ).strip()
-                eid = ""
-                stock = item.get("stock") if isinstance(item.get("stock"), dict) else {}
-                if stock:
-                    eid = str(stock.get("id") or "").strip()
-                if oid and eid and ":" not in oid:
-                    oid = EntrySelector.selection_key(eid, oid)
-            if oid and oid not in available_ids and oid in bare_to_keys:
-                # 裸 id 仅当日唯一时可展开
-                keys = bare_to_keys[oid]
-                oid = keys[0] if len(keys) == 1 else ""
+            if not isinstance(item, Opportunity):
+                continue
+            oid = EntrySelector.opportunity_selection_key(item)
             if not oid or oid not in available_ids or oid in seen:
                 continue
             seen.add(oid)
@@ -232,21 +212,19 @@ class EnterSelection:
         snapshot = self.selector.account_snapshot(held_entity_ids)
         use_hook = (
             self.hook_runtime is not None
-            and self.hook_runtime.is_overridden("on_pick_portfolio_member")
+            and self.hook_runtime.is_overridden("select_portfolio_entries")
         )
         if use_hook:
-            ctx = StrategyContext(
-                strategy=StrategyInfo(key=self.strategy_name),
+            ctx = open_context(
+                strategy_key=self.strategy_name,
                 settings=self.settings,
-                data=StrategyData.build(
-                    now=str(date or "").strip(),
-                    items={
-                        "opportunities": opps,
-                        "account": snapshot,
-                    },
-                ),
+                sample_list=[],
             )
-            selected = self.hook_runtime.call("on_pick_portfolio_member", ctx)
+            selected = self.hook_runtime.call(
+                "select_portfolio_entries",
+                ctx,
+                Opportunities(opps, account=snapshot),
+            )
             return self.normalize_selected_ids(opps, selected)
 
         allocation = self.settings.portfolio.allocation
@@ -264,18 +242,21 @@ class EnterSelection:
         self,
         events: Sequence[PortfolioEvent],
         opportunities_by_id: Dict[str, Opportunity],
+        *,
+        on_progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> List[PortfolioEvent]:
         """按日挑选 portfolio members，过滤未选中的 investment 事件。
 
         跨日维护持仓 entity：卖出释放槽位，买入占用槽位（近似 legacy 容量约束）。
+        ``on_progress(done, total, description)`` 按交易日推进（可选）。
         """
-        dates = sorted(
-            {
-                str(e.date or "").strip()
-                for e in events
-                if str(e.date or "").strip()
-            }
-        )
+        # 先按日建索引，避免「每个交易日扫全量事件」的 O(日×事件)
+        by_date: Dict[str, List[PortfolioEvent]] = defaultdict(list)
+        for event in events:
+            d = str(event.date or "").strip()
+            if d:
+                by_date[d].append(event)
+        dates = sorted(by_date.keys())
         selected: Set[str] = set()
         held_entities: Set[str] = set()
         inv_entity: Dict[str, str] = {
@@ -289,9 +270,13 @@ class EnterSelection:
             if key and eid:
                 inv_entity.setdefault(key, eid)
 
-        for date in dates:
-            for event in events:
-                if str(event.date or "").strip() != date or not event.is_sell():
+        n_dates = len(dates)
+        if on_progress is not None and n_dates > 0:
+            on_progress(0, n_dates, "选仓")
+        for index, date in enumerate(dates):
+            day_events = by_date[date]
+            for event in day_events:
+                if not event.is_sell():
                     continue
                 key = EntrySelector.event_selection_key(event)
                 if key not in selected:
@@ -300,11 +285,7 @@ class EnterSelection:
                 if eid:
                     held_entities.discard(eid)
 
-            day_buys = [
-                e
-                for e in events
-                if e.is_buy() and str(e.date or "").strip() == date
-            ]
+            day_buys = [e for e in day_events if e.is_buy()]
             available: List[Opportunity] = []
             for buy in day_buys:
                 key = EntrySelector.event_selection_key(buy)
@@ -334,6 +315,9 @@ class EnterSelection:
                 if eid:
                     held_entities.add(eid)
                     inv_entity[key] = eid
+
+            if on_progress is not None and n_dates > 0:
+                on_progress(index + 1, n_dates, f"选仓 {date}")
 
         return self.filter_events(events, selected)
 

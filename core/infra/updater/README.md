@@ -1,36 +1,32 @@
 # Updater（`infra.updater`）
 
-应用升级：编排源码、DB 数据迁移脚本注册表、post-upgrade 收尾、把编排同步进 `userspace/system/updater`。
+**模块：** `infra.updater` · **版本：** `0.1.0`
 
-运行时从 `userspace/system/updater` 启动（`cli.py u`）。不要从本模块 `import pipeline` 来执行升级。
+**最低支持核心版本：** `>=0.5.0`
 
-## 布局
+## 简介
 
-```text
-core/infra/updater/
-├── updater.py          # Facade
-├── contracts.py
-├── core/
-│   ├── db/             # 数据脚本注册表
-│   ├── post_upgrade/   # 收尾动作 + CLI
-│   ├── orchestrator/   # 编排源码（拷贝到 userspace）
-│   └── orchestrator_sync.py
-├── __test__/
-└── docs/
-```
+NTQ 的升级流程编排。在已装环境上原地升级——替换源码、跑数据库迁移脚本、收尾 post-upgrade。升级编排会被拷贝到 userspace，运行时直接调，不 import core 里的版本避免漂移。
 
-## 快速开始
+## 适用场景
 
-见 [QUICKSTART.md](./QUICKSTART.md)。
+- CLI `python cli.py u` 或 BFF 触发升级时，按编排依次执行
+- 新版本数据库 schema 变了，跑迁移脚本
 
-```python
-from core.infra.updater import Updater
+## 模块依赖
 
-Updater.runtime.sync_orchestrator(dest)
-Updater.post_upgrade.run(repo_root)
-```
+- `infra.utils`：通用工具（文件操作等）
+
+## 设计初衷
+
+- **要解决的问题：** 安装和升级是两件事——安装从零装、升级在已有环境上原地改，不能共用一套编排。
+- **明确不做：** 不检查远端有没有新版本（那是 Pro / 云端能力）；不做回滚。
 
 ## 相关文档
 
-- [API.md](./API.md)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [用户指南](./docs/USER_GUIDE.md)
+- [公开 API](./API.md)
+- [架构](./docs/ARCHITECTURE.md)
+- [术语表](./glossary.yaml)
+- [快速开始](./QUICKSTART.md)
+- [决策](./docs/DECISIONS.md)

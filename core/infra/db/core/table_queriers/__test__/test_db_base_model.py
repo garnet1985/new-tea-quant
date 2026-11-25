@@ -3,7 +3,7 @@ DbBaseModel 单元测试
 """
 import pytest
 from unittest.mock import Mock, patch, MagicMock
-from core.infra.db.core.table_queriers.db_base_model import DbBaseModel
+from core.infra.db.core.table_queriers.db_base_model import DbBaseModel, latest_group_query
 from core.infra.db.core.engines.shared import row_sql
 
 
@@ -168,10 +168,10 @@ class TestDbBaseModelEnginePath:
         mock_op.load.return_value = [{"id": "001"}]
         mock_db.engine.table_operator.return_value = mock_op
 
-        model = DbBaseModel("sys_stock_list", db=mock_db)
+        model = DbBaseModel("sys_data_stock_list", db=mock_db)
         rows = model.load("id = %s", ("001",))
 
-        mock_db.engine.table_operator.assert_called_with("sys_stock_list")
+        mock_db.engine.table_operator.assert_called_with("sys_data_stock_list")
         mock_op.load.assert_called_once()
         assert rows == [{"id": "001"}]
     
@@ -198,3 +198,21 @@ class TestDbBaseModelEnginePath:
         with patch.object(model, 'batch_insert', return_value=2) as mock_batch:
             model.insert(data_list)
         mock_batch.assert_called_once_with(data_list, None)
+
+
+def test_latest_group_query_reads_only_the_group_key_and_date():
+    sql = latest_group_query("sys_data_stock_indicators", "date", ["id"])
+    assert sql == (
+        "SELECT id, MAX(date) AS date "
+        "FROM sys_data_stock_indicators "
+        "GROUP BY id"
+    )
+    assert "t1.*" not in sql
+
+
+def test_latest_group_query_requires_a_group_field():
+    try:
+        latest_group_query("t", "date", [])
+        assert False, "expected ValueError"
+    except ValueError as error:
+        assert "group_fields" in str(error)

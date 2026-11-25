@@ -58,10 +58,10 @@ def test_create_engine_by_key(engine_key, expected_cls):
 
 def test_table_operator_returns_db_table_abc():
     engine = EngineFactory.create(_meta("mysql"))
-    op = engine.table_operator("sys_stock_list")
+    op = engine.table_operator("sys_data_stock_list")
     assert isinstance(op, DbTableAbc)
-    assert op.table_name == "sys_stock_list"
-    assert engine.table_operator("sys_stock_list") is op
+    assert op.table_name == "sys_data_stock_list"
+    assert engine.table_operator("sys_data_stock_list") is op
 
 
 def test_db_table_abc_concrete_helpers():

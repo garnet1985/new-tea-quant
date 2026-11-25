@@ -1,7 +1,6 @@
 import React from 'react';
-import { Box } from '@mui/material';
-import InlineLoadingState from 'views/inlineLoadingState';
-import ReportStockSampleGrid from 'views/reportStockSampleGrid';
+import { Loading } from 'ui';
+import ReportStockSampleGrid from '../reportStockSampleGrid';
 import ReportUnavailableHint, {
   REPORT_EMPTY_MATCH_ZH,
 } from '../reportUnavailableHint';
@@ -18,9 +17,9 @@ function ReportStockGridSection({
 }) {
   if (loading) {
     return (
-      <Box sx={{ position: 'relative' }}>
-        <InlineLoadingState block compact message={loadingMessage} />
-      </Box>
+      <div className="ntq-report-stock-grid-section">
+        <Loading variant="inline" message={loadingMessage} className="is-block" />
+      </div>
     );
   }
 
@@ -33,10 +32,13 @@ function ReportStockGridSection({
   }
 
   return (
-    <Box sx={{ position: 'relative' }}>
+    <div
+      className="ntq-report-stock-grid-section"
+      data-ntq-help={hasRows ? 'strategy-report-stock' : undefined}
+    >
       {overlay}
       <ReportStockSampleGrid rows={filteredRows} {...gridProps} />
-    </Box>
+    </div>
   );
 }
 

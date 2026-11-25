@@ -14,7 +14,8 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, TextIO
 
 from core.infra.cmd_layout import CmdLayout
-from core.modules.strategy.core.engines.scanner.helpers import AdapterDispatcher
+from core.modules.post_process import PostProcess
+from core.modules.strategy.core.engines.scanner.helpers import PostProcessDispatcher
 from core.modules.strategy.core.engines.scanner.report_manager.scan_summary import (
     ScanSummary,
 )
@@ -37,7 +38,7 @@ class ReportManager(BaseReportManager):
     """扫描 run 产物编排。
 
     边界:
-    - 负责: collect opportunities、summary、落盘、adapter present
+    - 负责: collect opportunities、summary、落盘、post_process present
     - 不负责: BE 调度 / 日期解析 / 磁盘路径
     - 调用方: ScannerPipeline
     """
@@ -46,11 +47,18 @@ class ReportManager(BaseReportManager):
     scan_date: str = ""
     stock_ids: List[str] = field(default_factory=list)
     date_meta: Dict[str, Any] = field(default_factory=dict)
-    adapter_names: List[str] = field(default_factory=list)
+    goal: Dict[str, Any] = field(default_factory=dict)
+    strategy_version: str = ""
+    scan_fingerprint: str = ""
+    workbench_version: int = 0
     max_cache_days: int = 10
     skip_save: bool = False
     opportunities: List[Opportunity] = field(default_factory=list)
     summary: Optional[ScanSummary] = field(default=None, init=False, repr=False)
+    post_process_ran: List[str] = field(default_factory=list)
+    post_process_enabled: List[str] = field(default_factory=list)
+    post_process_skipped: bool = False
+    post_process_ui: Dict[str, Any] = field(default_factory=dict)
     _store: Optional[ScanStore] = field(default=None, init=False, repr=False)
 
     @classmethod
@@ -61,7 +69,10 @@ class ReportManager(BaseReportManager):
         scan_date: str,
         stock_ids: List[str],
         date_meta: Optional[Dict[str, Any]] = None,
-        adapter_names: Optional[List[str]] = None,
+        goal: Optional[Dict[str, Any]] = None,
+        strategy_version: str = "",
+        scan_fingerprint: str = "",
+        workbench_version: int = 0,
         max_cache_days: int = 10,
         skip_save: bool = False,
         strategy_folder: Optional[Path] = None,
@@ -71,13 +82,24 @@ class ReportManager(BaseReportManager):
         root = strategy_folder if strategy_folder is not None else key
         store = ArtifactStore.scan_at(root, day) if day else None
         output_dir = store.output_dir if store is not None else Path()
+        try:
+            wb_ver = int(workbench_version or 0)
+        except (TypeError, ValueError):
+            wb_ver = 0
+        wb_ver = max(0, wb_ver)
+        ver_label = str(strategy_version or "").strip()
+        if not ver_label and wb_ver > 0:
+            ver_label = f"v{wb_ver}"
         mgr = cls(
             output_dir=output_dir,
             strategy_key=key,
             scan_date=day,
             stock_ids=list(stock_ids or []),
             date_meta=dict(date_meta or {}),
-            adapter_names=list(adapter_names or []),
+            goal=dict(goal or {}),
+            strategy_version=ver_label,
+            scan_fingerprint=str(scan_fingerprint or "").strip(),
+            workbench_version=wb_ver,
             max_cache_days=int(max_cache_days),
             skip_save=bool(skip_save),
         )
@@ -119,14 +141,32 @@ class ReportManager(BaseReportManager):
     def to_report_dict(self) -> Dict[str, Any]:
         """CMD / Scan 页 / 落盘共用的报告字典。"""
         summary = self.summary or self.summarize()
-        return {
+        out: Dict[str, Any] = {
             "strategy_key": self.strategy_key,
             "date": self.scan_date,
             "total_opportunities": len(self.opportunities),
             "total_stocks": len(self.stock_ids),
             "summary": summary.to_dict(),
             "date_meta": dict(self.date_meta or {}),
+            "post_process": {
+                "enabled": list(self.post_process_enabled or []),
+                "ran": list(self.post_process_ran or []),
+                "skipped": bool(getattr(self, "post_process_skipped", False)),
+                # SPECIAL-CASE DEC-05：目前仅 presenter → scan_report；见 post_process/docs/DECISIONS.md
+                "ui": dict(self.post_process_ui or {}),
+            },
         }
+        fp = str(self.scan_fingerprint or "").strip()
+        if fp:
+            out["scan_fingerprint"] = fp
+        try:
+            wb_ver = int(self.workbench_version or 0)
+        except (TypeError, ValueError):
+            wb_ver = 0
+        if wb_ver > 0:
+            out["workbench_version"] = wb_ver
+            out["strategy_version"] = f"v{wb_ver}"
+        return out
 
     def to_ui_dict(self) -> Dict[str, Any]:
         """Scan 页消费的 camelCase 摘要（明细仍走 opportunities 列表 / CSV）。"""
@@ -146,23 +186,38 @@ class ReportManager(BaseReportManager):
         }
 
     def save(self) -> Optional[Path]:
-        if self.skip_save:
-            return None
         if not self.scan_date:
             return None
         store = self._store or ArtifactStore.scan_at(self.strategy_key, self.scan_date)
+        if self.skip_save:
+            # 缓存命中不重写机会明细，但仍落盘 post_process（含 ui），供就绪态回填
+            existing = store.read_summary() if store is not None else None
+            if isinstance(existing, dict):
+                merged = dict(existing)
+                merged["post_process"] = dict(self.to_report_dict().get("post_process") or {})
+                return store.write_summary(merged)
+            return None
         summary_path = store.write_summary(self.to_report_dict())
         store.write_opportunity_rows([opp.to_dict() for opp in self.opportunities])
         return summary_path
 
-    def present(self, stream: Optional[TextIO] = None) -> None:
+    def present(
+        self,
+        stream: Optional[TextIO] = None,
+        *,
+        run_post_process: bool = True,
+    ) -> None:
         out = stream or sys.stdout
         icon = CmdLayout.icon.get
         report = self.to_report_dict()
         summary = report["summary"]
         CmdLayout.title.print_h1(f"{icon('search')} 扫描报告", stream=out)
+        from core.modules.strategy.core.engines.scanner.helpers.date_resolver import (
+            display_calendar_date,
+        )
+
         print(
-            f"{icon('calendar')} {report['date']}  "
+            f"{icon('calendar')} {display_calendar_date(report['date'])}  "
             f"{icon('gear')} {self.strategy_key}",
             file=out,
             flush=True,
@@ -183,8 +238,17 @@ class ReportManager(BaseReportManager):
             flush=True,
         )
 
-        AdapterDispatcher(self.strategy_key).dispatch(
-            adapter_names=self.adapter_names,
+        self.post_process_enabled = list(PostProcess.list_enabled_post_processors())
+        if not run_post_process:
+            self.post_process_skipped = True
+            self.post_process_ran = []
+            self.post_process_ui = {}
+            return
+        dispatched = PostProcessDispatcher(
+            strategy_name=self.strategy_key,
+            strategy_version=self.strategy_version,
+            goal=dict(self.goal or {}),
+        ).dispatch(
             opportunities=self.opportunities,
             context={
                 "date": self.scan_date,
@@ -193,13 +257,28 @@ class ReportManager(BaseReportManager):
                 "date_meta": dict(self.date_meta or {}),
             },
         )
+        if isinstance(dispatched, dict):
+            self.post_process_ran = list(dispatched.get("ran") or [])
+            self.post_process_ui = dict(dispatched.get("ui") or {})
+            # prefs 关闭时 run_enabled 返回 skipped；显式 run_post_process=False 已在上方 return
+            self.post_process_skipped = bool(dispatched.get("skipped"))
+        else:
+            self.post_process_ran = list(dispatched or [])
+            self.post_process_ui = {}
+            self.post_process_skipped = False
 
-    def finalize(self, *, present: bool = True, **kwargs: Any) -> Dict[str, Any]:
+    def finalize(
+        self,
+        *,
+        present: bool = True,
+        run_post_process: bool = True,
+        **kwargs: Any,
+    ) -> Dict[str, Any]:
         _ = kwargs
         self.summarize()
-        self.save()
         if present:
-            self.present()
+            self.present(run_post_process=bool(run_post_process))
+        self.save()
         return self.to_report_dict()
 
 

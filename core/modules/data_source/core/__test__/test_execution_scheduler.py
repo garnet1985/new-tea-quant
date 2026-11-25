@@ -36,6 +36,16 @@ def test_topological_sort_missing_dependency_raises() -> None:
         sched._topological_sort_handlers([_StubHandler("b", deps=["missing"])])
 
 
+def test_topological_sort_uses_mapping_weight() -> None:
+    class _Mappings:
+        data_sources = {"a": {"weight": 1}, "b": {"weight": 20}}
+
+    sched = DataSourceExecutionScheduler()
+    sched.mappings = _Mappings()
+    ordered = sched._topological_sort_handlers([_StubHandler("a"), _StubHandler("b")])
+    assert [h.get_key() for h in ordered] == ["b", "a"]
+
+
 def test_topological_sort_cycle_raises() -> None:
     sched = DataSourceExecutionScheduler()
     a = _StubHandler("a", deps=["b"])

@@ -1,6 +1,7 @@
 # Discovery API 文档
 
-**版本：** `0.2.1`  
+**模块：** `infra.discovery` · **版本：** `0.2.1`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  

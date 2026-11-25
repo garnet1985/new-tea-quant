@@ -7,7 +7,8 @@ data_cpi 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "macro_cpi",
-    "name": "sys_cpi",
+    "kind": "data",
+    "name": "sys_data_cpi",
     "primaryKey": "date",
     "fields": [
         {

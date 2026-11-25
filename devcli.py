@@ -25,5 +25,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from core.modules.cli import Cli
 
+# 与 cli.py 相同：非 venv 且存在仓库根 venv/ 时重入其解释器（不跑 install 门闸）。
+# 可用 NTQ_SKIP_AUTO_VENV=1 关闭。
+Cli.user.ensure_venv(__file__)
+
 if __name__ == "__main__":
     raise SystemExit(Cli.dev.main())

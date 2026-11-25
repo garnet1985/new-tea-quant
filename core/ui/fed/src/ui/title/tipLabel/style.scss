@@ -1,0 +1,38 @@
+.ntq-tip-label {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: var(--ui-space-xxs, 0.125rem);
+  min-width: 0;
+}
+
+.ntq-tip-label--below {
+  margin-bottom: 0.375rem;
+}
+
+.ntq-tip-label__text {
+  margin: 0;
+  line-height: 1.35;
+  color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+}
+
+.ntq-tip-label__text--section {
+  font-size: var(--ui-font-sm, 0.875rem);
+  font-weight: 600;
+}
+
+.ntq-tip-label__text--caption {
+  font-size: var(--ui-font-xs, 0.75rem);
+  font-weight: 400;
+  color: var(--ntq-text-muted, rgba(255, 255, 255, 0.62));
+}
+
+.ntq-tip-label__text--field {
+  font-size: var(--ui-font-sm, 0.875rem);
+  font-weight: 400;
+}
+
+.ntq-tip-label__text--title {
+  font-size: inherit;
+  font-weight: 600;
+}

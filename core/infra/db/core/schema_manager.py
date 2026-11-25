@@ -18,6 +18,7 @@ from core.infra.project_context import ProjectContext
 from core.infra.db.core.engines.shared.dialect import sql_dialect_for_schema
 from core.infra.db.core.engines.shared.fields import Field
 from core.infra.db.core.storage_registry import normalize_storage_domain
+from core.infra.db.core.table_kind import validate_table_identity
 from core.infra.db.core.engines.schema_parser_factory import get_schema_parser
 from core.infra.db.core.engines.shared.schema_parser_base import SchemaParserBase
 from core.infra.db.core.engines.shared.ddl_executor import execute_ddl
@@ -233,7 +234,26 @@ class SchemaManager:
                 raise ValueError(f"字段 '{field_dict.get('name', 'unknown')}' 定义无效: {e}")
 
         self._normalize_storage_domain(schema)
-    
+        validate_table_identity(schema, owner=self._owner_required_for_schema_path(schema_file_path))
+
+    def _owner_required_for_schema_path(self, schema_file_path: Optional[Path]) -> Optional[str]:
+        """core/tables 必须是 sys，userspace/extensions/tables 必须是 cust。"""
+        if schema_file_path is None:
+            return None
+        resolved = schema_file_path.resolve()
+        core_tables = (ProjectContext.path.get_core_root() / "tables").resolve()
+        try:
+            resolved.relative_to(core_tables)
+            return "sys"
+        except ValueError:
+            pass
+        userspace_tables = ProjectContext.path.get_extensions_tables_directory().resolve()
+        try:
+            resolved.relative_to(userspace_tables)
+            return "cust"
+        except ValueError:
+            return None
+
     def _normalize_storage_domain(self, schema: Dict) -> None:
         """校验 schema 必须包含 storage_domain。"""
         table_name = str(schema.get("name") or "")
@@ -502,7 +522,7 @@ class SchemaManager:
     def get_table_schema(self, table_name: str) -> Optional[Dict]:
         """
         获取表的 schema。
-        表名即 schema["name"]（如 sys_stock_list），与目录名可能不同。
+        表名即 schema["name"]（如 sys_data_stock_list），与目录名可能不同。
         
         Args:
             table_name: 表名

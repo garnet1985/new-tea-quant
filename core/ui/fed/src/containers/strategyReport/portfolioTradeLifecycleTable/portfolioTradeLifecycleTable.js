@@ -1,17 +1,8 @@
 import React, { useMemo, useState } from 'react';
-import {
-  Box,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  IconButton,
-  Stack,
-  Typography,
-} from '@mui/material';
 import ReactECharts from 'echarts-for-react';
-import NtqIcon from 'views/ntqIcon';
-import ReportStockSampleGrid from 'views/reportStockSampleGrid';
-import { SectionBlock } from 'views/sectionBlock';
+import { Button, Dialog } from 'ui';
+import ReportStockSampleGrid from '../reportStockSampleGrid';
+import ReportBlock from 'ntq-ui/reportBlock';
 import { resolveMarketPnlPalette } from 'styles/marketPnlColors';
 import { CAPITAL_CHART_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from '../reportUnavailableHint';
@@ -21,6 +12,7 @@ import {
   buildPortfolioTradeOverviewChartOption,
   buildTradeLifecycleTableRows,
 } from '../lib/portfolioTradeLifecycle';
+import './style.scss';
 
 function outcomeColor(row, palette) {
   if (row.open) return undefined;
@@ -39,27 +31,16 @@ function emptyLastComparator(a, b) {
 
 function TradeChartOpenButton({ onClick, disabled = false }) {
   return (
-    <IconButton
-      size="small"
+    <Button
+      variant="glass"
+      icon="monitoring"
       disabled={disabled}
       aria-label="打开逐笔事件图"
-      title="打开逐笔事件图"
+      tooltip="打开逐笔事件图"
+      className="ntq-report-trade-chart-btn"
+      data-ntq-help="strategy-report-portfolio-chart"
       onClick={onClick}
-      sx={{
-        border: '1px solid',
-        borderColor: disabled ? 'rgba(255,255,255,0.18)' : 'rgba(255,255,255,0.42)',
-        borderRadius: 1,
-        px: 0.75,
-        py: 0.5,
-        bgcolor: disabled ? 'transparent' : 'rgba(255,255,255,0.04)',
-        '&:hover': disabled ? undefined : {
-          borderColor: 'rgba(255,255,255,0.72)',
-          bgcolor: 'rgba(255,255,255,0.10)',
-        },
-      }}
-    >
-      <NtqIcon name="monitoring" size={18} tone={disabled ? 'muted' : ''} />
-    </IconButton>
+    />
   );
 }
 
@@ -110,17 +91,13 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
         const code = params.row.entityId || '';
         if (!name && !code) return '—';
         if (!code || code === name) {
-          return <Typography variant="body2" noWrap>{name || code}</Typography>;
+          return <span className="ntq-report-trade-cell">{name || code}</span>;
         }
         return (
-          <Stack direction="row" spacing={0.75} alignItems="baseline" sx={{ minWidth: 0 }}>
-            <Typography variant="body2" noWrap>
-              {name}
-            </Typography>
-            <Typography variant="caption" color="text.secondary" noWrap>
-              {code}
-            </Typography>
-          </Stack>
+          <span className="ntq-report-trade-cell ntq-report-trade-cell--pair">
+            <span className="ntq-report-trade-cell__name">{name}</span>
+            <span className="ntq-report-trade-cell__code ntq-muted">{code}</span>
+          </span>
         );
       },
     },
@@ -138,12 +115,12 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
       sortComparator: emptyLastComparator,
       renderCell: (params) => {
         if (params.row.open || !params.row.endDate) {
-          return <Typography variant="body2" color="text.secondary">未平仓</Typography>;
+          return <span className="ntq-report-trade-cell ntq-muted">未平仓</span>;
         }
         return (
-          <Typography variant="body2">
+          <span className="ntq-report-trade-cell">
             {formatReportChartDateLabel(params.row.endDate)}
-          </Typography>
+          </span>
         );
       },
     },
@@ -155,9 +132,9 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
       renderCell: (params) => {
         const days = params.row.holdingDays;
         if (!Number.isFinite(Number(days))) {
-          return <Typography variant="body2" color="text.secondary">—</Typography>;
+          return <span className="ntq-report-trade-cell ntq-muted">—</span>;
         }
-        return <Typography variant="body2">{`${days}天`}</Typography>;
+        return <span className="ntq-report-trade-cell">{`${days}天`}</span>;
       },
     },
     {
@@ -175,12 +152,10 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
         const costText = Number.isFinite(Number(cost)) ? formatReportMoney(cost) : '—';
         const shareText = Number.isFinite(shares) ? `${shares.toLocaleString()}股` : '—股';
         return (
-          <Typography variant="body2" noWrap>
+          <span className="ntq-report-trade-cell">
             {costText}
-            <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 0.5 }}>
-              （{shareText}）
-            </Typography>
-          </Typography>
+            <span className="ntq-muted">{` （${shareText}）`}</span>
+          </span>
         );
       },
     },
@@ -199,17 +174,17 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
       sortComparator: emptyLastComparator,
       renderCell: (params) => {
         if (params.row.open) {
-          return <Typography variant="body2" color="text.secondary">未平仓</Typography>;
+          return <span className="ntq-report-trade-cell ntq-muted">未平仓</span>;
         }
         const pct = Number(params.row.returnPct);
         if (!Number.isFinite(pct)) {
-          return <Typography variant="body2" color="text.secondary">—</Typography>;
+          return <span className="ntq-report-trade-cell ntq-muted">—</span>;
         }
         const color = outcomeColor(params.row, palette);
         return (
-          <Typography variant="body2" sx={{ color, fontWeight: 600 }}>
+          <span className="ntq-report-trade-cell ntq-report-trade-cell--emph" style={{ color }}>
             {`${pct >= 0 ? '+' : ''}${pct.toFixed(2)}%`}
-          </Typography>
+          </span>
         );
       },
     },
@@ -220,17 +195,17 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
       sortComparator: emptyLastComparator,
       renderCell: (params) => {
         if (params.row.open) {
-          return <Typography variant="body2" color="text.secondary">未平仓</Typography>;
+          return <span className="ntq-report-trade-cell ntq-muted">未平仓</span>;
         }
         const profit = Number(params.row.profit);
         if (!Number.isFinite(profit)) {
-          return <Typography variant="body2" color="text.secondary">—</Typography>;
+          return <span className="ntq-report-trade-cell ntq-muted">—</span>;
         }
         const color = outcomeColor(params.row, palette);
         return (
-          <Typography variant="body2" sx={{ color, fontWeight: 600 }}>
+          <span className="ntq-report-trade-cell ntq-report-trade-cell--emph" style={{ color }}>
             {`${profit >= 0 ? '+' : ''}${formatReportMoney(profit)}`}
-          </Typography>
+          </span>
         );
       },
     },
@@ -251,65 +226,52 @@ function PortfolioTradeLifecycleTable({ metrics, showChartAction = true }) {
       onClose={() => setChartOpen(false)}
       fullScreen
       className="ntq-report-trade-overview-dialog"
-    >
-      <DialogTitle
-        sx={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          gap: 2,
-          py: 1.25,
-          pr: 1,
-        }}
-      >
-        <Typography variant="subtitle1" fontWeight={700} component="span">
-          逐笔投资事件图
-          <Typography
-            component="span"
-            variant="caption"
-            color="text.secondary"
-            sx={{ ml: 1.5 }}
-          >
-            净值曲线 · 仅标开仓起点（同日合并 · 赚红亏绿 · 按金额分三档大小）
-          </Typography>
-        </Typography>
-        <IconButton aria-label="关闭" onClick={() => setChartOpen(false)} edge="end">
-          <NtqIcon name="cancel" size={18} />
-        </IconButton>
-      </DialogTitle>
-      <DialogContent dividers sx={{ display: 'flex', flexDirection: 'column', gap: 1, pt: 1.5 }}>
-        <Typography variant="caption" color="text.secondary">
-          与表格同源。同日多笔开仓合并为一点：总盈亏金额为正红、为负绿；点大小按 |金额| 分小/中/大。
-          悬停看当日明细。底部滑条缩放。
-        </Typography>
-        {overviewOption ? (
-          <ReactECharts
-            option={overviewOption}
-            style={{ height: 'min(72vh, 640px)', width: '100%' }}
-            notMerge
-            lazyUpdate
+      title={(
+        <span className="ntq-report-dialog-title">
+          <span className="ntq-report-dialog-title__main">
+            逐笔投资事件图
+            <span className="ntq-report-dialog-title__sub ntq-muted">
+              净值曲线 · 仅标开仓起点（同日合并 · 赚红亏绿 · 按金额分三档大小）
+            </span>
+          </span>
+          <Button
+            variant="ghost"
+            icon="close"
+            aria-label="关闭"
+            onClick={() => setChartOpen(false)}
           />
-        ) : (
-          <Typography variant="body2" color="text.secondary">
-            暂无曲线或成交数据，无法绘制事件图。
-          </Typography>
-        )}
-      </DialogContent>
+        </span>
+      )}
+    >
+      <p className="ntq-caption ntq-muted">
+        与表格同源。同日多笔开仓合并为一点：总盈亏金额为正红、为负绿；点大小按 |金额| 分小/中/大。
+        悬停看当日明细。底部滑条缩放。
+      </p>
+      {overviewOption ? (
+        <ReactECharts
+          option={overviewOption}
+          style={{ height: 'min(72vh, 640px)', width: '100%' }}
+          notMerge
+          lazyUpdate
+        />
+      ) : (
+        <p className="ntq-muted">暂无曲线或成交数据，无法绘制事件图。</p>
+      )}
     </Dialog>
   ) : null;
 
   if (!rows.length) {
     return (
       <>
-        <SectionBlock
+        <ReportBlock
           title="逐笔投资"
           tip={CAPITAL_CHART_TIPS.tradeLifecycle}
           action={chartAction}
         >
-          <Box sx={{ py: 0.5 }}>
+          <div className="ntq-report-trade-empty">
             <ReportUnavailableHint message="暂无成交记录" />
-          </Box>
-        </SectionBlock>
+          </div>
+        </ReportBlock>
         {chartDialog}
       </>
     );

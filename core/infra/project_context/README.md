@@ -1,44 +1,32 @@
 # Project Context（`infra.project_context`）
 
-项目根推断、语义路径、约定式配置发现与默认/用户配置合并。
+**模块：** `infra.project_context` · **版本：** `0.2.1`
+
+**最低支持核心版本：** `>=0.5.0`
+
+## 简介
+
+项目里所有路径和配置的统一入口。找 userspace 在哪、找策略目录在哪、合并默认配置和用户覆盖、读缓存目录——都从这里走，不用每个模块自己拼路径。
 
 ## 适用场景
 
-- 解析 `userspace`、策略 / Tag / data_source 目录
-- 合并 `core/default_config` 与 `userspace/config`
-- 统一通过 Facade：`ProjectContext.path` / `.config` / `.discovery` / `.meta` / `.cache`
+- 想拿 userspace 路径、策略目录、Tag 目录等语义路径
+- 想读某个模块的配置，合并 core 默认值和 userspace 覆盖
 
-## 布局
+## 模块依赖
 
-```text
-core/infra/project_context/
-├── module_info.yaml
-├── API.md / QUICKSTART.md / glossary.yaml / contracts.py
-├── project_context.py          # Facade
-├── core/                       # 内部实现
-├── __test__/
-└── docs/
-    ├── ARCHITECTURE.md
-    └── DESIGN.md
-```
+无硬依赖
 
-## 快速开始
+## 设计初衷
 
-见 [QUICKSTART.md](./QUICKSTART.md)。
-
-```python
-from core.infra.project_context import ProjectContext
-
-root = ProjectContext.path.get_project_root()
-data_cfg = ProjectContext.config.load_data_config()
-```
-
-```bash
-python3 -m pytest core/infra/project_context/__test__/test_api.py -q
-```
+- **要解决的问题：** 路径拼接和配置合并是"任何模块都可能要"的原语，不能散落在各处。
+- **明确不做：** 不做业务调度；不往 userspace 写配置。
 
 ## 相关文档
 
-- [API.md](./API.md)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
-- [docs/DESIGN.md](./docs/DESIGN.md)
+- [用户指南](./docs/USER_GUIDE.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [快速开始](./QUICKSTART.md)
+- [决策](./docs/DECISIONS.md)

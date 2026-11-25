@@ -1,9 +1,11 @@
 """Path Manager - 路径管理器"""
 from pathlib import Path
 from typing import Optional, Union
+import importlib.util
 import logging
 import os
 import sys
+import types
 
 logger = logging.getLogger(__name__)
 
@@ -13,11 +15,61 @@ class PathManager:
 
     _root_cache: Optional[Path] = None
     _userspace_cache: Optional[Path] = None
+    _bound_userspace_root: Optional[Path] = None
 
     @staticmethod
     def clear_userspace_cache() -> None:
         """清理 userspace 路径缓存（当路径变化后强制重新计算）"""
+        PathManager._drop_userspace_modules()
         PathManager._userspace_cache = None
+        PathManager._bound_userspace_root = None
+
+    @staticmethod
+    def _drop_userspace_modules() -> None:
+        """丢掉已缓存的 ``userspace.*``，避免外置路径切换后仍指向旧包。"""
+        for key in list(sys.modules):
+            if key == "userspace" or key.startswith("userspace."):
+                del sys.modules[key]
+
+    @staticmethod
+    def bind_userspace_package(root: Optional[Path] = None) -> Path:
+        """
+        让 ``import userspace…`` 解析到当前 userspace 根。
+
+        仓库根常在 ``sys.path`` 上，默认会优先吃到 ``<repo>/userspace``；
+        外置 userspace 时必须把包 ``__path__`` 绑到实际根，否则扩展/适配器导入失败。
+        """
+        target = (root or PathManager.get_userspace_root()).resolve()
+        if PathManager._bound_userspace_root == target:
+            existing = sys.modules.get("userspace")
+            paths = list(getattr(existing, "__path__", []) or []) if existing else []
+            if paths and Path(paths[0]).resolve() == target:
+                return target
+
+        PathManager._drop_userspace_modules()
+        root_s = str(target)
+        init_py = target / "__init__.py"
+        if init_py.is_file():
+            spec = importlib.util.spec_from_file_location(
+                "userspace",
+                init_py,
+                submodule_search_locations=[root_s],
+            )
+            if spec is not None and spec.loader is not None:
+                mod = importlib.util.module_from_spec(spec)
+                mod.__path__ = [root_s]  # type: ignore[attr-defined]
+                sys.modules["userspace"] = mod
+                spec.loader.exec_module(mod)
+                PathManager._bound_userspace_root = target
+                return target
+
+        mod = types.ModuleType("userspace")
+        mod.__file__ = root_s
+        mod.__path__ = [root_s]  # type: ignore[attr-defined]
+        mod.__package__ = "userspace"
+        sys.modules["userspace"] = mod
+        PathManager._bound_userspace_root = target
+        return target
 
     @staticmethod
     def get_project_root() -> Path:
@@ -147,6 +199,7 @@ class PathManager:
         已配置路径即使目录尚不存在也直接返回，禁止静默回落到项目内 userspace。
         """
         if PathManager._userspace_cache is not None:
+            PathManager.bind_userspace_package(PathManager._userspace_cache)
             return PathManager._userspace_cache
 
         for env_path in (
@@ -157,15 +210,18 @@ class PathManager:
             if text:
                 p = Path(text).expanduser().resolve()
                 PathManager._userspace_cache = p
+                PathManager.bind_userspace_package(p)
                 return p
 
         from_state = PathManager._read_userspace_path_from_state()
         if from_state is not None:
             PathManager._userspace_cache = from_state
+            PathManager.bind_userspace_package(from_state)
             return from_state
 
         new_path = (PathManager.get_project_root() / "userspace").resolve()
         PathManager._userspace_cache = new_path
+        PathManager.bind_userspace_package(new_path)
         return new_path
 
     @staticmethod
@@ -200,6 +256,16 @@ class PathManager:
         return PathManager.get_userspace_root() / "extensions"
 
     @staticmethod
+    def is_safe_extension_id(name: str) -> bool:
+        """userspace 扩展目录/文件名：无路径段、非隐藏。"""
+        text = str(name or "").strip()
+        if not text or text in {".", ".."}:
+            return False
+        if "/" in text or "\\" in text:
+            return False
+        return not text.startswith(".")
+
+    @staticmethod
     def get_system_root() -> Path:
         """获取系统根目录：userspace/system/"""
         return PathManager.get_userspace_root() / "system"
@@ -221,8 +287,18 @@ class PathManager:
 
     @staticmethod
     def get_user_config_root() -> Path:
-        """获取用户配置目录：userspace/system/config/"""
+        """获取用户配置目录：userspace/system/config/（与 default_config 深度合并）"""
         return PathManager.get_system_root() / "config"
+
+    @staticmethod
+    def get_user_prefs_root() -> Path:
+        """
+        用户偏好 / 一次性状态：userspace/system/prefs/
+
+        与 ``config/`` 分离（不做 default_config 合并）；也不放 ``.ntq/``
+        （``devcli.py cgc`` 会清掉缓存，同意/关闭账本等应保留）。
+        """
+        return PathManager.get_system_root() / "prefs"
 
     # ========== 系统目录 ==========
 
@@ -255,6 +331,29 @@ class PathManager:
     def get_userspace_tmp_directory() -> Path:
         """获取临时目录：userspace/.ntq/tmp/"""
         return PathManager.get_userspace_ntq_directory() / "tmp"
+
+    # 静态数据包：demo / member / full（导出、下载、导入共用）
+    DATA_PACKAGE_KINDS = ("demo", "member", "full")
+
+    @staticmethod
+    def get_packages_root() -> Path:
+        """静态数据包根目录：userspace/.ntq/packages/"""
+        return PathManager.get_userspace_ntq_directory() / "packages"
+
+    @staticmethod
+    def get_data_package_directory(kind: str = "demo") -> Path:
+        """按类型返回数据包目录：userspace/.ntq/packages/{demo|member|full}/。"""
+        key = str(kind or "demo").strip().lower() or "demo"
+        if key not in PathManager.DATA_PACKAGE_KINDS:
+            raise ValueError(
+                f"未知数据包类型: {kind!r}（可选: {', '.join(PathManager.DATA_PACKAGE_KINDS)}）"
+            )
+        return PathManager.get_packages_root() / key
+
+    @staticmethod
+    def get_install_demo_package_directory() -> Path:
+        """演示安装包目录（packages/demo/；导出与下载共用）。"""
+        return PathManager.get_data_package_directory("demo")
 
     # ========== 策略相关路径 ==========
 
@@ -362,6 +461,28 @@ class PathManager:
         """获取指定 Tag scenario 的 hooks 文件：.../tags/{scenario_name}/tag.py"""
         return PathManager.get_tag_scenario_directory(scenario_name) / "tag.py"
 
+    # ========== extensions: SeriesRelation ==========
+
+    @staticmethod
+    def get_series_relation_root() -> Path:
+        """序列关系根目录：userspace/extensions/series_relation/"""
+        return PathManager.get_extensions_root() / "series_relation"
+
+    @staticmethod
+    def get_series_relation_directory(key_or_rel: str) -> Path:
+        """指定场景目录：userspace/extensions/series_relation/{key_or_rel}/"""
+        return PathManager.get_series_relation_root() / str(key_or_rel or "").strip()
+
+    @staticmethod
+    def get_series_relation_settings_path(key_or_rel: str) -> Path:
+        """场景 settings.py。"""
+        return PathManager.get_series_relation_directory(key_or_rel) / "settings.py"
+
+    @staticmethod
+    def get_series_relation_results_directory(key_or_rel: str) -> Path:
+        """场景产物目录：.../series_relation/{key_or_rel}/results/"""
+        return PathManager.get_series_relation_directory(key_or_rel) / "results"
+
     # ========== extensions: Data Source ==========
 
     @staticmethod
@@ -411,7 +532,7 @@ class PathManager:
         """获取 Data Contract loaders 目录：.../data_contract/loaders/"""
         return PathManager.get_data_contract_root() / "loaders"
 
-    # ========== extensions: Tables / Adapters ==========
+    # ========== extensions: Tables / PostProcess ==========
 
     @staticmethod
     def get_extensions_tables_directory() -> Path:
@@ -419,23 +540,64 @@ class PathManager:
         return PathManager.get_extensions_root() / "tables"
 
     @staticmethod
+    def get_post_process_extensions_directory() -> Path:
+        """后续处理扩展根：userspace/extensions/post_process/"""
+        return PathManager.get_extensions_root() / "post_process"
+
+    @staticmethod
     def get_adapters_directory() -> Path:
-        """获取扫描适配器目录：userspace/extensions/adapters/"""
-        return PathManager.get_extensions_root() / "adapters"
-
-    # ========== extensions: Assistant ==========
+        """后续处理适配器：userspace/extensions/post_process/adapters/"""
+        return PathManager.get_post_process_extensions_directory() / "adapters"
 
     @staticmethod
-    def get_assistant_root() -> Path:
-        """获取 Assistant 根目录：userspace/extensions/assistant/"""
-        return PathManager.get_extensions_root() / "assistant"
+    def get_post_processors_directory() -> Path:
+        """后续处理声明：userspace/extensions/post_process/post_processors/"""
+        return PathManager.get_post_process_extensions_directory() / "post_processors"
+
+    # ========== extensions: 大模型供应商（infra.ai） ==========
 
     @staticmethod
-    def get_assistant_providers_directory() -> Path:
-        """获取 Assistant providers 目录：.../assistant/providers/"""
-        return PathManager.get_assistant_root() / "providers"
+    def get_llm_providers_directory() -> Path:
+        """大模型供应商根：userspace/extensions/llm_providers/"""
+        return PathManager.get_extensions_root() / "llm_providers"
 
     @staticmethod
-    def get_assistant_provider_directory(provider_id: str) -> Path:
-        """获取指定 Assistant provider 目录：.../assistant/providers/{provider_id}/"""
-        return PathManager.get_assistant_providers_directory() / provider_id
+    def get_llm_provider_directory(provider_id: str) -> Path:
+        """指定供应商目录：.../llm_providers/{provider_id}/"""
+        return PathManager.get_llm_providers_directory() / provider_id
+
+    # 旧名兼容（曾为 extensions/ai/providers）
+    @staticmethod
+    def get_ai_providers_directory() -> Path:
+        return PathManager.get_llm_providers_directory()
+
+    @staticmethod
+    def get_ai_provider_directory(provider_id: str) -> Path:
+        return PathManager.get_llm_provider_directory(provider_id)
+
+    @staticmethod
+    def get_ai_root() -> Path:
+        """兼容旧名：现等于 llm_providers 根。"""
+        return PathManager.get_llm_providers_directory()
+
+    # ========== extensions: Agent（modules.agent） ==========
+
+    @staticmethod
+    def get_agent_extensions_directory() -> Path:
+        """Agent 用户扩展根：userspace/extensions/agent/"""
+        return PathManager.get_extensions_root() / "agent"
+
+    @staticmethod
+    def get_agent_tools_directory() -> Path:
+        """Agent 用户工具：.../agent/tools/"""
+        return PathManager.get_agent_extensions_directory() / "tools"
+
+    @staticmethod
+    def get_agent_templates_directory() -> Path:
+        """Agent 呈现模版：.../agent/templates/"""
+        return PathManager.get_agent_extensions_directory() / "templates"
+
+    @staticmethod
+    def get_agent_prompts_directory() -> Path:
+        """Agent 提示词片段：.../agent/prompts/"""
+        return PathManager.get_agent_extensions_directory() / "prompts"

@@ -1,7 +1,7 @@
 # New Tea Quant — 运行环境镜像（仓库根目录构建）
 # 用法见 docs/docker.md
 
-FROM python:3.9-slim-bookworm
+FROM python:3.11-slim-bookworm
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \

@@ -124,6 +124,15 @@ def post_strategy_step_run(strategy_key_or_name: str, step: str):
                 "settings_rev": out.get("settings_rev") or "",
             }
         )
+    if out.get("queued"):
+        return ok(
+            {
+                "is_triggered": False,
+                "queued": True,
+                "job_id": out.get("job_id") or "",
+                "reason": out.get("reason") or "已加入管道队列",
+            }
+        )
     return ok({"is_triggered": False, "reason": out.get("reason", "未知错误")})
 
 
@@ -158,7 +167,11 @@ def get_strategy_step_progress(strategy_key_or_name: str, step: str):
 
 @strategy_api_bp.route(f"{API_BASE_PATH}/scan/context", methods=["GET"])
 def get_strategy_scan_context_route():
-    """GET /api/v1/strategy/scan/context — 扫描页全局上下文（无 target）。"""
+    """GET /api/v1/strategy/scan/context — 扫描页全局上下文（无 target）。
+
+    ``enable_post_process`` 只读镜像自 PostProcess prefs；写入见
+    ``PUT /v1/post-process/run-enabled``。
+    """
     runner = runner_impl.lazy_load()
     return ok(runner.scan_page_context())
 
@@ -188,19 +201,27 @@ def get_strategy_scan_readiness_route(strategy_key_or_name: str):
     methods=["POST"],
 )
 def post_strategy_scan(strategy_key_or_name: str):
-    """POST /api/v1/strategy/:strategy_key_or_name/scan?demo=0|1&force=0|1"""
+    """POST /api/v1/strategy/:strategy_key_or_name/scan?demo=0|1&force=0|1&post_process=0|1"""
     runner = runner_impl.lazy_load()
     demo = parse_bool_query(request.args.get("demo"), default=False)
     force = parse_bool_query(request.args.get("force"), default=False)
+    # 未传则默认尝试跑后处理；工作区 prefs 在 PostProcess.run_enabled 内检查并可能跳过
+    run_post_process = parse_bool_query(
+        request.args.get("post_process"), default=True
+    )
     logger.info(
-        "[bff.scan] POST scan strategy=%s demo=%s force=%s",
+        "[bff.scan] POST scan strategy=%s demo=%s force=%s post_process=%s",
         strategy_key_or_name,
         demo,
         force,
+        run_post_process,
     )
     try:
         out = runner.trigger_scan(
-            strategy_key_or_name=strategy_key_or_name, demo=demo, force=force
+            strategy_key_or_name=strategy_key_or_name,
+            demo=demo,
+            force=force,
+            run_post_process=run_post_process,
         )
     except ValueError as exc:
         return error(str(exc), 400)
@@ -211,19 +232,22 @@ def post_strategy_scan(strategy_key_or_name: str):
         reason = str(out.get("reason") or "启动扫描失败")
         status = 409 if "运行中" in reason or "扫描任务" in reason else 400
         logger.warning(
-            "[bff.scan] trigger rejected strategy=%s demo=%s force=%s status=%s reason=%s",
+            "[bff.scan] trigger rejected strategy=%s demo=%s force=%s "
+            "post_process=%s status=%s reason=%s",
             strategy_key_or_name,
             demo,
             force,
+            run_post_process,
             status,
             reason,
         )
         return error(reason, status)
     logger.info(
-        "[bff.scan] triggered strategy=%s demo=%s force=%s job_id=%s",
+        "[bff.scan] triggered strategy=%s demo=%s force=%s post_process=%s job_id=%s",
         strategy_key_or_name,
         demo,
         force,
+        run_post_process,
         out.get("job_id"),
     )
     return ok(
@@ -232,6 +256,7 @@ def post_strategy_scan(strategy_key_or_name: str):
             "job_id": out["job_id"],
             "demo": demo,
             "force": force,
+            "post_process": run_post_process,
             "strategy_name": out.get("strategy_name") or strategy_key_or_name,
         }
     )

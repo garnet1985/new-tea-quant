@@ -5,6 +5,7 @@ import {
   fetchAttributeStatus,
   startAttributeRun,
 } from '../../../api/strategyApi';
+import { showToast } from 'ui';
 import { notifyTaskSuccess } from '../../../service/feedbackPromptBus';
 import logClientError from '../../../service/logClientError';
 
@@ -141,6 +142,15 @@ export function useStrategyDesignAttribution({
       const started = await startAttributeRun(strategyName, activeStep, {
         force_refresh: isForce,
       });
+      if (started?.queued) {
+        showToast({
+          status: 'info',
+          duration: 5000,
+          content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
+        });
+        setActiveJobId('');
+        return;
+      }
       const jobId = started?.job_id || started?.run_id;
       if (!jobId) throw new Error('启动归因失败：缺少 job_id');
       setActiveJobId(jobId);
@@ -200,23 +210,44 @@ export function useStrategyDesignAttribution({
       }
     };
 
+    let failCount = 0;
+    const MAX_POLL_FAILS = 5;
+
     const poll = async () => {
       try {
         const mapped = await fetchAttributeRunStatus(strategyName, activeJobId);
         if (stopped) return;
+        failCount = 0;
+        setAttrError((prev) => (
+          prev && String(prev).includes('仍在后台执行') ? '' : prev
+        ));
         applyStatus(mapped);
       } catch (err) {
         if (stopped) return;
+        failCount += 1;
+        if (failCount < MAX_POLL_FAILS) {
+          setAttrError('进度读取暂缓，任务仍在后台执行…');
+          return;
+        }
         setAttrError(err?.message || '读取归因进度失败');
         setActiveJobId('');
       }
     };
 
-    poll();
-    const timer = window.setInterval(poll, 800);
+    let timer = null;
+    const scheduleNext = () => {
+      timer = window.setTimeout(runPoll, 800);
+    };
+    const runPoll = async () => {
+      await poll();
+      if (!stopped && failCount < MAX_POLL_FAILS) {
+        scheduleNext();
+      }
+    };
+    runPoll();
     return () => {
       stopped = true;
-      window.clearInterval(timer);
+      if (timer != null) window.clearTimeout(timer);
     };
   }, [activeJobId, activeStep, loadReport, refreshStatus, strategyName]);
 

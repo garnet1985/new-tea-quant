@@ -49,8 +49,35 @@ class TestTagApi(unittest.TestCase):
         self.assertFalse(hasattr(pkg, "DiscoveryService"))
 
     def test_public_methods(self) -> None:
-        for name in ("refresh", "list_ids", "list_keys", "find", "execute"):
+        for name in (
+            "refresh",
+            "list_ids",
+            "list_keys",
+            "find",
+            "execute",
+            "list_tag_infos",
+            "get_tag_info",
+            "resolve_path",
+            "resolve_folder",
+            "load_hooks_class",
+            "scaffold_from_template",
+            "apply_settings_patch",
+            "validate_artifact",
+            "interpret_execute_result",
+            "list_definitions",
+            "fetch_catalog_page",
+            "fetch_visualization",
+            "get_run_progress",
+            "seed_run_progress",
+            "mark_run_running",
+            "complete_run_progress",
+            "fail_run_progress",
+            "run_progress_callback",
+        ):
             self.assertTrue(callable(getattr(Tag, name)), name)
+        self.assertFalse(hasattr(Tag, "start_run"))
+        self.assertFalse(hasattr(Tag, "trigger_run"))
+
         self.assertTrue(callable(Tag.is_valid_path))
         self.assertTrue(Tag.is_valid_path("demo/market_cap_tier"))
         self.assertFalse(Tag.is_valid_path("demo/市值"))

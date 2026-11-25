@@ -34,10 +34,17 @@ pytestmark = pytest.mark.force_run
         (["sdd", "--session", "1"], ["strategy_decision_delete", "--session", "1"]),
         (["sdv", "--strategy", "rsi_v1:3"], ["strategy_delete_version", "--strategy", "rsi_v1:3"]),
         (["r", "stock_klines", "-f"], ["renew", "stock_klines", "-f"]),
+        (["ls", "stock.area"], ["list", "stock.area"]),
         (["ex", "example"], ["export_strategy", "example"]),
         (["im", "./pkg.zip"], ["import_strategy", "./pkg.zip"]),
         (["id"], ["import_data"]),
         (["id", "-f"], ["import_data", "-f"]),
+        (["auth"], ["auth"]),
+        (["auth", "--clear"], ["auth", "--clear"]),
+        (["auth", "--status"], ["auth", "--status"]),
+        (["a", "你好"], ["agent", "你好"]),
+        (["a", "--tools"], ["agent", "--tools"]),
+        (["agent", "--prefs"], ["agent", "--prefs"]),
     ],
 )
 def test_expand_argv(raw: list[str], expected: list[str]) -> None:
@@ -47,6 +54,23 @@ def test_expand_argv(raw: list[str], expected: list[str]) -> None:
 def test_parse_default_version() -> None:
     args = UserParser.parse_args([])
     assert args.command == "version"
+
+
+def test_parse_auth_flags() -> None:
+    args = UserParser.parse_args(["auth"])
+    assert args.command == "auth"
+    assert args.clear is False
+    assert args.status is False
+
+    cleared = UserParser.parse_args(["auth", "--clear"])
+    assert cleared.command == "auth"
+    assert cleared.clear is True
+    assert cleared.status is False
+
+    status = UserParser.parse_args(["auth", "--status"])
+    assert status.command == "auth"
+    assert status.status is True
+    assert status.clear is False
 
 
 def test_parse_dash_v() -> None:
@@ -198,14 +222,14 @@ def test_run_strategy_attribute_enumerate_ok(monkeypatch, capsys) -> None:
         Namespace(strategy="rsi_v1", force=True),
         layer="enum",
         api_name="attribute_enumerate",
-        title="枚举层归因",
+        title="机会盘点层归因",
         need_cli="se",
     )
     out = capsys.readouterr().out
     assert seen["key"] == "rsi_v1"
     assert seen["ignore_cache"] is True
     assert seen["presented"]
-    assert "枚举层归因" in out
+    assert "机会盘点层归因" in out
 
 
 def test_run_strategy_delete_version_ok(monkeypatch, capsys) -> None:
@@ -214,6 +238,11 @@ def test_run_strategy_delete_version_ok(monkeypatch, capsys) -> None:
     from core.modules.cli.user.handlers import UserHandlers
 
     class FakeStrategy:
+        @staticmethod
+        def parse_version_spec(raw: object) -> tuple:
+            assert raw == "rsi_v1:3"
+            return "rsi_v1", 3
+
         @staticmethod
         def resolve(spec: str) -> str:
             assert spec == "rsi_v1"
@@ -237,6 +266,10 @@ def test_run_strategy_delete_version_missing_strategy(monkeypatch) -> None:
 
     class FakeStrategy:
         @staticmethod
+        def parse_version_spec(raw: object) -> tuple:
+            return "nope", 3
+
+        @staticmethod
         def resolve(spec: str) -> str:
             raise FileNotFoundError(spec)
 
@@ -252,6 +285,10 @@ def test_run_strategy_delete_version_prints_ok(monkeypatch, capsys) -> None:
 
     class FakeStrategy:
         @staticmethod
+        def parse_version_spec(raw: object) -> tuple:
+            return "rsi_v1", 3
+
+        @staticmethod
         def resolve(spec: str) -> str:
             return "rsi_v1"
 
@@ -262,6 +299,20 @@ def test_run_strategy_delete_version_prints_ok(monkeypatch, capsys) -> None:
     monkeypatch.setattr("core.modules.strategy.Strategy", FakeStrategy)
     UserHandlers._run_strategy_delete_version(Namespace(strategy="rsi_v1:3"))
     assert "已删除 rsi_v1 v3 的回测产物" in capsys.readouterr().out
+
+
+def test_parse_agent_message_and_flags() -> None:
+    args = UserParser.parse_args(["a", "帮我看看", "--provider", "ntq"])
+    assert args.command == "agent"
+    assert args.message == "帮我看看"
+    assert args.agent_provider == "ntq"
+
+    tools = UserParser.parse_args(["agent", "--tools"])
+    assert tools.command == "agent"
+    assert tools.agent_tools is True
+
+    remember = UserParser.parse_args(["a", "--remember", "回答简短"])
+    assert remember.agent_remember == "回答简短"
 
 
 def test_execute_dispatches_decision_commands(monkeypatch) -> None:

@@ -1,5 +1,5 @@
 """
-地域定义表 Model（表名 sys_areas）
+地域定义表 Model（表名 sys_data_areas）
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db.contracts import DbBaseModel
@@ -8,7 +8,7 @@ from core.tables.stock.areas.schema import schema as _schema
 
 
 class AreasModel(DbBaseModel):
-    """地域定义表 Model（表名 sys_areas）"""
+    """地域定义表 Model（表名 sys_data_areas）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

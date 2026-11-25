@@ -4,15 +4,21 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from core.infra.project_context.core.path_manager import PathManager
-from core.modules.strategy.core.services.progress import ProgressRecorder, ScanProgress
+from core.modules.strategy.core.services.progress import ScanProgress
 
 
-def _patch_recorder(tmp_path: Path, monkeypatch) -> None:
-    def _build(channel, file_key):
-        return tmp_path / "progress" / channel / f"{file_key}.json"
+@pytest.fixture(autouse=True)
+def progress_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "progress"))
+    monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
+    from core.infra.progress.core import store
 
-    monkeypatch.setattr(ProgressRecorder, "build_path", staticmethod(_build))
+    store.reset()
+    yield tmp_path
+    store.reset()
 
 
 def _isolate_userspace(tmp_path: Path, monkeypatch) -> Path:
@@ -29,7 +35,6 @@ def _isolate_userspace(tmp_path: Path, monkeypatch) -> Path:
 
 
 def test_seed_tick_complete_poll(tmp_path, monkeypatch):
-    _patch_recorder(tmp_path, monkeypatch)
     _isolate_userspace(tmp_path, monkeypatch)
     try:
         prog = ScanProgress.for_job("demo/x", "job1")
@@ -37,7 +42,6 @@ def test_seed_tick_complete_poll(tmp_path, monkeypatch):
         prog.mark_running()
         prog.tick(
             {
-                "progress_pct": 40,
                 "total_jobs": 10,
                 "completed_jobs": 4,
                 "failed_jobs": 0,
@@ -51,12 +55,21 @@ def test_seed_tick_complete_poll(tmp_path, monkeypatch):
         assert mid["status"] == "running"
         assert mid["progress"] == 40.0
         assert mid["done_jobs"] == 4
+        from core.infra.progress import Progress
+
+        shared = Progress.read("scan-demo-x-job1")
+        assert shared["job"] == "scan"
+        assert shared["status"] == "running"
+        assert shared["done"] == 4
+        assert shared["total"] == 10
+        assert "report" not in shared
 
         prog.complete({"date": "2020-01-02", "total_opportunities": 0})
         done = ScanProgress.get_poll_dto("demo/x", "job1")
         assert done["status"] == "completed"
         assert done["is_success"] is True
         assert done["report"]["date"] == "2020-01-02"
+        assert Progress.read("scan-demo-x-job1")["status"] == "completed"
 
         live = PathManager.get_project_root() / "userspace" / "strategies" / "demo" / "x"
         assert not live.exists()
@@ -72,11 +85,13 @@ def test_scan_progress_does_not_import_engines() -> None:
     assert "ScanCacheManager" not in text
 
 
-def test_fail_poll(tmp_path, monkeypatch):
-    _patch_recorder(tmp_path, monkeypatch)
+def test_fail_poll():
     prog = ScanProgress.for_job("demo/x", "job2")
     prog.seed(demo=False, force=True)
     prog.fail("nope")
     out = ScanProgress.get_poll_dto("demo/x", "job2")
     assert out["status"] == "failed"
     assert out["reason"] == "nope"
+    from core.infra.progress import Progress
+
+    assert Progress.read("scan-demo-x-job2")["status"] == "failed"

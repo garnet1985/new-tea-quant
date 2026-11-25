@@ -1,0 +1,107 @@
+.ntq-progress-ring {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--ntq-space-xs);
+  margin: 0;
+  color: var(--ntq-text);
+  box-sizing: border-box;
+}
+
+.ntq-progress-ring--sm .ntq-progress-ring__wrap {
+  width: var(--ntq-progress-ring-sm);
+  height: var(--ntq-progress-ring-sm);
+}
+
+.ntq-progress-ring--md .ntq-progress-ring__wrap {
+  width: var(--ntq-progress-ring-md);
+  height: var(--ntq-progress-ring-md);
+}
+
+.ntq-progress-ring__wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.ntq-progress-ring__svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+  overflow: visible;
+}
+
+.ntq-progress-ring.is-indeterminate .ntq-progress-ring__svg {
+  animation: ntq-progress-ring-spin 1s linear infinite;
+}
+
+.ntq-progress-ring__track {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 1.5;
+}
+
+.ntq-progress-ring__fill {
+  stroke: var(--ntq-cyan);
+  stroke-width: 1.5;
+  stroke-linecap: round;
+  transition: stroke-dashoffset 160ms ease;
+}
+
+.ntq-progress-ring.is-indeterminate .ntq-progress-ring__fill {
+  stroke: color-mix(in srgb, var(--ntq-cyan) 55%, transparent);
+  transition: none;
+}
+
+.ntq-progress-ring__center {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  max-width: 70%;
+  font-size: var(--ntq-font-xs);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+  color: var(--ntq-text);
+  text-align: center;
+}
+
+.ntq-progress-ring--md .ntq-progress-ring__center {
+  font-size: var(--ntq-font-sm);
+}
+
+.ntq-progress-ring__label {
+  max-width: 8rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: var(--ntq-font-sm);
+  line-height: 1.35;
+  color: var(--ntq-text-muted);
+  text-align: center;
+}
+
+@keyframes ntq-progress-ring-spin {
+  to {
+    transform: rotate(270deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ntq-progress-ring.is-indeterminate .ntq-progress-ring__svg {
+    animation: none;
+  }
+
+  .ntq-progress-ring.is-indeterminate .ntq-progress-ring__fill {
+    opacity: 0.7;
+  }
+
+  .ntq-progress-ring.is-determinate .ntq-progress-ring__fill {
+    transition: none;
+  }
+}

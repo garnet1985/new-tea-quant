@@ -1,5 +1,9 @@
 # <Module Display Name>（`<namespace.module_name>`）
 
+**模块：** `<namespace.module_name>` · **版本：** `<module.version>`
+
+**最低支持核心版本：** `<compatible_core_versions>`
+
 <!-- 例：Database（`infra.db`）、Project Context（`infra.project_context`） -->
 
 `<一句话模块职责。写「做什么」，不写实现细节。缩写 / 生僻英文首次出现括注，或指向 glossary.yaml（如 NTQ＝New Tea Quant；Facade＝门面）。>`
@@ -18,7 +22,7 @@
 
 ## 设计初衷（可选，保持简短）
 
-- **要解决的问题：** `<1～2 句；细节放 docs/DESIGN 或 docs/CONCEPTS>`
+- **要解决的问题：** `<1～2 句；细节放 docs/DECISIONS 或 docs/CONCEPTS>`
 - **明确不做：** `<可选；边界一句话>`
 
 ## 常见问题（可选）
@@ -34,7 +38,8 @@ A：`<简短文字；原理 → docs/CONCEPTS；上手 → QUICKSTART；调用 �
 - [术语表](./glossary.yaml)
 - [概念与运作](./docs/CONCEPTS.md)
 - [架构](./docs/ARCHITECTURE.md)
-- [设计](./docs/DESIGN.md)
+- [设计与决策](./docs/DECISIONS.md)
+- [用户指南](./docs/USER_GUIDE.md)
 - [测试用例](./__test__/TEST_CASES.md)
 - [性能测试](./__performance__/CASES.md)
 
@@ -43,4 +48,4 @@ A：`<简短文字；原理 → docs/CONCEPTS；上手 → QUICKSTART；调用 �
 ## 填写约定（copy 整棵 module/ 骨架后可删本段）
 
 1. **纯文字**；代码与上手不在本文件。
-2. 不需要的可选文档（QUICKSTART / CONCEPTS / DESIGN / `__performance__`）整文件删除，并去掉本表链接。
+2. 不需要的可选文档（QUICKSTART / CONCEPTS / DECISIONS / `__performance__`）整文件删除，并去掉本表链接。

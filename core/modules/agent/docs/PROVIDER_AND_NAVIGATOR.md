@@ -1,0 +1,135 @@
+# Provider、Navigator 与本地/远端职责
+
+**模块：** `modules.agent` · **版本：** `0.1.0`
+
+**最低支持核心版本：** `>=0.6.0`
+
+**状态：** 产品约定（名词与边界以此为准）
+
+---
+
+## 一句话
+
+| 侧 | 重心 |
+|----|------|
+| **本地 App** | 组织信息（context）、跑流程、执行本机工具 |
+| **远端 Website（仅 ntq）** | 调度用哪个大模型、计量与消耗 |
+
+本地**不**为 `ntq` 挑选 DeepSeek / 智谱等具体模型；App 甚至不必知道 ntq 背后用了几个模型。
+
+---
+
+## 统一名词
+
+| 名词 | 含义 | 不要叫成 |
+|------|------|----------|
+| **Provider** | 用户选定的一路 AI 出入口。二选一：`ntq`（产品默认）或用户自备供应商之一（只能选 1 个） | 「通道里再拆三个 provider」 |
+| **Navigator** | **本地**意图理解与分流：输出有序处理清单（原「门禁 / gate」）。Website 的 `phase=navigate` **只选分流模型**，不代替本机出 kinds | 「分流在远端做完」「与计费档 ask/work 混称」 |
+| **处理方式 / 流向** | Navigator 之后的分支，如 identity、advice、out_of_scope、guide、worker 等 | Provider |
+| **Context** | App 组给模型的材料：用户话、会话、说明书摘录、工具摘要、准则等 | — |
+
+**Provider 与「选哪路出站」一一对应**：选了 `ntq` 就全程打官网会员通道；选了 `openai` 就全程打该本机供应商。本地准则是 **一个 Provider 干到底**。
+
+---
+
+## 两种 Provider（本地可见的全部）
+
+```mermaid
+flowchart TB
+  Ntq["Provider = ntq<br/>唯一出入口 → Website"]
+  User["Provider = 用户自备 ×1<br/>唯一出入口 → 该供应商 API"]
+  Flow[同一套 Agent 流程<br/>组 context → Navigator → 流向 → 工具]
+  Ntq --> Flow
+  User --> Flow
+```
+
+| | **ntq** | **用户自备** |
+|--|---------|--------------|
+| 出站 | 会员凭证 → Website | 用户 API Key → 该供应商 |
+| 谁选模型 | **仅 Website** 调度（分流用谁、问答用谁、写代码用谁） | 就是用户选的那一个模型/供应商 |
+| App 是否知道背后几个模型 | **否**（不感知、不配置 DS/GLM 清单） | 不涉及多模型调度 |
+| 计费 | Website / 猫粮等（远端） | 用户与供应商之间；不计 NTQ 猫粮 |
+
+开发用本机多 key 调试（若仍存在）属于 **用户自备** 变体，**不是** ntq Provider 的内部组成。
+
+---
+
+## 同一套 Agent 流程
+
+无论哪个 Provider：
+
+1. **组 context**（说明书、会话、工具说明、红线准则等）— 分层打包，见下
+2. **Navigator**：根据用户话得到处理清单（可多意图排队）
+3. **按清单执行流向**（含拒绝、固定文案、guide、worker…）
+4. **本机执行工具**（写策略、回测、读报告等），结果再拼回 context（工具环主动清扫旧结果）
+
+差别只在：**每一步需要模型补全时，请求打到当前选定的那一个 Provider 出入口**。
+
+### Context 分层（App 编排）
+
+| 层 | 内容 | 策略 |
+|----|------|------|
+| A 固定 | role system、session preamble、`context_block` | 始终保留 |
+| B 摘要 | 更早轮次 | 默认抽取式；长会话可 LLM compaction（本机触发，ntq 时官网计费） |
+| C 近期 | 最近若干轮原文 | verbatim |
+| D 工作集 | 本轮用户句 + 工具往返 | 只留最近几次工具对；大结果截断 |
+
+运输层消息条数上限仍是兜底；正常路径靠打包压住，不依赖硬裁。实现：`session/context_pack.py`。
+
+- 用户自备：Navigator 与各流向的补全 = 同一供应商。  
+- ntq：每次补全仍只调 `provider_id=ntq`；Website 在远端决定本次用哪颗模型、如何计费。
+
+---
+
+## 本地 vs 远端
+
+```text
+App（重信息与流程）              Website（重调度与消耗）
+─────────────────              ─────────────────────
+选 Provider                    （仅 ntq）收请求
+拼 messages / context          选模型（如分流 DS、问答 GLM…）
+Navigator 协议与金标（产品语义）  执行推理、计量猫粮
+跑流向状态机                   返回文本 / 结构化结果
+执行本机工具、写 userspace       签发 Agent 产品 policy（会员）
+```
+
+**App 负责：** 信息齐不齐、流程对不对、工具安不安全。  
+**Website 负责：** 算力落在哪颗模型、花多少钱、内部 fallback；会员态下签发不可篡改的 Agent 准则。
+
+### 框架态 vs 产品态（准则）
+
+| 状态 | 判定 | 准则来源 |
+|------|------|----------|
+| **框架态** | 未走官网大脑（无会员 / 自备 Key） | 本地 `content/global/*.md`（可改；开源自担） |
+| **产品态** | `Provider=ntq`（会员凭证打官网补全） | **官网在 `chat/completions` 服务端强制注入** `ntq_ai.agent_policy`；客户端无法剥除 |
+
+硬条件挂在**远端请求链**上，不依赖本机先拉 `/agent/policy`。单独的 policy GET 仅供检查/可选同步；本机改代码绕过拉包**不会**去掉官网注入。自备 Key 不经官网，只受本地弱法约束。
+
+### 框架问答索引（本地 wiki + 远端快表）
+
+| 层 | 位置 | 作用 |
+|----|------|------|
+| **Wiki 正文** | 本机 `content/ntq_wiki/`（含 `framework_index.md`、`know_how/how_sharpe_is_calculated.md` 等） | 说明书与公式细节；开源默认可搜 |
+| **远端快表** | 官网 `ntq_ai.framework_index` → `GET .../agent/framework-index` | 可运营关键词 → wiki/代码落点；随 prompt-track 增补，不必发 App |
+| **工具** | `lookup_framework_index` | 有凭证优先远端；否则本地 md；再 `search_wiki` 打开 wiki |
+
+---
+
+## 明确不做（本地）
+
+- 不为 `ntq` 维护「router=deepseek / ask=zhipu」一类**本地模型挑选表**
+- 不在 App 内根据流向把 ntq 请求拆到多个本机供应商
+- 不把计费档名字（Website 内部 lane `ask`/`work`）当成 Provider 或流向名词
+
+远端只认 `ntq.phase` / `ntq.intent`；内部 lane 与猫粮钱包是 Website 实现细节，不是第二种 Provider。
+
+---
+
+## 实现入口
+
+- Provider：`core/code/provider/`（`resolve_provider`）
+- Navigator：`core/code/navigator/`
+- 流程：`Agent.run` → `code/pipeline.py`（全程同一 `provider.id`）
+- 出站：`infra.ai.AiChannel.complete`（经 `executor/shared/complete.ask`）
+- 会员 ntq / 产品准则：`ntq_external`（Website；`ai.agent_policy.resolve_agent_policy`）
+- **远端状态协议：** [NTQ_REMOTE_PROTOCOL.md](./NTQ_REMOTE_PROTOCOL.md)（`ntq.phase` / `ntq.intent`）

@@ -1,7 +1,9 @@
 # 测试用例 — `modules.indicator`
 
-**模块：** `modules.indicator`  
-**版本：** `0.2.0`  
+**模块：** `modules.indicator` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
+
 ## Scope
 
 验证门面 `Indicator` 公开行为（对齐 `API.md`）。计算路径实现测见 `core/__test__/`（不在本索引）。
@@ -9,3 +11,4 @@
 | 文件 | 说明 |
 |------|------|
 | `test_api.py` | 公开 API 契约与轻量行为（`force_run`） |
+| `core/__test__/test_field_naming.py` | `alias` / 默认落盘名 / 重名校验 / 写入 |

@@ -1,9 +1,7 @@
 import React from 'react';
-import { Stack, Typography } from '@mui/material';
-import ChartPanel from 'views/chartPanel';
-import MetricCard from 'views/metricCard';
-import MetricGrid from 'views/metricGrid';
-import { SectionBlock } from 'views/sectionBlock';
+import { ChartPanel, MetricCard, MetricGrid } from 'ui';
+import ReportBlock from 'ntq-ui/reportBlock';
+import '../reportBlock.scss';
 import {
   ENUM_CHART_TIPS,
   ENUM_METRIC_TIPS,
@@ -87,7 +85,7 @@ function buildStockDistributionOption(metrics) {
 function OpportunityEnumrateReport({
   metrics,
   stockRows,
-  title = '枚举机会报告',
+  title = '机会盘点报告',
   showStockGrid = true,
   stockGridOverlay = null,
   enumRefStockTotal,
@@ -140,9 +138,9 @@ function OpportunityEnumrateReport({
   }
 
   return (
-    <Stack spacing={1.25}>
+    <div className="ntq-report-step-stack">
       {!hideTitle ? (
-        <Typography variant="subtitle2" fontWeight={600}>{title}</Typography>
+        <h3 className="ntq-report-step-stack__title">{title}</h3>
       ) : null}
 
       {showStockGrid ? (
@@ -160,7 +158,7 @@ function OpportunityEnumrateReport({
         />
       ) : null}
 
-      <SectionBlock
+      <ReportBlock
         title="机会总体统计"
         tip={ENUM_SECTION_TIPS.overview}
       >
@@ -178,9 +176,9 @@ function OpportunityEnumrateReport({
             />
           </MetricGrid>
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="股票机会统计"
         tip={ENUM_SECTION_TIPS.stockStats}
       >
@@ -206,9 +204,9 @@ function OpportunityEnumrateReport({
           fallback={<ReportUnavailableHint />}
           spaced={Boolean(avail.stockStats)}
         />
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="涨跌停可成交性"
         tip={ENUM_SECTION_TIPS.tradability}
       >
@@ -228,14 +226,14 @@ function OpportunityEnumrateReport({
             />
           </MetricGrid>
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
+      </ReportBlock>
 
-      <SectionBlock
+      <ReportBlock
         title="机会出现"
         tip={ENUM_SECTION_TIPS.timing}
       >
         {avail.timing ? (
-          <Stack spacing={1}>
+          <div className="ntq-report-step-stack__group">
             <MetricGrid>
               <MetricCard
                 title="平均每股机会间隔"
@@ -252,17 +250,17 @@ function OpportunityEnumrateReport({
               title="机会分散度"
               titleTip={ENUM_METRIC_TIPS.dispersion}
               value={Number.isFinite(Number(metrics.stdGap))
-                ? `SD ${metrics.stdGap} 天`
+                ? `标准差 ${metrics.stdGap} 天`
                 : '—'}
               hint={[
-                Number.isFinite(Number(metrics.cv)) ? `CV ${metrics.cv}` : null,
+                Number.isFinite(Number(metrics.cv)) ? `变异系数 ${metrics.cv}` : null,
                 (metrics.dispersionConclusion && String(metrics.dispersionConclusion).trim()) || null,
               ].filter(Boolean).join(' · ') || undefined}
             />
-          </Stack>
+          </div>
         ) : <ReportUnavailableHint />}
-      </SectionBlock>
-    </Stack>
+      </ReportBlock>
+    </div>
   );
 }
 

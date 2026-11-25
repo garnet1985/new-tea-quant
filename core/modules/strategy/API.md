@@ -1,6 +1,7 @@
 # Strategy API 文档
 
-**版本：** `0.10.0`  
+**模块：** `modules.strategy` · **版本：** `0.12.2`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -53,7 +54,7 @@
   - `version_id`：可选；战役归因写入副本时传入
 - **返回：** 目标 step 槽位 dict（如 `enum` / `price` / `portfolio`）+ 顶层 `version_id`（字符串）。cache hit 时直接返回已存在 step 产物摘要（`success` / `output_dir` / `version_id`）；UI 指标由 BFF `report_hydrate` 从 `overall_report.json` 补全。
 - **环境失效：** registry 中 `env_fp` 与当前运行环境不一致时不可 cache hit（配置相同也会 miss 并新建 version）；BFF 读 version 时返回 `env_invalid: true`。
-- **强制重跑：** `ignore_cache=True`（CLI `--force`）跳过 cache 命中，price/portfolio **不复用**已有 enum 产物（会重跑 enum）。命中键 `(execute_fp, env_fp)` 不变则 **写入同一 `version_id`**，复写上游步时清下游。禁止为同一双指纹再 allocate 一个号。
+- **强制重跑：** `ignore_cache=True`（CLI `--force` / UI 本步已完成再跑）只跳过 **本步** cache 命中，强制重算本步。price/portfolio 的上游 enum：**指纹能对上仍复用**；对不上才前置重跑 enum。命中键 `(execute_fp, env_fp)` 不变则 **写入同一 `version_id`**，复写本步时清下游。禁止为同一双指纹再 allocate 一个号。
 - **磁盘布局：** `{strategy}/results/simulations/{version_id}/{enum|price|portfolio}/`；索引在 `simulations/meta.json`（`registry` + `next_version_id`）；`{version_id}/` 归档 `settings.json` / `effective_settings.json` / `scope.json`。过时 `env_fp` 超出 `retention.simulation_results_max_stale_envs` 时整组删除（含对应归因组）。
 
 ### enumerate / price_factor / portfolio
@@ -73,7 +74,7 @@
 `Strategy.decision_repl(key_or_id, *, version_id=None, session_id=None, new_session=False) -> int`
 
 - **状态：** `beta`
-- **描述：** 决策者（当前策略 `portfolio` 回放）。须已有枚举 version（默认当前 `settings.py` 指纹，与 `so` 相同）。不是 `SimulateKind`，不进指纹缓存。磁盘 `{vid}/decision/{dm_id}/`。CLI：`sd` / `sdl` / `sdd`。口径见 [docs/notes/DECISION_MAKER.md](./docs/notes/DECISION_MAKER.md)。
+- **描述：** 决策者（当前策略 `portfolio` 回放）。须已有机会盘点 version（默认当前 `settings.py` 指纹，与 `so` 相同）。不是 `SimulateKind`，不进指纹缓存。磁盘 `{vid}/decision/{dm_id}/`。CLI：`sd` / `sdl` / `sdd`。口径见 [docs/notes/DECISION_MAKER.md](./docs/notes/DECISION_MAKER.md)。
 
 ### list_strategies / list_enabled_strategies / list_enabled_keys / list_strategy_infos
 
@@ -109,7 +110,7 @@
 `Strategy.price_overall_report_path(version_dir: Path) -> Path`
 
 - **状态：** `beta`
-- **描述：** 读取 price_factor 产物（实体 investments / overall_report 路径）。Scan 分发时由内部 enrichment 组装 `context["price_history"]` 推给 adapter；跨模块勿 deep-import `report_manager`
+- **描述：** 读取 price_factor 产物（实体 investments / overall_report 路径）。Scan 分发时可经 enrichment 组装 `context["price_history"]`；跨模块勿 deep-import `report_manager`
 
 ### present_report
 
@@ -134,7 +135,7 @@
 `Strategy.present_rolling(report: dict | str | Path, *, stream=None) -> None`
 
 - **状态：** `beta`
-- **描述：** 读 `rolling.py` 的窗口，用当前设置再跑枚举、价格和资金。须已有当前 settings 对应的主 version，且三层产物都在，否则拒绝。窗口写入 `{vid}-roll{n}`，不 bump `next_version_id`，不进版本列表。一份对照报告写 `results/simulations/{vid}/rolling/report.json`，只和该主 version 比差值。CLI `sr`（`-f` 即 `ignore_cache`）。一次跑完三层回测是 `sim`。
+- **描述：** 读 `rolling.py` 的窗口，用当前设置再跑机会盘点、价格和资金。须已有当前 settings 对应的主 version，且三层产物都在，否则拒绝。窗口写入 `{vid}-roll{n}`，不 bump `next_version_id`，不进版本列表。一份对照报告写 `results/simulations/{vid}/rolling/report.json`，只和该主 version 比差值。CLI `sr`（`-f` 即 `ignore_cache`）。一次跑完三层回测是 `sim`。
 
 ### resolve_simulation_output_dirs
 
@@ -160,6 +161,80 @@
 - **状态：** `beta`
 - **描述：** 策略交流包导出 / bundle 导入（退出码）；供 CLI / system shell 使用，勿 deep-import `PackageCli`
 
+### scaffold_from_template / apply_settings_patch / validate_artifact
+
+`Strategy.scaffold_from_template(raw_path: str) -> dict`  
+`Strategy.apply_settings_patch(*, key, strategy_py="", settings_py="", attribution_py="") -> dict`  
+`Strategy.validate_artifact(*, key: str) -> dict`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** userspace 策略制品用例（实现在 `artifact_ops`）。CLI/agent 只薄封装。脚手架写 `strategies/_template/empty_strategy`，`meta.key` 为完整相对路径。
+
+### write_user_rolling / validate_user_rolling / read_rolling_report
+
+`Strategy.write_user_rolling(*, key: str, rolling_py: str) -> dict`  
+`Strategy.validate_user_rolling(*, key: str) -> dict`  
+`Strategy.read_rolling_report(*, key: str) -> dict`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 覆盖/校验策略目录 `rolling.py`（`rolling = { windows: [...] }`）；读当前主 version 的滚动对照 `report.json`。Agent：`write_strategy_rolling` / `validate_strategy_rolling` / `read_rolling_report`。
+
+### fetch_workbench_latest / fetch_workbench_by_version / list_workbench_versions
+
+`Strategy.fetch_workbench_latest(strategy_name) -> dict | None`  
+`Strategy.fetch_workbench_by_version(strategy_name, version: int) -> dict | None`  
+`Strategy.list_workbench_versions(strategy_name, *, limit=10) -> list[dict]`  
+`Strategy.parse_workbench_version_id(version_id) -> int | None`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 工作台磁盘 snapshot 读模型（registry / settings 层 / step 槽位）。BFF 可在返回后再 hydrate `result_report` UI metrics；勿 deep-import `VersionMetaStore` 拼 UI 行
+
+### resolve_default_enabled_key / parse_version_spec / probe_attribute_status / verify_settings_restore_fingerprint / clear_all_simulation_results / export_package_zip
+
+`Strategy.resolve_default_enabled_key(explicit=None) -> dict`  
+`Strategy.parse_version_spec(raw) -> (name, version_int)`  
+`Strategy.probe_attribute_status(strategy_name, norm_step) -> dict`  
+`Strategy.verify_settings_restore_fingerprint(name, version, settings_snapshot) -> str | None`  
+`Strategy.clear_all_simulation_results() -> dict`  
+`Strategy.export_package_zip(key_or_name, *, scope="bundle") -> (bytes, filename)`  
+`Strategy.preview_package_import(blob, policy) -> dict` / `Strategy.import_package_blob(blob, policy)`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** CLI 默认策略 / `策略:版本` 解析、归因按钮探测、恢复指纹校验、全量清理、BFF 包导入导出。勿 deep-import Discovery/Artifact/Fingerprint/package
+
+### load_overall_report_ui / load_entity_list_ui / step_dir_has_entity / load_price_* / load_enum_entity_results / describe_enumerate_progress_hint
+
+`Strategy.load_overall_report_ui(step, output_dir) -> dict | None`  
+`Strategy.load_entity_list_ui(step, output_dir) -> dict | None`  
+`Strategy.step_dir_has_entity(step, output_dir, entity_id) -> bool`  
+`Strategy.enum_entity_has_data` / `price_entity_has_investments`  
+`Strategy.load_price_investments` / `load_price_goals` / `load_enum_entity_results`  
+`Strategy.describe_enumerate_progress_hint() -> str`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 工作台报告产物读 IO（实现在 `report_io`）与 CLI 枚举进度文案。BFF hydrate/report 勿 deep-import ArtifactStore / PriceFactorStore / EnumResultsManager
+
+### get_pipeline_progress / get_scan_progress / seed_* / bind_pipeline_progress / load_hooks_class
+
+`Strategy.get_pipeline_progress(strategy_key, pipeline_id, *, apply_stale=True) -> dict | None`  
+`Strategy.get_scan_progress(strategy_key, job_id) -> dict | None`  
+`Strategy.seed_pipeline_progress(strategy_key, pipeline_id, *, pipeline_name, pipeline_description=None) -> None`  
+`Strategy.bind_pipeline_progress(strategy_key, pipeline_id)`  
+`Strategy.load_pipeline_progress(strategy_key, pipeline_id)`  
+`Strategy.pipeline_progress_description(pipeline_name) -> str`  
+`Strategy.attribute_pipeline_name() -> str` / `Strategy.rolling_pipeline_name() -> str`  
+`Strategy.seed_scan_progress(...)` / `Strategy.fail_scan_progress(...)`  
+`Strategy.load_hooks_class(strategy_folder, strategy_key)`
+
+- **类型：** `staticmethod`
+- **状态：** `beta`
+- **描述：** 跨模块进度轮询与启动登记、hooks 加载。agent / BFF 经此调用，勿 deep-import `core.services.progress` / hooks_loader
+
 **举例：**
 
 ```python
@@ -178,9 +253,10 @@ Strategy.simulate("demo/random/random_v1_null_baseline", kind=SimulateKind.ENUME
 
 | 符号 | 说明 |
 |------|------|
-| `StrategyHooks` / `StrategyContext` / `StrategyData` / `StrategyInfo` | userspace hook 契约；`has_opportunity() -> bool`；价格回放 `is_new_opportunity(ctx) -> bool`（仅 price_factor）；`ctx.remember/recall/forget` 为内存袋，`ctx.capture` 为本笔归因输入 |
-| `Opportunity` / `Investment` / `CalendarAsOfResult` | 引擎共享数据类；`Opportunity.signal_snapshot` 为归因用决策现场记录 |
-| `AsOfSlice` / `JobBundleLoader` / `ProgressRecorder` | 跨模块协作面（tag / BE 数据装载与进度落盘） |
+| `StrategyHooks` / `StrategyContext` / `Records` / `Series` / `CalendarSlice` / `Opportunities` / `StrategyInfo` | userspace hook 契约。用法专文（用户/AI）：[`ntq_wiki/know_how/use_strategy_hooks.md`](../agent/core/content/ntq_wiki/know_how/use_strategy_hooks.md)。`is_opportunity(ctx, records) -> bool`；`ctx.core` 读 `settings.core`；`ctx.state` 跨日、`ctx.capture` 归因。`Series`/`Records`/`CalendarSlice`/`Opportunities` 快捷见该文 |
+| `Opportunity` / `Investment` | 引擎共享数据类；`Opportunity.signal_snapshot` 为归因用决策现场记录 |
+| `AsOfSlice` / `JobBundleLoader` | 跨模块协作面（tag / BE 数据装载） |
+| （进度落盘） | 跨模块用 `infra.progress.Progress.channel`；strategy 内部 `ProgressRecorder` 不经 contracts |
 | `SimulateKind` / `WorkbenchStep` | 公开枚举 |
 
 ### latest_completed_trading_date

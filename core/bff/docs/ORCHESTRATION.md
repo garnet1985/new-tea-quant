@@ -1,19 +1,24 @@
 # BFF 路由编排索引
 
-**版本：** 0.2.1
+**模块：** `bff` · **版本：** `0.2.1`
+
+**最低支持核心版本：** `>=0.5.0`
 
 HTTP 前缀一律为 `/api`（见 `core/bff/app.py`）。契约细节优先看 FED 各页 `API.md`（有则）；实现步骤看 [`routes/`](routes/)。
 
 | 域 | Blueprint 包 | 编排文档 | 实现 |
 |----|--------------|----------|------|
 | platform / health | `APIs/platform/health` | — | `core.system.get_version` |
-| platform / runtime | `APIs/platform/runtime` | Tag T1-00 引用 | `infra.task_guard` |
+| platform / runtime | `APIs/platform/runtime` | Tag T1-00 引用 | `infra.job_pipeline`（`get_running_job` / 队列；自管 running 槽） |
 | platform / setup | `APIs/platform/setup` | — | `setup` meta + `SetupRuntimeManager` |
 | platform / app_settings | `APIs/platform/app_settings` | — | `app_settings/service.py`（含 trace / ui-helper） |
-| platform / assistant | `APIs/platform/assistant` | [`routes/assistant.md`](routes/assistant.md) | `modules.assistant` Facade |
+| platform / ai | `APIs/platform/ai` | [`routes/ai.md`](routes/ai.md) | `infra.ai` AiChannel |
+| platform / agent | `APIs/platform/agent` | [`routes/agent.md`](routes/agent.md) | `modules.agent` Facade |
 | data / sources | `APIs/data/sources` | [`routes/data_sources.md`](routes/data_sources.md) | BFF helpers + implementer |
 | data / contracts | `APIs/data/contracts` | [`routes/data_contracts.md`](routes/data_contracts.md) | BFF helpers + implementer |
 | strategy | `APIs/strategy`（`routes/` + `helpers/`） | [`routes/strategy.md`](routes/strategy.md) | core `PipelineProgress` / `Strategy.scan_run`；BFF snapshots + runner 薄壳 |
-| tag | `APIs/tag`（`routes/` + `helpers/`） | [`routes/tag.md`](routes/tag.md) | core `TagRunProgress`；BFF catalog + runner 薄壳 |
+| tag | `APIs/tag`（`routes/` + `helpers/`） | [`routes/tag.md`](routes/tag.md) | Tag Facade 进度 IO；BFF catalog + runner 异步壳 |
+| post_process | `APIs/post_process` | [`routes/post_process.md`](routes/post_process.md) | Facade 目录摘要 / 启用 / adapters 写入 |
+| series_relation | `APIs/series_relation` | — | `modules.series_relation` Facade（list/get/save/run/results） |
 
 分组准则见 [`GROUPING.md`](GROUPING.md)、架构见 [`ARCHITECTURE.md`](ARCHITECTURE.md)。

@@ -74,6 +74,7 @@ class JobPipelineSettings:
     prefetch_ahead: int = 2
     continue_on_failure: bool = True
     reserve_cores: int = 1
+    in_flight_limit: Optional[Callable[[], int]] = None
 
 
 ExecuteFn = Callable[[JobContext], Any]
@@ -153,7 +154,7 @@ class JobPipeline:
             while not self._cancelled:
                 self._prefetch(in_flight=len(futures))
                 while (
-                    len(futures) < self._executor.max_workers
+                    len(futures) < self._submit_limit()
                     and self._ready_queue
                     and not self._cancelled
                 ):
@@ -186,8 +187,19 @@ class JobPipeline:
             run_name=self._run_name,
         )
 
+    def _submit_limit(self) -> int:
+        cap = self._executor.max_workers
+        limit_fn = self._settings.in_flight_limit
+        if limit_fn is None:
+            return cap
+        try:
+            wanted = int(limit_fn())
+        except (TypeError, ValueError):
+            return cap
+        return max(1, min(cap, wanted))
+
     def _ready_capacity(self) -> int:
-        return self._executor.max_workers + max(0, self._settings.prefetch_ahead)
+        return self._submit_limit() + max(0, self._settings.prefetch_ahead)
 
     def _prefetch(self, *, in_flight: int) -> None:
         cap = self._ready_capacity()

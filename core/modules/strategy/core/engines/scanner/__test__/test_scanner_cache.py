@@ -64,7 +64,6 @@ def test_report_manager_writes_scan_summary_json(
         strategy_key="demo",
         scan_date="20240110",
         stock_ids=["600000.SH", "000001.SZ"],
-        adapter_names=[],
     )
     mgr.collect(
         Opportunity(
@@ -92,7 +91,6 @@ def test_report_manager_writes_empty_summary(
         strategy_key="demo",
         scan_date="20240110",
         stock_ids=["600000.SH"],
-        adapter_names=[],
     )
     report = mgr.finalize(present=False)
     summary_path = scan_dir / "20240110" / "scan_summary.json"

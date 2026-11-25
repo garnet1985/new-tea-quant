@@ -7,11 +7,11 @@
 </p>
 
 <p align="center">
-  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.5.3-8A2BE2"></a>&nbsp;
+  <a href="CHANGELOG.md"><img alt="Version" src="https://img.shields.io/badge/version-0.6.0-8A2BE2"></a>&nbsp;
   <a href="#"><img alt="Platform" src="https://img.shields.io/badge/platform-mac%20%7C%20linux%20%7C%20win-4CAF50"></a>&nbsp;
-  <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.9%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
+  <a href="#"><img alt="Python" src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white"></a>&nbsp;
   <a href="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml"><img alt="Build" src="https://github.com/garnet1985/new-tea-quant/actions/workflows/ci.yml/badge.svg"></a>&nbsp;
-  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-Apache%202.0-007EC6"></a>
+  <a href="LICENSE"><img alt="License" src="https://img.shields.io/badge/license-NTQ%20%7C%20commercial%20by%20authorization-007EC6"></a>
 </p>
 
 > For the Chinese introduction, see **[here](README.md)**.
@@ -22,606 +22,366 @@ Author: Garnet Xin & his AI companions
 <a href="https://gitee.com/garnet/new-tea-quant"><img alt="Gitee" src="https://img.shields.io/badge/Gitee-new--tea--quant-C71D23?logo=gitee&logoColor=white"></a>&nbsp;
 <a href="https://new-tea.cn"><img alt="Website" src="https://img.shields.io/badge/website-new--tea.cn-009688?logo=google-chrome&logoColor=white"></a>
 
-Skip the intro and install now? See [Quick install + run a strategy](#quick-start). Other jumps: [Why NTQ](#why) · [Star the project](#star) · [CLI](#cli) · [Tutorials](https://new-tea.cn/zh-hans/more-examples) · [Website](https://new-tea.cn)
-
-## Current version (v0.5.2)
-
-Recent updates:
-
-**[v0.5.2](CHANGELOG.md)**
-
-- **Parameter-matrix attribution:** the old single-run attribution is gone. Each backtest step can contrast the parameters in that strategy’s `attribution.py` and show how different values change the result. Every demo strategy now includes an example.
-- **Price backtest rebuilt:** a name is no longer locked while a position is open. Opportunities that sit too close together are dropped; ones that are far enough apart can be tracked in parallel. This is how you read overall profitability after the noise is filtered out.
-- **Portfolio selection:** when there are more opportunities than slots, `portfolio.allocation.opportunity_selection` can rank or weight them. If you implement `on_pick_portfolio_member`, that hook still wins.
-- Full list: [CHANGELOG.md](CHANGELOG.md). Decision simulation and the AI assistant shipped in v0.5.0.
-
-## What is NTQ?
-
-**New Tea Quant** (NTQ) is a personal-developer-friendly, lightweight, high-performance framework for quantitative strategy backtesting and research. (**New Tea** is named after the author’s British Shorthair; her name is “新茶” / New Tea, and she will also be the name of NTQ’s in-app AI assistant.)
-
-NTQ does two things:
-
-- Help you turn the stock-picking and trading ideas in your head into code, then test them on historical data.
-- Run that same stock-picking logic on the latest market, find opportunities, and report them to you.
-
-There is more. See [What else can NTQ do?](#can).
-
-<a id="star"></a>
-## Star NTQ
-
-If you like NTQ and want to support it, please star the project on [GitHub](https://github.com/garnet1985/new-tea-quant) or [Gitee](https://gitee.com/garnet/new-tea-quant). Your support is what keeps the author going.
-
-Bugs and ideas are welcome too — leave a note on the [website contact form](https://new-tea.cn/zh-hans/contact). Full channels: [How to participate](#participate).
-
-<a id="why"></a>
-## How is NTQ different? Why use it?
-
-The author wanted to do his own quant research. Off-the-shelf tools did not fit well enough, so he built a research stack around a personal PC and China A-shares.
-
-- **NTQ tries to dodge these traps for you by default.**
-
-  > Ever wonder why a strategy looks like the hottest thing in a backtester, then gets crushed live? Often because:
-
-  - **Your data may have survivorship bias.** The names on stock websites are the ones still alive. Did your backtest include names that later delisted? Buying those can produce huge losses. Leave them out and your returns and win rate look better than they should.
-
-  - **Did you peek at future data?** If you reconstruct a moment in the middle of the timeline from the complete history, you may have used information that did not exist yet to justify a decision at that moment. Live trading cannot do that, so the backtest is often distorted. NTQ uses data contracts to keep future data out of reach: you cannot pull from backtest data or the context object anything that would only exist later, including event times. A conclusion at T strictly follows data that was already known at T.
-
-  - **Do you know how adjusted prices are built?** How they differ from raw prices? If your backtest uses adjusted prices for P&L and stop/take-profit, it is almost certainly wrong. Forward-adjusted prices can make position sizing too optimistic. In extreme cases they can go **negative**; a simulated buy at a negative price makes return negative whether you actually lost money or not. Did you catch that?
-
-  - **Even if the strategy is profitable, is it a handful of extreme names — or is everyone grinding up?** How do you choose when several opportunities appear on the same day? Can you persist intermediate data and inspect it later? After a run, do you know the shape of the return distribution? Without that, you cannot really find a strategy that fits you.
-
-  - **Even a “working” strategy may not fit you.** What if it needs an 80% drawdown to chase 200%? Can you live with that? Can you still follow the rules when only 20% of capital is left? Or would you rather risk 10% to make 20%? NTQ’s decision-maker mode replays dates and positions so you can sit in the seat and pick something you can actually stick with.
-
-  - **Many tools backtest each stock on its own.** What if stocks depend on each other — e.g. invest in today’s top-5 volume names? Per-stock loops get messy and slow. NTQ supports both independent per-stock runs and calendar **slice** mode: no cross-name dependency, and it runs like most frameworks; if there is dependency, add one filter function and slice mode still keeps it efficient.
-
-  - **Is one backtest pass enough?** Return, win rate, and Sharpe are not a verdict. NTQ has **four layers**. Layer 1 — **opportunity enumeration**: how many hits in a huge universe, scattered or concentrated? Layer 2 — **price-factor backtest**: can the rules capture a name’s price move under some risk? Layer 3 — **portfolio simulation**: starting capital, human-like trading, final P&L and its distribution. Layer 4 — **decision-maker**: replay the calendar, pick daily opportunities yourself, and see if you can keep discipline, live with the risk, and still finish in profit. The UI can run all four layers today.
-
-There are many smaller traps. NTQ’s engine ships tradability modules so you get a result you can trust — not a script thrown at random data.
-
-- **NTQ is tuned for a personal PC.** Other desktop backtesters leave memory management to you. A large dataset can freeze or bluescreen a laptop. NTQ schedules CPU and memory during a run so a PC can backtest more data than fits in RAM, without giving up all speed.
-
-- **NTQ is built for the China market.** Popular frameworks usually start from US / overseas markets and get “ported” to A-shares — with plenty of pitfalls. NTQ started from A-shares.
-
-- **NTQ is declarative.** You write less code; most of the work is JSON-like config. A strategy is two files: `strategy.py` and `settings.py`.
-
-In **`settings.py`** you can configure most of the backtest:
-
-- Trading basics
-- Risk controls
-- Goals
-- Data the run needs
-- Universe
-- …
-
-Full field notes: `userspace/strategies/settings_example.py` (created after install).
-
-<details>
-<summary><strong>settings.py examples (click to expand)</strong></summary>
-
-A simple goal: take profit at +30%, stop at −20%:
-
-```python
-"goal": {
-    "stop_loss": {"stages": [{"ratio": -0.2, "close_invest": True}]},
-    "take_profit": {"stages": [{"ratio": 0.3, "close_invest": True}]},
-}
-```
-
-A multi-stage goal that changes as P&L moves: hold at most 100 trading days, stop at −20%. At +15% raise the stop to cost. At +30% sell half. At +50% sell another 40%, leave 10% on a trailing stop that exits if drawdown exceeds 15%:
-
-```python
-"goal": {
-    "expiration": {"fixed_window_in_days": 100, "mode": "trading_day"},
-    "stop_loss": {"stages": [{"ratio": -0.2, "close_invest": True}]},
-    "take_profit": {
-        "stages": [
-            # +15%: do not sell; lift stop to cost
-            {"ratio": 0.15, "exit_ratio": 0, "actions": ["set_protect_loss"]},
-            # +30%: sell half of current size (50% of original)
-            {"ratio": 0.3, "exit_ratio": 0.5},
-            # +50%: sell 40% more; remaining 10% goes to trailing stop
-            {"ratio": 0.5, "exit_ratio": 0.4, "actions": ["set_dynamic_loss"]},
-        ]
-    },
-    "protect_loss": {"ratio": 0, "close_invest": True},
-    "dynamic_loss": {"ratio": -0.15, "close_invest": True},
-}
-```
-
-Inject daily bars, quarterly fundamentals, and CPI:
-
-```python
-"data": {
-    "base": {
-        "data_key": "stock.kline.daily",
-        "params": {},
-    },
-    "required": [
-        {"data_key": "stock.finance.quarterly"},
-        {"data_key": "macro.cpi"},
-    ],
-}
-```
-
-Add MACD on the base K-line:
-
-```python
-"data": {
-    "base": {
-        "data_key": "stock.kline.daily",
-        "params": {},
-        "indicators": {
-            "macd": [{"fast": 12, "slow": 26, "signal": 9}],
-        },
-    },
-}
-```
-
-</details>
+Install now? → [One-command install](#one-command-install) · [Why NTQ](#why-new-tea-quant) · [With AI agents](#using-ntq-with-ai-agents) · [Setup guide](https://new-tea.cn/zh-hans/setup) · [Quick intro (screenshots)](https://new-tea.cn/zh-hans/quick-intro) · [Tutorials](https://new-tea.cn/zh-hans/more-examples) · [Register](https://new-tea.cn/zh-hans/user/register)
 
 ---
 
-In **`strategy.py`**, entry on a single name is just `has_opportunity` (see the installed demo **RSI超跌反弹v1**). Slice filters, portfolio picks, and custom goals are optional:
+## Current version (v0.6.0)
 
-- **`has_opportunity(ctx)`:** is there a buy today for this stock? You see data **as of today**. Return `True` / `False` (`False` skips).
-- **`on_calendar_asof(ctx)`:** for **`slice_based`** mode. You see the full universe as of today, filter first, return stock ids; then `has_opportunity` runs on those ids.
-- **`on_pick_portfolio_member(ctx)`:** how to choose when there are more hits than open slots. Without the hook, set `portfolio.allocation.opportunity_selection` in `settings.py` to rank or weight fields. If the hook exists, it wins.
+**License update**: Through 0.5.3, NTQ used Apache-2.0 and could be used freely. From 0.6.0 onward it uses the NTQ terms: non-commercial use follows the Apache-2.0 terms, but the license itself is not Apache-2.0; commercial use needs the author’s authorization. See [LICENSE](LICENSE) and the site [terms](https://new-tea.cn/zh-hans/disclaimer).
 
-You can also customize goals: put `"custom": "rule_name"` and a human-readable `"description"` on a take-profit / stop-loss stage in `settings.py`, then implement **`is_take_profit`** / **`is_stop_loss`**.
+**NTQ AI agent is live**: [Register as a member](https://new-tea.cn/zh-hans/user/register) and you get a monthly free AI quota (“cat food” / 猫粮). The New Tea assistant can help with in-app work, including writing code. How to load a membership credential: [Import membership credential](#import-membership-credential).
 
-<details>
-<summary><strong>strategy.py hook examples (click to expand)</strong></summary>
+Summary: **[CHANGELOG.md](CHANGELOG.md)**. This release includes breaking changes (strategy hooks, indicator naming, DB tables, post-process config format, Python ≥ 3.11, NTQ license, and more).
 
-```python
-# Example: RSI below 20 counts as an opportunity:
-def has_opportunity(self, ctx: StrategyContext) -> bool:
-    # Daily bars for this name as of today (plus declared indicators); last row is today
-    klines_daily = ctx.data.items.get("stock.kline.daily") or []
-    if not klines_daily:
-        return False
-    # Last bar in the series is today
-    kline_today = klines_daily[-1]
-    # RSI from today's bar
-    rsi = kline_today.get("rsi14")
-    # Optional: record a custom live value. Settings knobs and declared indicator columns need not be captured
-    ctx.capture("rsi", rsi)
+**From 0.6.x onward**, NTQ will not keep adding large new feature blocks. Updates will focus more on:
 
-    # True = there is an opportunity when RSI exists and is below 20
-    # In practice this 20 lives in settings.core so the UI can show it and you can vary the parameter
-    return rsi is not None and rsi < 20
-```
+- Locking APIs (so locking avoids breaking changes)
+- AI agent development
+- Code cleanup and optimization
+- Documentation
 
-- **`on_calendar_asof(ctx)`:** `slice_based` only. You see the full universe as of today, filter first; put the selected stock ids in `CalendarAsOfResult`, then `has_opportunity` runs on those ids.
+---
 
-```python
-# Example: pick the 3 names with the highest turnover today, then hand them to has_opportunity
-def on_calendar_asof(self, ctx: StrategyContext) -> CalendarAsOfResult:
-    today = str(ctx.data.now or "")
-    ranked = []
+## What is New Tea Quant?
 
-    # ctx.data.by_entity: every name in the universe, data as of today
-    for stock_id, payload in (ctx.data.by_entity or {}).items():
-        # Turnover is on daily indicators; declare stock.indicators.daily in settings.data.required
-        rows = payload.get("stock.indicators.daily") or []
-        if not rows:
-            continue
-        # Last row is today
-        indicator_today = rows[-1]
-        turnover = indicator_today.get("turnover_rate")
-        if turnover is None:
-            continue
-        ranked.append((turnover, stock_id))
+New Tea Quant (NTQ) is an AI-assisted, personal-developer-friendly, declarative, plugin-oriented framework for quantitative strategy backtesting and research. (**New Tea** is named after the author’s British Shorthair “新茶”; she is also the name of the in-app AI assistant.)
 
-    # Highest turnover first, take top 3
-    ranked.sort(reverse=True)
-    top3 = [stock_id for _, stock_id in ranked[:3]]
+NTQ does two things:
 
-    # CalendarAsOfResult: tell the framework which names you screened today
-    return CalendarAsOfResult(as_of_date=today, stocks=top3)
-```
+- Put your quantified stock-picking and trading rules into historical data to see whether they work (validate the “quant” rules)
+- Scan the latest market with those rules, find opportunities, and report them (use the “quant” rules to hunt)
 
-- **`on_pick_portfolio_member(ctx)`:** same job as above. Day to day, `opportunity_selection` in settings is enough. Implement this hook only when you need custom pick logic.
+### Where is the boundary?
 
-```python
-# Example: when there are many hits today, buy the 3 highest-priced names
-def on_pick_portfolio_member(self, ctx: StrategyContext):
-    # Opportunities scanned today that are not yet in the book
-    opportunities = ctx.data.items.get("opportunities") or []
-    # How many slots are left (open holdings already occupy slots)
-    remaining = (ctx.data.items.get("account") or {}).get("remaining_slots") or 0
+The open-source free edition only covers strategy validation, debugging, and related capabilities:
 
-    ranked = []
-    for opp in opportunities:
-        # trigger_price: signal price for this name today (usually close)
-        price = opp.trigger_price
-        ranked.append((price, opp))
+- **Does not include** external data feeds (ships with demo data for ~300 sample names, 2023-01-01 – 2025-12-31)
+- **Does not include** a bundled LLM ([register](https://new-tea.cn/zh-hans/user/register) to use NTQ’s hosted AI with a monthly free quota)
+- **Does not include** post-scan execution modules (e.g. auto-order, SMS; members get a limited email notification quota)
 
-    # Highest price first, take top 3, and do not exceed remaining slots
-    ranked.sort(key=lambda item: item[0], reverse=True)
-    n = min(3, remaining)
-    return [opp for _, opp in ranked[:n]]
-```
+After you [register](https://new-tea.cn/zh-hans/user/register), you move from “open-source framework” into the “product boundary” and additionally get:
 
-Custom take-profit / stop-loss: put `"custom": "rule_name"` and `"description"` on a stage in `settings.py`; the framework then asks `is_take_profit` / `is_stop_loss` whether to fire today.
+- More demo data (300 → ~5800+ names across the market, same date range; import under **Settings → Install & maintenance**)
+- A monthly free AI quota (cat food)
+- A one-time email quota for post-scan notifications
 
-```python
-# settings.py: this take-profit stage has no fixed ratio; strategy.py decides. close_invest = flatten the whole position. description shows in the strategy header
-"take_profit": {"stages": [{"custom": "up_20pct", "close_invest": True, "description": "20% above entry"}]}
+All demo data is for demonstration only — do not use commercially. AI replies are suggestions only; NTQ is not responsible for any outcome.
 
-# strategy.py
-# Example: take profit when the name is 20% above entry
-def is_take_profit(self, ctx: StrategyContext, *, custom: str, stage) -> bool:
-    if custom != "up_20pct":
-        return False
+---
 
-    # While a position is open, the framework hands you today's bar directly
-    bar = ctx.data.items.get("bar") or {}
-    close = bar.get("close")
-    # Fill price at entry
-    entry_price = ctx.data.items.get("entry_price") or 0
-    if close is None or not entry_price:
-        return False
+## Why New Tea Quant?
 
-    return close >= entry_price * 1.2
-```
+- **Four-step backtest that inches toward live trading**: opportunity audit → price backtest → investment simulation → decision simulation. In the last step you make the calls yourself on historical data, testing how “pressure” affects judgment instead of staring at a single return number.
+- **Local-first**: data, strategies, and results stay on your machine — reproducible, exportable, no cloud account required.
+- **Declarative and pluggable**: data contracts, strategies, feature tags, and post-scan steps are swappable units you compose as needed.
+- **One core, three ways to use it**: the same capabilities are available through the UI, the CLI, and HTTP — good for hands-on research and for automation.
+- **AI can help across most of the workflow**: the in-app assistant, or a local coding agent, can write strategies, run backtests, and summarize results.
 
-`is_stop_loss` is the same pattern; put the rule on `stop_loss.stages`.
+---
 
-</details>
+## One-command install
 
-### How NTQ differs from other platforms
-
-Compared with common open-source backtesters (any market): [Backtrader](https://www.backtrader.com/), [Zipline](https://github.com/stefan-jansen/zipline-reloaded), [vectorbt](https://vectorbt.dev/), [backtesting.py](https://kernc.github.io/backtesting.py/).
-
-| | **NTQ** | **Backtrader** | **Zipline** | **vectorbt** | **backtesting.py** |
-| --- | --- | --- | --- | --- | --- |
-| Focus | A-share research + scan on a PC | Event-driven general backtest | Pipeline research backtest | Fast vectorized / factors | Light single-name event backtest |
-| Full-market on a laptop | CPU + memory scheduling to avoid OOM | You manage memory | Very RAM-heavy | Fast, but matrices still eat RAM | Single-name first; wrap it yourself for the universe |
-| Default market mind | Starts from A-shares | Generic; US-like defaults | US / USD mind | Market-agnostic; bring data | Market-agnostic; bring data |
-| Delisting / survivorship | PIT universe by default | Whatever you feed | Official packs are decent; DIY data is on you | Whatever you feed | Whatever you feed |
-| Signal vs fill price | Adjusted for signals, raw for fills | Uses whatever you feed | Often adjusted series; dual track is DIY | Uses whatever you feed | Uses whatever you feed |
-| Cross-section (e.g. Top-N) | Native slice mode | Usually loop the universe | Pipeline can; not easy | Matrices shine; tradability is extra | Weak at full-market cross-section |
-| How the backtest is split | Enumerate → price → capital → decision-maker | Typically one NAV curve | Typically one research run | One vectorized run | Typically one NAV curve |
-| Decision-maker (sit in the seat) | Live | No | No | No | No |
-| Web reports / per-stock path | Built-in workbench | Draw it yourself | Research notebooks | Jupyter / DIY | Simple charts included |
-
-<a id="participate"></a>
-### How to participate (pick one)
-
-| Channel | Best for |
-|------|------|
-| [GitHub Issues](https://github.com/garnet1985/new-tea-quant/issues) | Bugs & features (easiest to track) |
-| [Gitee Issues](https://gitee.com/garnet/new-tea-quant/issues) | Bugs & features (easiest to track) |
-| [Website contact](https://new-tea.cn/zh-hans/contact) | Form, no account required |
-| GitHub / Gitee DMs | Short or private notes |
-
-When you file an issue, **OS (Win / macOS / Linux), Python version, which step, screenshot or error summary** speeds things up a lot. See also [CONTRIBUTING.md](CONTRIBUTING.md) · [SUPPORT.md](SUPPORT.md).
-
-## What skills do you need?
-
-NTQ helps you test your ideas. You will likely need:
-
-- Know basic financial terms and market rules
-- A way to turn “this looks like a promising name” into an algorithm (the in-app AI assistant can help you look up docs; you bring your own API key)
-- Enough Python to turn that idea into code
-- Enough stats to read a basic backtest report (the AI assistant can help explain reports too; same API-key requirement)
-
-## What NTQ cannot do
-
-NTQ is a backtester. It does not provide:
-
-- **A stable live data feed** (you connect your own). The repo ships ~3 years / **300** names of demo data. The ~3-year **full A-share** pack is paused from **0.5.3** and will reopen in **0.6.0** (see [Data notes](#data)).
-- **Live brokerage trading.** There is no broker hook. Scan results go out through the [`adapter`](core/modules/adapter/README.md) module. If you can talk to a third-party trading app or venue, you can pass those opportunities downstream.
-
-## How do I run it?
-
-No required third-party services. With [Python](https://new-tea.cn/zh-hans/install-python) ≥ 3.9, clone and run — spend time on strategies, not glue.
-
-For most users: download the code, `cd` to the NTQ root, run:
-
-```bash
-python launcher.py
-```
-
-Then finish install in the UI.
-
-Developers: prefer [**MySQL**](https://dev.mysql.com/downloads/) or [**PostgreSQL**](https://www.postgresql.org/download/), which you install yourself.
-
-Full walkthrough: [Quick install + run a strategy](#quick-start).
-
-<a id="can"></a>
-## What else can NTQ do?
-
-- **Talk to the database quickly:** [DuckDB](https://duckdb.org/), [MySQL](https://dev.mysql.com/), and [PostgreSQL](https://www.postgresql.org/), plus a small [ORM API](core/infra/db/README.md).
-- **Custom data sources:** a full ingest toolkit. One logical source (e.g. company fundamentals) can have several vendors, with rate limits, waits, and write modes (incremental, overwrite, rolling refresh). See [core/modules/data_source/README.md](core/modules/data_source/README.md).
-- **Custom data contracts:** most of the run is config. If you add a table and want it in the backtest by declaration, give it a unique `data_key` and a loader; the framework finds the loader by name. See [data contracts](core/modules/data_contract/README.md).
-- **Attribute a backtest:** declare the parameters to contrast in the strategy folder’s `attribution.py`. `sea` / `spa` / `soa` share those axes and fill in enumerate, price, and portfolio. A normal Run does not attribute. Each demo strategy ships a short example. See [`CONCEPTS.md`](core/modules/strategy/docs/CONCEPTS.md).
-- **Adapters:** after a scan, wire [`adapter`](core/modules/adapter/README.md) to your own downstream (notifications, a trading app, anything). You get standard opportunity payloads plus backtest history if you have run one.
-- **Web UI:** use it in the browser. Visualize results and compare inputs/outputs across runs so you can tune the strategy on purpose.
-- **AI assistant:** in-app chat; fill in a vendor API key in settings. Requests include NTQ documentation context.
-- **CLI:** [`python cli.py`](#cli) lists commands.
-- **Markets:** China A-shares are fully supported today. [`market_profile`](core/modules/market_profile/README.md) is the door to other markets; more will come.
-
-### Please note
-
-NTQ itself is free and open source. Some capabilities need **your** resources:
-
-- **Data:** ingest and storage are in the framework; **paid vendor accounts / tokens are not**. Register and buy those yourself.
-- **Notifications:** SMS / email / push are **not** in the framework. Hook them via an [adapter](core/modules/adapter/README.md).
-
-Fuller tutorials (Chinese): [More examples](https://new-tea.cn/zh-hans/more-examples). License: [Apache 2.0](LICENSE) ([License & support](#license)).
-
-<a id="quick-start"></a>
-## Quick install + run a strategy
-
-Goal: **framework up + one demo strategy in about 5 minutes**.
-
-### Prerequisites
-
-- **Python 3.9+**. If needed: [Install Python](https://new-tea.cn/zh-hans/install-python).
-- **Developers:** install [Node.js](https://nodejs.org/) (for UI work); prefer [MySQL](https://dev.mysql.com/downloads/) or [PostgreSQL](https://www.postgresql.org/download/). ([DuckDB](https://duckdb.org/) single-writer mode is awkward while debugging.)
-
-### Step 1: Get the code
-
-Pick one.
-
-- **Git clone** (recommended), GitHub or Gitee:
-
-```bash
-git clone https://github.com/garnet1985/new-tea-quant.git
-cd new-tea-quant
-```
-
-```bash
-git clone https://gitee.com/garnet/new-tea-quant.git
-cd new-tea-quant
-```
-
-- **Download ZIP:** on [GitHub](https://github.com/garnet1985/new-tea-quant) or [Gitee](https://gitee.com/garnet/new-tea-quant) use **Code → Download ZIP**, unzip, enter the **`new-tea-quant`** root (same folder as [`launcher.py`](launcher.py)).
-
-### Step 2: Start the setup wizard from the repo root
-
-In the **project root** (where `launcher.py` is):
-
-```bash
-python launcher.py
-```
-
-Windows PowerShell:
-
-```bash
-python .\launcher.py
-```
-
-If `python` is an old version:
+From the **project root**:
 
 ```bash
 python3 launcher.py
 ```
 
-The script switches to the repo root, ensures the venv, then **starts BFF + frontend and opens the browser** into the graphical **Setup wizard** (BFF setup API).
+Follow the UI prompts (defaults are fine). Step-by-step screenshots: [Install New Tea Quant](https://new-tea.cn/zh-hans/setup).
 
-### Step 3: Finish initialization in the browser
+**Notes**
 
-Follow the prompts; defaults are usually enough. Order is roughly:
+- Install and launch use the same command; if already installed, it skips setup and starts the app.
+- Local Python may be `python` or `python3`; the launcher path may be `launcher.py` or `./launcher.py`. Try combinations if the first fails.
+- 0.5.x minimum Python was 3.9; from 0.6.0 it is **3.11**. Prefer 3.11–3.12: newer Pythons may lack wheels for some dependencies. Check with `python3 --version`.
 
-1. Install core Python deps
-2. Initialize `userspace`
-3. Configure the database (default **DuckDB**; developers can pick MySQL / PostgreSQL — the app will try to create a missing database and warn on name clashes)
-4. **Ask whether to import demo data** (skippable. You can still import later under **设置 → 安装与维护** / Settings → Install & maintenance. If DuckDB is reported as in use by another program, quit that program and try again)
-5. **Ask whether to install ML extras** (for the analysis library; skippable; later: **设置 → 安装与维护**)
-6. Usage stats (allow or decline; both continue)
+---
 
-You land on the **welcome page**. Then use the nav item **制定策略** (Strategy Design).
+## Using NTQ with AI agents
 
-That completes NTQ installation.
+If you would rather not write code, hand NTQ to a local coding agent (e.g. Workbuddy, Harness, TreaWorker): you describe the goal, and it builds the strategy, runs the backtest, and summarizes the results.
 
-### Step 4: Run a demo
+1. **Install**: have the agent run `python3 install.py --accept-license` (headless; confirm the terms yourself on first install)
+2. **Create a strategy**: `python3 cli.py -n my_strategy`, then let the agent edit `settings.py` and `strategy.py`
+3. **Run**: `python3 cli.py se --strategy my_strategy` (price layer `sp`, portfolio layer `so`, all three at once with `sim`)
+4. **Read results**: reports live under `userspace/strategies/<strategy>/results/`; `python3 cli.py ls --json` lists available resources
 
-Bundled demo assets:
+The in-app AI assistant (`python3 cli.py a`) needs a membership credential; external agents do not — they just call the CLI. Full command reference: `python3 cli.py -h`.
 
-- **Data:** about **2023-01 ~ 2025-12**, **300** stocks (three years). Not for commercial use.
-- **Strategies:** default demos only — do not trade live off them.
+---
 
-#### Open the strategy UI
+## Import membership credential
 
-In the UI click **制定策略**, or open `/strategy-design/`. Pick a demo (e.g. **RSI超跌反弹v1 · 作为对比基准的版本**), then the title or **进入调试**:
+To unlock more NTQ services, including:
 
-![Fig. 1: Navigate to Strategy Design](docs/images/demo/1.jpg)
+- More demo data (~300 names → ~5800+ names, 3 years)
+- New Tea AI assistant (monthly free quota)
+- A one-time email demo quota for post-scan processing
 
-![Fig. 2: Strategy list](docs/images/demo/2.jpg)
+[Register](https://new-tea.cn/zh-hans/user/register) on the site, then link your local app with a **universal credential**. Screenshots: [Setup · Import membership credential](https://new-tea.cn/zh-hans/setup).
 
-![Fig. 3: Strategy detail](docs/images/demo/3.jpg)
+1. After [registration](https://new-tea.cn/zh-hans/user/register), click your avatar at the top-right of the homepage to open your profile:
 
-Four main areas:
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-25%2012.01.06.png" alt="Open profile" width="800" />
+</p>
 
-- **Strategy info:** top full-width block — name, description, version, and restore-from-history.
-- **Strategy settings:** left panel; changes with each backtest step. Saving writes `settings.py`. A new disk version is allocated when the execute fingerprint changes.  
-  **Note:** Strategy **logic** cannot be edited in the UI — only under `userspace/strategies/`. The UI only tunes parameters exposed in code. The in-app AI assistant (bring your own API key) can help look up docs and explain results.
-- **Execution panel:** run the current step. Backtest has four stages:  
-  - **Enumerate:** find historical opportunities;  
-  - **Price backtest:** drop opportunities that sit too close together, then track the rest with per-stock rules (far-enough hits on the same name can run in parallel) to read overall profitability after the noise is filtered;  
-  - **Portfolio simulation:** starting capital, sizing, and a rule for choosing among extra hits — closer to real trading;  
-  - **Decision simulation:** replay trading days and pick each day’s opportunities yourself.
-- **Reports:** auto-generated after each step; the first three stages have their own reports, and decision simulation has a separate end-of-run report.
+2. Below your profile info you will see cat food (AI quota) and the **universal credential** (the site may mask it; yours should be a random string). Copy it:
 
-#### Stage 1: Opportunity enumeration
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-25%2012.02.22.png" alt="Copy universal credential" width="800" />
+</p>
 
-After enumeration, reports usually split into **per-stock** and **global** (later stages follow the same idea):
+3. In the NTQ app, go to **Settings → Membership**, paste the credential and load it. A green badge appears on success:
 
-![Fig. 4: Enumeration report (per-stock + global)](docs/images/demo/4.jpg)
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-25%2012.04.39.png" alt="Paste credential in Settings" width="800" />
+</p>
 
-Click a row to open that stock’s chart — K-lines, indicators, and opportunity markers (e.g. blue dots):
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-25%2012.11.36.png" alt="Credential loaded" width="800" />
+</p>
 
-![Fig. 5: Single-stock chart with opportunity marks](docs/images/demo/5.jpg)
+**Important**: Treat the universal credential like a product password. If it leaks, refresh it on the website immediately and re-import.
 
-Below the list, the global enum report summarizes where opportunities cluster, average duration, and similar diagnostics:
+---
 
-![Fig. 6: Enumeration global report](docs/images/demo/6.jpg)
+## What can NTQ do?
 
-#### Stage 2: Price backtest
+Most of what follows can be driven by the New Tea AI assistant, or by a local agent (Workbuddy, Harness, TreaWorker, Doubao, etc.) — see [Using NTQ with AI agents](#using-ntq-with-ai-agents). Fuller screenshots: [Quick intro](https://new-tea.cn/zh-hans/quick-intro).
 
-Focuses on price-capture quality. The single-stock view shows entries/exits — not P&L drama, but clear timing for debugging:
+**Note**
 
-![Fig. 7: Price backtest chart (entries/exits)](docs/images/demo/7.jpg)
+- Default DB is DuckDB, which allows only one writer at a time. If the UI and a third-party agent both run NTQ, they may fight over the DB — keep only one process open. MySQL / PostgreSQL do not have this limit.
 
-The global report covers buy/sell price distributions, returns, and more — always read it against your configured goals:
+### Strategy design & backtest
 
-![Fig. 8: Price backtest global report](docs/images/demo/8.jpg)
+Usually **two ways** to build a strategy:
 
-#### Stage 3: Portfolio simulation
+- Follow the userspace examples: opportunity logic in `strategy.py`, parameters in `settings.py`.
+- Talk to the New Tea AI assistant and let it write code and report results.
 
-Closer to real trading: capital, positions, and a rule for choosing when there are more hits than slots, run on historical bars.  
-(This step’s report does not support per-stock drill-down; enumerate and price backtest do.)
+And **two ways** to tune:
 
-![Fig. 9: Portfolio global report](docs/images/demo/9.jpg)
+- Edit `settings.py`. Any config change creates a new strategy version; compare and switch freely.
+- Ask the AI assistant to change parameters via chat.
 
-![Fig. 10: Equity / drawdown style curves](docs/images/demo/10.jpg)
+Backtest has **four steps**, each runnable alone with its own report; AI can help with any step:
 
-#### Stage 4: Decision simulation
+- **Opportunity enumeration**: Find all hits in history; check density and concentration — does the strategy find opportunities well?
+- **Price backtest**: Filter duplicates, then see whether those hits meet your investment goals — is the strategy basically profitable?
+- **Portfolio simulation**: Virtual capital + your money rules — can you capture the edge from the previous step? Closest automated stand-in for live trading.
+- **Decision simulation**: Same as above, but **you** choose what and how much to buy. The critical check that the strategy fits *you*, including stress many backtesters ignore.
 
-After the portfolio run, you can enter decision-maker mode: replay trading days, pick that day’s opportunities yourself, and inspect holdings, cash, and the end-of-run report. Use it to check whether you can actually follow the strategy with discipline.
+Also:
 
-#### Strategy scan: finding live-market opportunities
+- **Parameter attribution**: How parameters move results and sensitivity (needs the ML plugin).
+- **Rolling contrast**: Roll the same strategy across different windows and compare.
 
-When a strategy is tuned, use **策略选股** (Strategy Scan) from the main nav.
+#### Strategy UI
 
-Scans use the current `settings.py` in the strategy folder (the workbench Persist / Run path writes that file). There is no separate **Publish strategy** step.
+Strategy page: header = strategy info, left = parameters, right = run panel and reports.
 
-For a “real” market scan you typically need:
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.01.25.png" alt="Strategy page" width="800" />
+</p>
 
-- **Fresh enough data** (NTQ does not ship a vendor; connect your own — [data_source module](core/modules/data_source/README.md))
-- An **enabled, complete** strategy
+Price-backtest report:
 
-On the scan page you can use **严格模式** (strict: refuse to run if data is stale), pick a strategy, and click **开始扫描**. Results list current opportunities:
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2015.50.30.png" alt="Price backtest report" width="800" />
+</p>
 
-![Fig. 11: Strategy scan](docs/images/demo/11.jpg)
+Open a single name to see entries and exits clearly:
 
-For a dry run only, choose **扫描演示**. The app pretends “today” is the day after your local data’s last trading day, then runs at that synthetic as-of.
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2015.51.15.png" alt="Single-name entry/exit" width="800" />
+</p>
 
-That is a simple path from backtest to scan — there is more in NTQ to explore.
+Compare results across strategy versions:
 
-<a id="data"></a>
-## Data notes
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2015.52.03.png" alt="Version compare" width="800" />
+</p>
 
-1. For a **larger (~3 years, full A-share) package**, useful for a fuller strategy check or backtest: **downloads are paused from 0.5.3 and will reopen in 0.6.0.** When they reopen, [register and sign in on the member page](https://new-tea.cn/zh-hans/user/), download it, leave **only one** zip under [`initialization/data/`](initialization/data/) (move the old demo zip aside), then run `python cli.py id` (`-f` forces a full re-import; see [CLI](#cli)). You can point a different DB name to keep demo and full data side by side (after install: `userspace/system/config/database/`).
-2. **Bring your own data source** (e.g. [Tushare](https://tushare.pro)): see [core/modules/data_source/README.md](core/modules/data_source/README.md).
-3. Demo data and strategies are for learning/research only — not live trading or commercial use.
+Or see which parameter changes drove the difference:
 
-## Disclaimers
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2015.53.13.png" alt="Parameter diff" width="800" />
+</p>
 
-This is still unofficial **v0.x**: API stability is not guaranteed until 1.0. (Before 1.0, APIs are at most beta.) See [CHANGELOG.md](CHANGELOG.md).
+Price-layer attribution — how results change when parameters take different values:
 
-<a id="cli"></a>
-## Common commands (`cli.py`)
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2015.55.02.png" alt="Attribution report" width="800" />
+</p>
 
-Layered backtest and scan (full list: `python cli.py -h`):
+Rolling contrast across windows:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2015.56.08.png" alt="Rolling contrast" width="800" />
+</p>
+
+Decision-maker mode — time advances; you make the investment calls:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-25%2011.18.20.png" alt="Decision-maker mode" width="800" />
+</p>
+
+As time moves on, you see P&L from your decisions — a historical live-trading rehearsal with your own strategy:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-25%2011.19.57.png" alt="Decision-maker P&L" width="800" />
+</p>
+
+Or let the New Tea AI assistant run the backtest:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2015.57.02.png" alt="AI assistant chat" width="480" />
+</p>
+
+AI assistant reporting backtest results:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2015.58.07.png" alt="AI assistant results" width="480" />
+</p>
+
+### Strategy scanning (stock picking)
+
+Use a tuned strategy to scan which names currently match; then wire [post-processing](#post-scan-opportunity-handling) for auto-trading, filters, alerts, ML, etc. Without post-processing, results still show in the UI.
+
+**Notes**
+
+- Only demo data ships; live data needs your own feed.
+- Post-processing is yours to configure; members get a limited demo email quota.
+
+Scan UI: demo mode uses the configured latest trading day (simulated); strict mode probes the real latest day and refuses if data is short.
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.09.37.png" alt="Strategy scan UI" width="800" />
+</p>
+
+Scan report — then post-process for filter / notify / trade / analyze:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.12.59.png" alt="Scan report" width="800" />
+</p>
+
+### Feature tags
+
+Think “factors”: abstract features in code and bind them to entities. E.g. market cap > 5B = “large”, else “small”, precompute for all names, reuse across strategies without recalculating. Building tags is building your factor library.
+
+Tag list and outputs:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.14.58.png" alt="Feature tag list" width="800" />
+</p>
+
+Outputs can be visualized by type:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.15.21.png" alt="Feature tag chart" width="800" />
+</p>
+
+### External data sources
+
+Framework for plugging in external feeds: multithreading, your rate limits to avoid bans, config-driven setup, retries, resume, etc.
+
+Data-source UI — which feeds, how they update, whether data is fresh:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.17.12.png" alt="Data source UI" width="800" />
+</p>
+
+### Data contracts
+
+A core piece of “config-driven” NTQ: contracts standardize structure and reads so you **declare** what you need and get injection automatically.
+
+Contract list — injectable data, keys, types:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.19.03.png" alt="Data contracts" width="800" />
+</p>
+
+### Series relation
+
+Correlation and lag across series: inverse moves, lead–lag, or how a macro event affects market liquidity.
+
+UI example — two banks vs one liquor close price:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.20.56.png" alt="Series relation UI" width="800" />
+</p>
+
+Result: the two banks move together (~0.73); liquor vs banks is inverse (negative correlation):
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.22.19.png" alt="Series relation result" width="800" />
+</p>
+
+### Post-scan opportunity handling
+
+Also called scan post-processing: what to do after a scan. Create plans; each plan picks executable units (adapters); after the scan, NTQ runs them in dependency order.
+
+**Notes**
+
+- Only **two** units work out of the box: **presenter** (load backtest stats when showing opportunities) and **ntq email service** (site email; one-time member demo quota).
+- Other units are demos — implement them yourself or get third-party credentials.
+
+Plan list (steps and availability):
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.24.50.png" alt="Post-process plans" width="800" />
+</p>
+
+Small unit list:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.25.13.png" alt="Post-process units" width="800" />
+</p>
+
+Build a plan, drop in units; NTQ sorts and runs by dependency:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-24%2016.25.35.png" alt="Edit post-process plan" width="800" />
+</p>
+
+### Settings
+
+Preferences and system config (membership credential, demo data cutoff, cache cleanup, etc.). [Register](https://new-tea.cn/zh-hans/user/register) for AI / email quotas; load steps: [Import membership credential](#import-membership-credential).
+
+### Command line
+
+Most features run from the CLI — different entry points by role:
 
 ```bash
-python cli.py se --strategy rsi_v1   # Enumerate
-python cli.py sp --strategy rsi_v1   # Price layer
-python cli.py so --strategy rsi_v1   # Portfolio layer
-python cli.py sim --strategy rsi_v1   # All three layers
-python cli.py sea --strategy rsi_v1  # Enumerate attribution (run se first; reads attribution.py)
-python cli.py spa --strategy rsi_v1  # Price attribution (run sp first)
-python cli.py soa --strategy rsi_v1  # Portfolio attribution (run so first)
-python cli.py sr  --strategy rsi_v1   # Rolling compare (run all three layers first; reads rolling.py)
-python cli.py c  --strategy rsi_v1   # Market scan
-python cli.py t  --scenario market_cap_tier   # Feature tags
+python cli.py     # end users: day-to-day commands (help below)
+python devcli.py  # developers: shortcuts (help below)
 ```
 
-Prefer an explicit `--strategy` (use `meta.key`); add `-f` to force recalculation. Demo Tag scenario after install: `userspace/extensions/tags/demo/market_cap_tier/`.
+User `cli.py` help:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-25%2011.25.38.png" alt="cli.py help" width="800" />
+</p>
+
+Developer `devcli.py` help:
+
+<p align="center">
+  <img src="https://new-tea.cn/sites/default/files/inline-images/%E6%88%AA%E5%B1%8F2026-11-25%2011.25.22.png" alt="devcli.py help" width="800" />
+</p>
+
+Use without the UI, or build on top.
 
 ---
 
-## Typical use cases
+## Star NTQ
 
-| Goal | Suggested path |
-|------------|----------|
-| **Does this signal fire?** | Web **制定策略** (see [Quick Start step 4](#quick-start)) → demo → **enumerate** → count & distribution |
-| **Does a trigger capture price?** | After enum → **price backtest** → click a stock for entries/exits |
-| **Survive with limited capital?** | After price layer → **portfolio simulation** → curves & holdings |
-| **Monthly low-price / Top N across A-shares** | After install: `userspace/strategies/demo/cross_sectional/low_price/`, **`slice_based`** mode |
-| **Share one factor across strategies** | Run **[Tag](core/modules/tag/README.md)** ([`cli.py t`](#cli)), reference it in settings |
-| **Screen with latest bars** | Refresh data → [`cli.py c`](#cli) or Web scan (notify via [Adapter](core/modules/adapter/README.md)) |
+[GitHub](https://github.com/garnet1985/new-tea-quant) · [Gitee](https://gitee.com/garnet/new-tea-quant) · Feedback: [contact](https://new-tea.cn/zh-hans/contact)
 
----
-
-<a id="upgrade"></a>
-## Upgrade
-
-1. Pull latest **master**, **keep** `userspace/` (created at install — do not overwrite it on upgrade); overwrite the rest.  
-2. Daily UI: `python launcher.py` (installs UI deps if needed; mainland China uses mirrors automatically). CLI / Python deps only: [`python install.py`](install.py) (`--userspace` / `--db` optional). Upgrade an installed app: `python cli.py u`. If [release notes](CHANGELOG.md) ask for a data re-import, see [Data notes](#data). This release does not require a data re-import. The price backtest no longer locks a name while it is held, and single-run attribution is now a parameter contrast. To attribute, use each strategy’s `attribution.py` with `sea` / `spa` / `soa`.
-
----
-
-<a id="license"></a>
 ## License & support
 
-- **License:** [Apache 2.0](LICENSE) · **Changelog:** [CHANGELOG.md](CHANGELOG.md)
-- **Feedback / contribute:** [SUPPORT.md](SUPPORT.md) · [CONTRIBUTING.md](CONTRIBUTING.md) · [SECURITY.md](SECURITY.md)
-- **Website:** [new-tea.cn](https://new-tea.cn) · **Tutorials:** [More examples](https://new-tea.cn/zh-hans/more-examples)
-
-**Disclaimer:** For learning and research only. Not investment advice; backtests do not predict future results.
-
-<details>
-<summary>Developer appendix (branches, devcli, tests, docs)</summary>
-
-**Layout:** [`core/`](core/) framework · `userspace/` strategies & config (created at install, kept on upgrade) · demos after install under `userspace/strategies/demo/` · [docs/README.md](docs/README.md)
-
-**Branches:** `master` for releases; branch `feature/*` / `bugfix/*` from `dev`; `hotfix/*` only from `rc`. Do not PR straight to `master`.
-
-**Dev:** `python devcli.py -h` (`ui` · `uk` · `csc` · `p` release check, including ruff) · Docker: [docs/docker.md](docs/docker.md)
-
-**Tests / deps:**
-
-```bash
-./venv/bin/python -m pytest   # pip install -r requirements-dev.txt first
-python3 -m piptools compile --output-file requirements.txt requirements.in
-```
-
-Dep lists: [requirements-dev.txt](requirements-dev.txt) · [requirements.in](requirements.in)
-
-</details>
+See [LICENSE](LICENSE) and site [terms](https://new-tea.cn/zh-hans/disclaimer). Non-commercial vs commercial terms follow the license and [CHANGELOG](CHANGELOG.md).
 
 ---
-
-## Fun time: How do AIs rate NTQ?
-
-> Third-party AI comments after reading some NTQ core files/docs — **for fun**, with **full reply screenshots**. **Not ads**, not official AI positions; models can be overly optimistic — judge from the repo yourself.  
-> You are welcome to ask your own AI; make it read core code first, or expect severe hallucinations.
-
-<details>
-<summary><strong>Gemini 3.1 Pro</strong> (expand)</summary>
-
-![Gemini 3.1 Pro review of NTQ](docs/images/ai-assessments/gemini-3.1-pro.jpg)
-
-</details>
-
-<details>
-<summary><strong>GPT-5.5</strong> (expand)</summary>
-
-![GPT-5.5 review of NTQ](docs/images/ai-assessments/gpt-5.5.jpg)
-
-</details>
-
-<details>
-<summary><strong>Claude Sonnet 4.6</strong> (expand)</summary>
-
-![Claude Sonnet 4.6 review of NTQ](docs/images/ai-assessments/claude-sonnet-4.6.jpg)
-
-</details>
-
-<details>
-<summary><strong>DeepSeek</strong> (expand, 6 screens stitched)</summary>
-
-![DeepSeek review of NTQ](docs/images/ai-assessments/deepseek.jpg)
-
-</details>
-
-<details>
-<summary><strong>Gitee Assistant</strong> (expand)</summary>
-
-![Gitee Assistant review of NTQ](docs/images/ai-assessments/gitee-assistant.jpg)
-
-</details>

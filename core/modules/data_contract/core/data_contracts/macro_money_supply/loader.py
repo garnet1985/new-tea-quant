@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class MacroMoneySupplyLoader(BaseDataContractLoader):
-    """加载全局 sys_money_supply（月度序列）。"""
+    """加载全局 sys_data_money_supply（月度序列）。"""
 
     def load(self, params: Mapping[str, Any]) -> Any:
         return DataManager().macro.load_money_supply()

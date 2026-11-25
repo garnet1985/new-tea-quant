@@ -19,14 +19,16 @@ if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 os.chdir(_REPO_ROOT)
 
-from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
 from core.infra.setup.core.steps.import_data.installer import SetupDataInstaller
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
 
 def _parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="导入 initialization/data 初始化数据")
+    parser = argparse.ArgumentParser(
+        description="导入演示数据包（userspace/.ntq/packages/demo）"
+    )
     parser.add_argument("--force", action="store_true", help="忽略清单并全量重导")
     return parser.parse_args()
 

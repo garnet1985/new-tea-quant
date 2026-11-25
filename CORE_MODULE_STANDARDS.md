@@ -58,16 +58,17 @@
 
 ### **理念3：术语统一**
 
-> 核心模块需要有术语表，术语需要统一，不要出现多个术语描述同一个事物
+> 核心模块需要有术语表：解释**代码中出现的英文概念**（是什么、为何存在、代码对应、关键对比），并统一命名（aliases / avoid），不要多个叫法指同一事物
 
 **原因：**
-- 避免混淆，不同模块使用相同的术语
+- 读代码的人需要先懂领域词（如 data key、scope、time series），而不是只有中英对照
+- 避免混淆，不同模块 / 文档使用相同的术语
 - 减少沟通成本，术语一致便于理解
 
 **实践：**
-- 定义术语表（glossary.yaml）
+- 定义术语表（`glossary.yaml`；写法见 [`docs/module-doc-standard.md`](docs/module-doc-standard.md) § glossary）
 - 遵循术语表（所有代码、文档、注释遵循术语表）
-- 及时更新（发现新的术语冲突，及时更新术语表）
+- 及时更新（新概念进表；发现命名冲突更新 aliases / avoid）
 
 ---
 
@@ -178,7 +179,7 @@
 | 位置 | 放什么 | 不放什么 |
 |------|--------|----------|
 | `<module>/__test__/` | **`test_api.py`（必须）**；可选 `test_integration_*.py`、**薄** `test_performance_*.py`（CI 冒烟）；`TEST_CASES.md` | 正式 bench 的大输入/历史结果（→ `__performance__/`）；包内细单测 |
-| `<package>/__test__/` | 该包 **unit** + `TEST_CASES.md` | 超出该包职责；测其他模块行为 |
+| `<package>/__test__/` | 该包 **unit**；`TEST_CASES.md` 可选（有则须与 pytest 对齐） | 超出该包职责；测其他模块行为 |
 | `<module>/__performance__/` | 本模块正式性能：固定输入、脚本、分版本结果、`CASES.md` | 跨模块 e2e（分别在相关模块 `__performance__/`，或 `devcli.py bpe/bps`）；普通 API 单测 |
 
 ```text
@@ -249,11 +250,11 @@
 - `API.md` 中每个对外入口须有对应 case（按 API 节/入口映射即可，不必一方法一文件）。
 - API 不破坏时，内部重构 / 包内单测调整 → 版本规则上可走**小版本**；破坏公开 API → **中版本**，并同步 `API.md` + `test_api.py` + `__test__/TEST_CASES.md`。
 
-**`TEST_CASES.md`（每个 `__test__` 目录一份）：**
+**`TEST_CASES.md`（模块根 `__test__` 必须；功能包 `__test__` 可选）：**
 
 | 内容 | 要求 |
 |------|------|
-| 版本 | = `module_info.yaml` 的 `version`（文首字段名 `**版本：**`，禁止 `**覆盖版本：**`） |
+| 版本 | = `module_info.yaml` 的 `version`（文首统一两行头，见 [模块文档规范](docs/module-doc-standard.md)；禁止 `**覆盖版本：**`） |
 | Scope / 边界 | 负责 / 不负责；允许的测试类型 |
 | Scenario → Case | Case 名 = pytest 函数名；标明所属 `test_*.py` |
 | 与 API 对齐 | 根目录 API suite 须能映射到 `API.md` |
@@ -296,6 +297,15 @@
 | `description` | string | 模块描述 | 属性存在 |
 | `dependencies` | list | 模块级依赖列表 | 属性存在 |
 | `changelog` | list | 本模块变更记录 | 至少一条；`changelog[0].version` = 顶层 `version` |
+
+**可选属性（站点文档同步，非运行时）：**
+
+| 属性名 | 类型 | 说明 |
+|--------|------|------|
+| `site_title` | string | Drupal 节点 Title（URL / 菜单）；例：`安装模块 (Setup)` |
+| `site_display_title` | string | Drupal Display title（页头展示）；例：`安装的统一步骤编排 - Setup 模块` |
+
+留空则站点同步回退到 Markdown 文首 `#` 标题。不纳入 `devcli.py p` 必填检查。
 
 **`changelog` 格式：** 新 → 旧；每条含 `version` + `changes`（字符串列表）。
 
@@ -432,7 +442,7 @@ settings["performance"] = {"max_workers": 8}
 
 ### **指标14：TEST_CASES.md 用例索引**
 
-> 每个 `__test__` 目录维护一份 `TEST_CASES.md`（取代 `test_cases.yaml`）。  
+> 模块根 `__test__` 必须维护一份 `TEST_CASES.md`（取代 `test_cases.yaml`）；功能包级可选。  
 > **正文结构与规则**见 [`docs/module-doc-standard.md` §4](docs/module-doc-standard.md)。  
 > 模块侧：存在该文件；Case 名与 pytest 一致；API suite 映射 `API.md`（指标 2）。
 
@@ -454,7 +464,7 @@ settings["performance"] = {"max_workers": 8}
 - **公开符号改名** = 破坏性 → **中版本**；仅模块内部改名 → **小版本**。
 - 仅文档笔误、与行为无关的措辞修正：可不 bump；文档与实现对齐的实质性修正 → 至少 **小版本**。
 - 同一发布批次多次提交：合并为一次 bump；`changelog` 写清本版本要点。
-- bump 后同步：`module_info.version`、`changelog[0]`、文档文首标准版本字段（Markdown `**版本：**`，glossary `# Version:`）。`devcli.py p` 强制检查。`API.md` 里「引入版本」只在新增入口时填写。
+- bump 后同步：`module_info.version`、`changelog[0]`、文档文首标准两行头（模块·版本 + 最低支持核心版本；glossary `# Version:` / `# Compatible-Core:`）。`devcli.py p` 强制检查。`API.md` 里「引入版本」只在新增入口时填写。
 
 ---
 
@@ -572,7 +582,7 @@ def check_core_module(module_path: Path) -> List[str]:
         "glossary.yaml",
         "module_info.yaml",
         "docs/ARCHITECTURE.md",
-        # DESIGN / CONCEPTS / QUICKSTART 可选；DECISIONS 已取消
+        # DECISIONS / CONCEPTS / QUICKSTART 可选；DESIGN 已取消（并入 DECISIONS）
     ]
 
     for file in required_files:
@@ -657,7 +667,7 @@ else:
 
 | 检查项 | 类型 | 说明 |
 |--------|------|------|
-| ✅ 版本号一致 | 硬性指标 | module_info 与各文档文首 `**版本：**` 一致；`devcli.py p` 闸门 |
+| ✅ 版本号一致 | 硬性指标 | module_info 与各文档文首两行头一致；`devcli.py p` 闸门 |
 | ✅ changelog 更新 | 硬性指标 | 记录所有改动 |
 | ✅ 文档同步更新 | 硬性指标 | 见 [模块文档规范](docs/module-doc-standard.md) 维护触发 |
 | ✅ 根目录 `API.md` 与实现一致 | 硬性指标 | 签名 / 状态 / 参数表对齐代码 |

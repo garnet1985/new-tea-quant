@@ -3,7 +3,7 @@
 
 // --- Inputs (TextField / Select / Autocomplete) ---
 .MuiInputBase-root {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
@@ -14,12 +14,12 @@
 }
 
 .MuiInputBase-inputMultiline {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
 .MuiInputLabel-root {
-  font-size: var(--ntq-form-control-font-size, 14px);
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
 }
 
 .MuiFormHelperText-root {
@@ -28,27 +28,56 @@
   margin-right: 0;
 }
 
-// Outlined input: default glass surface + consistent height/padding
+// Outlined input: default solid dark surface（辨识度）；glass 需显式 surface="glass"
 .MuiOutlinedInput-root {
   border-radius: 5px;
-  background: var(--ntq-white-03);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  background: var(--ntq-input-solid-bg, #12121f);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   min-height: 40px;
   align-items: center;
-  transition: background 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  transition: var(--ui-transition-colors);
+
+  &:hover:not(.Mui-disabled) {
+    background: var(--ntq-input-solid-bg-hover, #161625);
+  }
+
+  &.Mui-disabled {
+    background: var(--ntq-input-solid-bg-disabled, rgba(255, 255, 255, 0.08));
+    opacity: 1;
+  }
 }
 
+/* 与 glass Button 同色；!important 压住 MUI Emotion 默认 ~0.23 白边 */
 .MuiOutlinedInput-notchedOutline {
-  border-color: var(--ntq-white-12);
+  border-color: var(--ui-white-12, var(--ntq-white-12)) !important;
+  transition: border-color var(--ui-transition-color);
 }
 
-.MuiOutlinedInput-root:hover .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(255, 255, 255, 0.18);
+.MuiOutlinedInput-root:hover:not(.Mui-disabled) .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.18) !important;
 }
 
 .MuiOutlinedInput-root.Mui-focused .MuiOutlinedInput-notchedOutline {
-  border-color: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.28) !important;
+}
+
+.MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-notchedOutline {
+  border-color: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* disabled：浅底 + 淡字；可填保持正文色 */
+.MuiOutlinedInput-root:not(.Mui-disabled) .MuiOutlinedInput-input,
+.MuiOutlinedInput-root:not(.Mui-disabled) .MuiSelect-select {
+  color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+  -webkit-text-fill-color: var(--ntq-text, rgba(255, 255, 255, 0.92));
+}
+
+.MuiOutlinedInput-root.Mui-disabled .MuiOutlinedInput-input,
+.MuiOutlinedInput-root.Mui-disabled .MuiSelect-select {
+  color: rgba(255, 255, 255, 0.42);
+  -webkit-text-fill-color: rgba(255, 255, 255, 0.42);
+  cursor: default;
 }
 
 // --- Report grids (DataGrid overlay) ---
@@ -68,33 +97,49 @@
 }
 
 .MuiOutlinedInput-root .MuiOutlinedInput-input {
-  padding: 0 12px;
+  padding: 0 0.75rem; // 12px，单行只在 input 上留左右距
 }
 
-// Multiline: don't force 40px height
+// Date：隐藏 UA 黑色日历指示器（改由 ui/input/date 自绘浅色 icon）
+input[type='date'].ntq-date__input::-webkit-calendar-picker-indicator {
+  width: 0 !important;
+  height: 0 !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  appearance: none !important;
+  -webkit-appearance: none !important;
+}
+
+// Multiline：外层 wrapper padding 去掉；只留 textarea 一层四边距。
 .MuiOutlinedInput-root.MuiOutlinedInput-multiline {
-  min-height: unset;
+  min-height: unset !important;
   align-items: stretch;
+  padding: 0 !important;
 }
 
-.MuiOutlinedInput-inputMultiline {
-  padding: 10px 12px;
-  font-size: var(--ntq-form-control-font-size, 14px);
+.MuiOutlinedInput-root.MuiInputBase-sizeSmall.MuiOutlinedInput-multiline {
+  padding: 0 !important;
+}
+
+.MuiOutlinedInput-root.MuiOutlinedInput-multiline .MuiOutlinedInput-input,
+.MuiOutlinedInput-root.MuiOutlinedInput-multiline .MuiInputBase-inputMultiline {
+  padding: 0.5rem 0.75rem !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem);
   line-height: var(--ntq-form-control-line-height, 1.5);
 }
 
 // --- Dropdowns (Select / Menu) ---
 .MuiSelect-select {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
   line-height: var(--ntq-form-control-line-height, 1.5) !important;
 }
 
 .MuiMenuItem-root {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
 }
 
 .MuiListSubheader-root {
-  font-size: var(--ntq-form-control-font-size, 14px) !important;
+  font-size: var(--ntq-form-control-font-size, 0.875rem) !important;
 }
 
 // Menu/Popover paper: keep readable, but DO NOT blur globally
@@ -110,7 +155,7 @@
 .MuiPopover-paper {
   .MuiMenuItem-root,
   .MuiListSubheader-root {
-    font-size: var(--ntq-form-control-font-size, 14px);
+    font-size: var(--ntq-form-control-font-size, 0.875rem);
     line-height: var(--ntq-form-control-line-height, 1.5);
     padding: 8px 14px;
   }
@@ -126,9 +171,14 @@
   }
 }
 
-// --- Buttons (base typography) ---
+// --- Buttons (base typography + hover/focus 色过渡) ---
 .MuiButton-root {
   text-transform: none;
+  transition: var(--ui-transition-colors);
+}
+
+.MuiIconButton-root {
+  transition: var(--ui-transition-colors);
 }
 
 // --- Chips / tags ---

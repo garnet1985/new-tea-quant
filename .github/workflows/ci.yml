@@ -20,7 +20,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.11"
 
       - name: Install ruff
         run: python -m pip install "$(grep '^ruff==' requirements-dev.txt)"
@@ -42,7 +42,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.11"
 
       - name: Install dependencies
         run: |
@@ -96,7 +96,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.11"
 
       - name: UI minimal import smoke
         run: python -m core.modules.cli.dev.scripts.minimal_import_check
@@ -114,7 +114,7 @@ jobs:
       - name: Build image
         run: docker build -t new-tea-quant:ci .
 
-  # 模拟用户下载分支 zip → Python 3.9 冷启动 → 安装 → 策略枚举
+  # 模拟用户下载分支 zip → Python 3.11 冷启动 → 安装 → 策略枚举
   smoke-fresh-install:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -124,10 +124,10 @@ jobs:
         with:
           fetch-depth: 1
 
-      - name: Set up Python 3.9
+      - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: "3.11"
 
       - name: Pack branch as zip and run fresh-install smoke
         run: |

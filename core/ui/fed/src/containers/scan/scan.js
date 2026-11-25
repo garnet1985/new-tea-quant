@@ -1,24 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Link as RouterLink } from 'react-router-dom';
+import { Link as RouterLink, useSearchParams } from 'react-router-dom';
 import {
-  Box,
   Button,
-  Chip,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  FormControl,
-  FormControlLabel,
-  LinearProgress,
-  Link,
-  Radio,
-  RadioGroup,
-  Stack,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
+  HelpTooltip,
+  Loading,
+  Section,
+  Tag,
+} from 'ui';
+import { PageLayout } from 'ntq-ui';
 import {
   fetchStrategyList,
   fetchStrategyScanContext,
@@ -28,33 +17,35 @@ import {
   getStrategyDesignPath,
   startStrategyScan,
 } from '../../api/strategyApi';
-import { groupStrategiesByCategory } from 'containers/strategyCategory';
-import PageLayout from '../../views/pageLayout';
-import { SectionBlock } from '../../views/sectionBlock';
-import CountBadge from '../../views/countBadge';
-import DataEndTruncationAlert from '../../views/dataEndTruncationAlert';
-import Message from 'views/message';
-import StrategyDescriptionText from '../../views/strategyDescriptionText';
-import InlineLoadingState from '../../views/inlineLoadingState';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import {
+  fetchPostProcessProcessors,
+  setPostProcessRunEnabled,
+} from '../../api/postProcessApi';
+import {
+  groupStrategiesByCategory,
+  readStrategyListCategoryQuery,
+  STRATEGY_LIST_CATEGORY_PARAM,
+} from 'containers/strategyCategory';
 import { buildStrategyDesignNavState } from 'containers/strategyDesign';
 import { notifyTaskSuccess } from '../../service/feedbackPromptBus';
 import { formatDateTime } from '../../service/format/formatDateTime';
+import { readPresenterHistory, readPresenterScanUi } from './presenterScanReport';
+import {
+  formatScanDate,
+  formatStrategyVersionLabel,
+  readOpportunityCount,
+  readWorkbenchVersion,
+  SCAN_VERSION_STALE_TIP,
+  SCAN_SETTINGS_STALE_TIP,
+} from './scanHelpers';
+import ScanSettingsSection from './scanSettingsSection';
+import ScanStrategyListSection from './scanStrategyListSection';
+import ScanReportSection from './scanReportSection';
+import ScanDetailDialog from './scanDetailDialog';
 import './style.scss';
 
-const SHOW_REPORT_GENERATED_AT = false;
-
-function formatScanDate(v) {
-  const raw = String(v || '').trim();
-  if (!raw) return '';
-  // yyyy-mm-dd
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  // yyyymmdd
-  if (/^\d{8}$/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
-  return raw;
-}
-
 function Scan() {
+  const [searchParams, setSearchParams] = useSearchParams();
   const [mode, setMode] = useState('demo');
   const [dataEnd, setDataEnd] = useState({});
   const [demoScanCutoffDate, setDemoScanCutoffDate] = useState('');
@@ -65,23 +56,24 @@ function Scan() {
   const [readinessLoading, setReadinessLoading] = useState(false);
   const [loadError, setLoadError] = useState('');
   const [readinessError, setReadinessError] = useState('');
+  const [nameQuery, setNameQuery] = useState('');
 
   const [runningStrategyId, setRunningStrategyId] = useState('');
   const [runningJobId, setRunningJobId] = useState('');
   const [runError, setRunError] = useState('');
   const [progress, setProgress] = useState({ pct: 0, label: '准备扫描…' });
 
-  const [results, setResults] = useState({}); // strategy_id -> report payload
+  const [results, setResults] = useState({});
+  const [postProcessors, setPostProcessors] = useState([]);
+  const [runPostProcess, setRunPostProcess] = useState(true);
   const [reportVisible, setReportVisible] = useState(false);
   const [reportStrategyId, setReportStrategyId] = useState('');
   const [reportStrategyName, setReportStrategyName] = useState('');
   const [scanTriggeredAt, setScanTriggeredAt] = useState('');
   const [reportGeneratedAt, setReportGeneratedAt] = useState('');
-  const [reportDemo, setReportDemo] = useState(null); // null | boolean
+  const [reportDemo, setReportDemo] = useState(null);
 
-  /** run | rerun — 与 GET …/scan 的 `primary_action` 对齐，仅影响按钮文案 */
   const [scanPrimaryById, setScanPrimaryById] = useState({});
-  /** 严格模式数据门禁：策略 id → 是否可扫 / 阻断原因 */
   const [scanGateById, setScanGateById] = useState({});
   const [strictBlockReason, setStrictBlockReason] = useState('');
 
@@ -90,16 +82,85 @@ function Scan() {
 
   const pollRef = useRef({ timeoutId: null });
   const readinessReqRef = useRef(0);
+  const selectedChipRef = useRef(null);
   const running = Boolean(runningStrategyId) && Boolean(runningJobId);
+
+  const categoryQuery = readStrategyListCategoryQuery(searchParams);
 
   const reportPayload = useMemo(() => results?.[reportStrategyId] || null, [results, reportStrategyId]);
   const detailPayload = useMemo(() => results?.[detailStrategyId] || null, [results, detailStrategyId]);
+  const detailPresenterUi = useMemo(() => {
+    if (!runPostProcess || detailPayload?.post_process?.skipped) return null;
+    return readPresenterScanUi(detailPayload);
+  }, [detailPayload, runPostProcess]);
   const detailStrategyName = useMemo(() => {
     if (!detailStrategyId) return '';
     const row = rows.find((r) => r.id === detailStrategyId);
     return getStrategyDisplayLabel(row) || detailStrategyId;
   }, [detailStrategyId, rows]);
-  const groupedRows = useMemo(() => groupStrategiesByCategory(rows), [rows]);
+  const detailPresenterHistory = useMemo(() => {
+    const key = String(
+      detailPayload?.strategy_key
+      || detailPayload?.strategyKey
+      || detailStrategyId
+      || '',
+    ).trim();
+    return readPresenterHistory(detailPresenterUi, key);
+  }, [detailPresenterUi, detailPayload, detailStrategyId]);
+
+  const catalogGroups = useMemo(() => groupStrategiesByCategory(rows), [rows]);
+
+  const categoryFilteredRows = useMemo(() => {
+    if (!categoryQuery) return rows;
+    const match = catalogGroups.find((g) => g.queryValue === categoryQuery);
+    return match ? match.rows : [];
+  }, [rows, categoryQuery, catalogGroups]);
+
+  const catalogHasSelectedCategory = Boolean(
+    !categoryQuery || catalogGroups.some((g) => g.queryValue === categoryQuery),
+  );
+
+  const displayRows = useMemo(() => {
+    const q = nameQuery.trim().toLowerCase();
+    if (!q) return categoryFilteredRows;
+    return categoryFilteredRows.filter((r) => {
+      const id = String(r.name || '').toLowerCase();
+      const path = String(r.path || '').toLowerCase();
+      const key = String(r.key || '').toLowerCase();
+      const label = String(r.display_name || getStrategyDisplayLabel(r) || '').toLowerCase();
+      const desc = String(r.description || '').toLowerCase();
+      const category = String(r.category || '').toLowerCase();
+      return (
+        id.includes(q)
+        || path.includes(q)
+        || key.includes(q)
+        || label.includes(q)
+        || desc.includes(q)
+        || category.includes(q)
+      );
+    });
+  }, [categoryFilteredRows, nameQuery]);
+
+  const groupedRows = useMemo(
+    () => groupStrategiesByCategory(displayRows),
+    [displayRows],
+  );
+
+  const setCategoryQuery = useCallback((nextQuery) => {
+    const q = String(nextQuery || '').trim();
+    if (q === categoryQuery) return;
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (q) next.set(STRATEGY_LIST_CATEGORY_PARAM, q);
+      else next.delete(STRATEGY_LIST_CATEGORY_PARAM);
+      return next;
+    });
+  }, [categoryQuery, setSearchParams]);
+
+  const toggleCategoryQuery = useCallback((queryValue) => {
+    const q = String(queryValue || '').trim();
+    setCategoryQuery(q && q === categoryQuery ? '' : q);
+  }, [categoryQuery, setCategoryQuery]);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -127,13 +188,28 @@ function Scan() {
       .then((ctxRes) => {
         setDataEnd(ctxRes?.dataEnd && typeof ctxRes.dataEnd === 'object' ? ctxRes.dataEnd : {});
         setDemoScanCutoffDate(String(ctxRes?.demoScanCutoffDate || '').trim());
+        setRunPostProcess(ctxRes?.enablePostProcess !== false);
       })
       .catch(() => {
         setDataEnd({});
         setDemoScanCutoffDate('');
       })
       .finally(() => setContextLoading(false));
+
+    fetchPostProcessProcessors()
+      .then((res) => {
+        const items = Array.isArray(res?.data) ? res.data : [];
+        setPostProcessors(items);
+      })
+      .catch(() => {
+        setPostProcessors([]);
+      });
   }, []);
+
+  const enabledPostProcessors = useMemo(
+    () => postProcessors.filter((row) => row.is_enabled),
+    [postProcessors],
+  );
 
   const demoCutoffLabel = useMemo(() => {
     const formatted = formatScanDate(demoScanCutoffDate);
@@ -157,9 +233,7 @@ function Scan() {
       setScanPrimaryById({});
       setScanGateById({});
       setStrictBlockReason('');
-      if (!silent) {
-        setReadinessLoading(false);
-      }
+      if (!silent) setReadinessLoading(false);
       return;
     }
 
@@ -170,6 +244,10 @@ function Scan() {
         report: x.report,
         canScan: x.can_scan === true,
         blockReason: String(x.block_reason || '').trim(),
+        settingsStale: Boolean(x.settings_stale),
+        versionStale: Boolean(x.version_stale),
+        currentVersion: Number(x.current_workbench_version) || 0,
+        scannedVersion: readWorkbenchVersion(x.report),
       }))),
     )
       .then((pairs) => {
@@ -177,9 +255,25 @@ function Scan() {
         const next = {};
         const gates = {};
         let sharedBlock = '';
-        pairs.forEach(({ id, action, canScan, blockReason }) => {
+        pairs.forEach(({
+          id,
+          action,
+          canScan,
+          blockReason,
+          settingsStale,
+          versionStale,
+          currentVersion,
+          scannedVersion,
+        }) => {
           next[id] = action;
-          gates[id] = { canScan, blockReason };
+          gates[id] = {
+            canScan,
+            blockReason,
+            settingsStale,
+            versionStale,
+            currentVersion,
+            scannedVersion,
+          };
           if (!demo && !sharedBlock && blockReason) sharedBlock = blockReason;
         });
         setScanPrimaryById(next);
@@ -190,15 +284,10 @@ function Scan() {
         setResults((prev) => {
           const o = { ...(prev || {}) };
           pairs.forEach(({ id, action, report }) => {
-            if (report && typeof report === 'object') {
+            if (report && typeof report === 'object' && readOpportunityCount(report) != null) {
               o[id] = report;
             } else if (action === 'run') {
-              // 未落盘才清空；保留内存中已有的合法 0 机会结果，避免闪回「—」
-              const existing = o[id];
-              const keptZero = existing
-                && typeof existing === 'object'
-                && Number.isFinite(Number(existing.total_opportunities ?? existing.totalOpportunities));
-              if (!keptZero) delete o[id];
+              if (readOpportunityCount(o[id]) == null) delete o[id];
             }
           });
           return o;
@@ -227,6 +316,14 @@ function Scan() {
     return undefined;
   }, [loading, refreshScanPrimaryActions]);
 
+  useEffect(() => {
+    selectedChipRef.current?.scrollIntoView({
+      behavior: 'smooth',
+      inline: 'nearest',
+      block: 'nearest',
+    });
+  }, [categoryQuery]);
+
   useEffect(() => () => {
     if (pollRef.current.timeoutId) window.clearTimeout(pollRef.current.timeoutId);
   }, []);
@@ -250,65 +347,109 @@ function Scan() {
       minWidth: 200,
       flex: 0.6,
       valueGetter: (params) => getStrategyDisplayLabel(params.row),
-      renderCell: (params) => (
-        <Stack spacing={0.5}>
-          <Typography variant="body2" fontWeight={700}>
-            {params.value || params.row.name}
-          </Typography>
-          <StrategyDescriptionText
-            text={params.row.description}
-            variant="caption"
-            color="text.secondary"
-            empty="—"
-            maxLines={3}
-          />
-        </Stack>
-      ),
+      renderCell: (params) => {
+        const label = params.value || params.row.name;
+        const description = String(params.row.description || '').trim();
+        return (
+          <div className="scan-cell-strategy">
+            <span className="scan-cell-strategy__name">{label}</span>
+            {description ? (
+              <span
+                className="scan-cell-strategy__tip"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <HelpTooltip
+                  title={description}
+                  shine
+                  ariaLabel={`${label} 简介`}
+                />
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       field: 'is_enabled',
-      headerName: '启用',
-      width: 110,
-      renderCell: (params) => (params.value ? (
-        <Chip size="small" color="success" label="已启用" />
-      ) : (
-        <Chip size="small" color="default" label="已禁用" />
-      )),
+      headerName: '可用',
+      width: 100,
+      renderCell: (params) => (
+        <Tag
+          status={params.value ? 'success' : 'error'}
+          variant="solid"
+          tooltip="可在「制定策略」列表页或策略调试页中修改可用状态"
+        >
+          {params.value ? '可用' : '不可用'}
+        </Tag>
+      ),
     },
     {
       field: 'opportunities',
       headerName: '机会数量',
-      width: 120,
+      width: 140,
       sortable: false,
       filterable: false,
+      headerAlign: 'center',
+      align: 'center',
       renderCell: (params) => {
         const id = params.row.id;
         const enabled = Boolean(params.row.is_enabled);
         const pending = readinessLoading && scanPrimaryById[id] == null;
-        if (pending) {
-          return <Typography variant="body2" color="text.secondary">…</Typography>;
+        const isThisRunning = running && id === runningStrategyId;
+        if (pending || isThisRunning) {
+          return <span className="ntq-muted">…</span>;
         }
         const pack = results?.[id];
-        if (!enabled || !pack) return <Typography variant="body2" color="text.secondary">—</Typography>;
-        const n = Number(pack?.total_opportunities ?? pack?.totalOpportunities ?? pack?.opportunity_count ?? 0);
+        if (!enabled || !pack) {
+          return <span className="ntq-muted">—</span>;
+        }
+        const n = readOpportunityCount(pack);
+        if (n == null) {
+          return <span className="ntq-muted">—</span>;
+        }
+        const gate = scanGateById[id] || {};
+        const versionStale = Boolean(gate.versionStale);
+        const settingsStale = Boolean(gate.settingsStale);
+        const staleTip = versionStale
+          ? SCAN_VERSION_STALE_TIP
+          : settingsStale
+            ? SCAN_SETTINGS_STALE_TIP
+            : '';
         return (
-          <Button
-            size="small"
-            variant="text"
-            onClick={(e) => {
-              e.stopPropagation();
-              openDetail(id);
-            }}
-          >
-            {n}
-          </Button>
+          <div className="scan-opp-cell">
+            {staleTip ? (
+              <span
+                className="scan-opp-cell__warn"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <HelpTooltip
+                  title={staleTip}
+                  variant="warning"
+                  shine
+                  ariaLabel={staleTip}
+                />
+              </span>
+            ) : null}
+            <Button
+              variant="ghost"
+              className="scan-opp-count"
+              onClick={(e) => {
+                e.stopPropagation();
+                openDetail(id);
+              }}
+            >
+              {n}
+            </Button>
+          </div>
         );
       },
     },
     {
       field: 'actions',
-      headerName: '',
-      width: 210,
+      headerName: '操作',
+      width: 260,
       sortable: false,
       filterable: false,
       renderCell: (params) => {
@@ -316,36 +457,57 @@ function Scan() {
         const id = params.row.id;
         const pending = readinessLoading && scanPrimaryById[id] == null;
         const isThisRunning = running && id === runningStrategyId;
-        const isRerun = scanPrimaryById[id] === 'rerun';
+        const hasResult = readOpportunityCount(results?.[id]) != null;
         const gate = scanGateById[id] || {};
+        const settingsStale = Boolean(gate.settingsStale);
+        const versionStale = Boolean(gate.versionStale);
+        const isStale = settingsStale || versionStale;
+        const isRerun = scanPrimaryById[id] === 'rerun' || hasResult || isStale;
         const blocked = mode === 'strict' && gate.canScan === false;
         const disableRun = pending || !enabled || running || blocked;
+        const scannedLabel = formatStrategyVersionLabel(gate.scannedVersion);
+        const currentLabel = formatStrategyVersionLabel(gate.currentVersion);
+        let runTooltip = '在当前最新数据中用该策略扫描机会';
+        if (blocked) {
+          runTooltip = gate.blockReason || '严格模式数据未就绪，无法扫描';
+        } else if (versionStale) {
+          runTooltip = scannedLabel && currentLabel
+            ? `扫描结果对应 ${scannedLabel}，工作台已是 ${currentLabel}，请重新扫描`
+            : '策略已有更新的工作台版本，当前扫描结果可能过时，请重新扫描';
+        } else if (settingsStale) {
+          runTooltip = '策略设置或环境已变更，当前结果可能过时，请重新扫描';
+        } else if (isRerun) {
+          runTooltip = '已有扫描结果，点击将重新全量扫描';
+        }
         return (
-          <Stack direction="row" spacing={1} alignItems="center">
+          <div className="scan-cell-actions" data-ntq-help="scan-start">
             {pending ? (
-              <InlineLoadingState compact row message="校验中…" />
+              <Loading variant="inlineRow" message="校验中…" className="scan-cell-actions__loading" />
             ) : (
               <Button
-                size="small"
-                variant="contained"
+                variant="primary"
+                icon="play"
+                iconSize="sm"
                 disabled={disableRun}
-                title={
-                  blocked
-                    ? (gate.blockReason || '严格模式数据未就绪，无法扫描')
-                    : (isRerun
-                      ? '将全量重新扫描并忽略已保存的扫描结果'
-                      : '尚无已保存结果时全量扫描；按住 Shift 再点击可强制重新扫描')
-                }
+                tooltip={runTooltip}
                 onClick={(e) => {
                   e.stopPropagation();
                   if (!enabled || running || blocked) return;
-                  const force = isRerun || e.shiftKey;
                   setRunError('');
                   setReportVisible(false);
                   setReportStrategyId('');
                   setScanTriggeredAt(formatDateTime(new Date(), { style: 'absolute' }));
                   setProgress({ pct: 0, label: '准备扫描…' });
-                  startStrategyScan(params.row.name, { demo: mode === 'demo', force })
+                  setResults((prev) => {
+                    const next = { ...(prev || {}) };
+                    delete next[id];
+                    return next;
+                  });
+                  startStrategyScan(params.row.name, {
+                    demo: mode === 'demo',
+                    force: isRerun,
+                    runPostProcess,
+                  })
                     .then((res) => {
                       const jobId = String(res?.job_id || '').trim();
                       if (!jobId) throw new Error('启动失败：未返回 job_id');
@@ -355,7 +517,6 @@ function Scan() {
                     })
                     .catch((err) => {
                       const msg = err?.message || '启动扫描失败';
-                      // 严格门禁已有顶部提示时，不再重复打一条 error
                       if (mode === 'strict' && (gate.blockReason || msg.includes('严格模式'))) {
                         if (msg.includes('严格模式')) setStrictBlockReason(msg);
                         setRunError('');
@@ -368,26 +529,29 @@ function Scan() {
                 {isRerun ? '重新扫描' : '开始扫描'}
               </Button>
             )}
-            <Link
+            <Button
+              variant="glass"
+              icon="chevronRight"
+              iconPlacement="end"
+              iconSize="sm"
               component={RouterLink}
-              to={getStrategyDesignPath(params.row.name)}
+              to={getStrategyDesignPath(params.row.name, 'enum')}
               state={buildStrategyDesignNavState(params.row)}
-              underline="hover"
               onClick={(e) => e.stopPropagation()}
-              className="scan-design-link"
+              className="scan-design-btn"
             >
               调试策略
-            </Link>
+            </Button>
             {isThisRunning ? (
-              <Typography variant="caption" color="text.secondary">
+              <span className="ntq-muted scan-cell-actions__pct">
                 {Math.round(progress.pct)}%
-              </Typography>
+              </span>
             ) : null}
-          </Stack>
+          </div>
         );
       },
     },
-  ]), [mode, openDetail, progress.pct, readinessLoading, results, running, runningStrategyId, scanGateById, scanPrimaryById]);
+  ]), [mode, openDetail, progress.pct, readinessLoading, results, runPostProcess, running, runningStrategyId, scanGateById, scanPrimaryById]);
 
   useEffect(() => {
     if (!running) return undefined;
@@ -412,8 +576,10 @@ function Scan() {
           setProgress({ pct: Number.isFinite(pct) ? pct : 0, label });
 
           if (status === 'completed') {
-            const report = p?.report && typeof p.report === 'object' ? p.report : {};
-            setResults((prev) => ({ ...(prev || {}), [runningStrategyId]: report }));
+            const report = p?.report && typeof p.report === 'object' ? p.report : null;
+            if (report && readOpportunityCount(report) != null) {
+              setResults((prev) => ({ ...(prev || {}), [runningStrategyId]: report }));
+            }
             setReportStrategyId(runningStrategyId);
             setReportStrategyName(getStrategyDisplayLabel(runningRow) || strategyName);
             setReportGeneratedAt(formatDateTime(new Date(), { style: 'absolute' }));
@@ -451,356 +617,121 @@ function Scan() {
     };
   }, [mode, rows, running, runningJobId, runningStrategyId, refreshScanPrimaryActions]);
 
+  const statusTag = running
+    ? { label: '扫描中…', status: 'warning', variant: 'solid' }
+    : loading
+      ? { label: '加载中…', status: 'neutral', variant: 'outline' }
+      : readinessLoading
+        ? { label: '校验就绪…', status: 'neutral', variant: 'outline' }
+        : { label: '就绪', status: 'success', variant: 'solid' };
+
+  const demoDesc = contextLoading
+    ? '检测假定最新完成交易日中...'
+    : `假定最新完成交易日： ${demoCutoffLabel}`;
+
+  const demoModeHint = contextLoading
+    ? ''
+    : `您当前使用的是演示模式，最新完成的交易日是假设的（${demoCutoffLabel}）。如果您的数据源已经接入，请使用严格模式在最新市场数据中扫描机会。`;
+
+  const reportCount = readOpportunityCount(reportPayload);
+
   return (
     <PageLayout
       className="scan-page"
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="策略选股"
       bannerTitle="策略选股"
-      bannerDescription={(
-        <>
-          勾选下方<strong>已启用</strong>的策略，在全市场范围内按规则筛选机会；每个策略按其配置的标的域（target）分别执行。
-        </>
-      )}
+      bannerDescription="用您的策略在市场中扫描投资机会。"
       bannerRightSlot={(
-        <Chip
-          label={
-            running
-              ? '扫描中…'
-              : loading
-                ? '加载中…'
-                : readinessLoading
-                  ? '校验就绪…'
-                  : '就绪'
-          }
-          color={running ? 'warning' : 'default'}
-          variant={running || loading || readinessLoading ? 'filled' : 'outlined'}
-        />
+        <Tag status={statusTag.status} variant={statusTag.variant}>
+          {statusTag.label}
+        </Tag>
       )}
       loading={!pageReady}
       loadingMessage="正在加载策略选股…"
     >
+      <Section className="scan-page__stack" gap="md">
+        <ScanSettingsSection
+          mode={mode}
+          running={running}
+          demoDesc={demoDesc}
+          runPostProcess={runPostProcess}
+          enabledPostProcessors={enabledPostProcessors}
+          onModeChange={(e) => {
+            setMode(e.target.value);
+            setRunError('');
+            setStrictBlockReason('');
+            setScanPrimaryById({});
+            setScanGateById({});
+            setReadinessLoading(true);
+          }}
+          onRunPostProcessChange={(e) => {
+            const next = e.target.checked;
+            const prev = runPostProcess;
+            setRunPostProcess(next);
+            setPostProcessRunEnabled({ enablePostProcess: next })
+              .then((res) => {
+                setRunPostProcess(res?.enablePostProcess !== false);
+              })
+              .catch(() => {
+                setRunPostProcess(prev);
+                setRunError('无法保存「执行扫描后处理」偏好');
+              });
+          }}
+        />
 
-      <SectionBlock
-        className="scan-section"
-        title="扫描模式"
-        action={(
-          <Typography variant="caption" color="text.secondary">接入数据服务后由服务端校验</Typography>
-        )}
-      >
-          <FormControl component="fieldset" disabled={running}>
-            <RadioGroup
-              value={mode}
-              onChange={(e) => {
-                setMode(e.target.value);
-                setRunError('');
-                setStrictBlockReason('');
-                setScanPrimaryById({});
-                setScanGateById({});
-                setReadinessLoading(true);
-              }}
-              aria-label="扫描模式"
-              className="scan-mode-options"
-            >
-              <FormControlLabel
-                value="strict"
-                control={<Radio disabled={running} />}
-                label={(
-                  <Box className="scan-mode-option-body">
-                    <Typography variant="body2" fontWeight={700}>严格模式</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      仅当行情、因子等依赖数据均已更新至<strong>最新交易日</strong>后才允许执行扫描；不满足则中断并提示缺口。
-                    </Typography>
-                  </Box>
-                )}
-                className={[
-                  'scan-mode-option',
-                  mode === 'strict' ? 'scan-mode-option--active' : '',
-                  running ? 'scan-mode-option--disabled' : '',
-                ].filter(Boolean).join(' ')}
-              />
-              <FormControlLabel
-                value="demo"
-                control={<Radio disabled={running} />}
-                label={(
-                  <Box className="scan-mode-option-body">
-                    <Typography variant="body2" fontWeight={700}>扫描演示</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      以数据集中已有最新日期作为扫描截止日（当前：
-                      {' '}
-                      <strong>{contextLoading ? '…' : demoCutoffLabel}</strong>
-                      {!contextLoading && dataEnd.is_end_date_truncated ? '，受 data.json 截至日约束' : ''}
-                      ），用于演示链路，不代表实时市场。
-                    </Typography>
-                  </Box>
-                )}
-                className={[
-                  'scan-mode-option',
-                  mode === 'demo' ? 'scan-mode-option--active' : '',
-                  running ? 'scan-mode-option--disabled' : '',
-                ].filter(Boolean).join(' ')}
-              />
-            </RadioGroup>
-          </FormControl>
-      </SectionBlock>
+        <ScanStrategyListSection
+          nameQuery={nameQuery}
+          onNameQueryChange={(e) => setNameQuery(e.target.value)}
+          running={running}
+          loading={loading}
+          onRefresh={load}
+          catalogGroups={catalogGroups}
+          rows={rows}
+          categoryQuery={categoryQuery}
+          setCategoryQuery={setCategoryQuery}
+          toggleCategoryQuery={toggleCategoryQuery}
+          selectedChipRef={selectedChipRef}
+          loadError={loadError}
+          readinessError={readinessError}
+          onClearReadinessError={() => setReadinessError('')}
+          readinessLoading={readinessLoading}
+          mode={mode}
+          demoModeHint={demoModeHint}
+          contextLoading={contextLoading}
+          strictBlockReason={strictBlockReason}
+          runError={runError}
+          progress={progress}
+          catalogHasSelectedCategory={catalogHasSelectedCategory}
+          groupedRows={groupedRows}
+          columns={columns}
+        />
 
-      <SectionBlock className="scan-section">
-          <Stack
-            direction={{ xs: 'column', md: 'row' }}
-            alignItems={{ xs: 'stretch', md: 'center' }}
-            justifyContent="space-between"
-            spacing={1.5}
-            className="scan-toolbar"
-          >
-            <Stack direction="row" alignItems="center" spacing={1.25} flexWrap="wrap">
-              <Button
-                variant="outlined"
-                disabled={running || loading}
-                onClick={load}
-              >
-                刷新策略列表
-              </Button>
-            </Stack>
-            <Typography variant="caption" color="text.secondary">
-              提示：一次仅允许扫描一个策略；运行中会禁用其它策略的扫描按钮。
-            </Typography>
-          </Stack>
+        {reportVisible ? (
+          <ScanReportSection
+            scanTriggeredAt={scanTriggeredAt}
+            reportGeneratedAt={reportGeneratedAt}
+            reportStrategyName={reportStrategyName}
+            reportStrategyId={reportStrategyId}
+            reportCount={reportCount}
+            onOpenDetail={openDetail}
+            reportPayload={reportPayload}
+            reportDemo={reportDemo}
+            enabledPostProcessors={enabledPostProcessors}
+          />
+        ) : null}
+      </Section>
 
-          {loadError ? <Message severity="error" className="scan-alert">{loadError}</Message> : null}
-          {readinessError ? (
-            <Message severity="warning" className="scan-alert" onClose={() => setReadinessError('')}>
-              {readinessError}
-            </Message>
-          ) : null}
-          <DataEndTruncationAlert dataEnd={dataEnd} className="scan-list-alert" />
-          {!readinessLoading && mode === 'strict' && strictBlockReason ? (
-            <Message severity="warning" className="scan-alert">
-              {strictBlockReason}
-            </Message>
-          ) : null}
-          {runError && runError !== strictBlockReason ? (
-            <Message severity="error" className="scan-alert">{runError}</Message>
-          ) : null}
-
-          {running ? (
-            <div className="scan-progress">
-              <div className="scan-progress-row">
-                <div className="scan-progress__bar">
-                  <LinearProgress variant="determinate" value={progress.pct} />
-                </div>
-                <Typography variant="caption" color="text.secondary" className="scan-progress-label">
-                  {progress.label}
-                </Typography>
-              </div>
-            </div>
-          ) : null}
-
-          <Box className={['scan-strategy-list', loading && groupedRows.length === 0 ? 'scan-strategy-list--loading' : ''].filter(Boolean).join(' ')}>
-            {loading && groupedRows.length === 0 ? (
-              <InlineLoadingState
-                block
-                compact
-                message="正在加载策略列表…"
-              />
-            ) : (
-              <Stack spacing={2.5}>
-                {groupedRows.map(({ category, rows: categoryRows }) => (
-                  <Box key={category}>
-                    <Stack direction="row" alignItems="center" spacing={1} className="scan-category">
-                      <Typography variant="subtitle1" fontWeight={700}>
-                        {category}
-                      </Typography>
-                      <CountBadge
-                        count={categoryRows.length}
-                        label={`${categoryRows.length} 个策略`}
-                      />
-                    </Stack>
-                    <DataGrid
-                      autoHeight
-                      rows={categoryRows}
-                      columns={columns}
-                      loading={false}
-                      getRowHeight={() => 'auto'}
-                      slots={NTQ_DATA_GRID_LOADING_SLOTS}
-                      localeText={zhCN}
-                      hideFooter
-                      disableRowSelectionOnClick
-                      className="scan-strategy-grid"
-                    />
-                  </Box>
-                ))}
-              </Stack>
-            )}
-          </Box>
-      </SectionBlock>
-
-      {reportVisible ? (
-      <SectionBlock
-        title="扫描报告"
-        action={(
-          <Stack direction="row" spacing={1.25} alignItems="center" flexWrap="wrap" justifyContent="flex-end">
-            <Typography variant="caption" color="text.secondary">
-              扫描当日：{scanTriggeredAt || reportGeneratedAt || '—'}
-            </Typography>
-            {SHOW_REPORT_GENERATED_AT ? (
-              <Typography variant="caption" color="text.secondary">
-                报告日期：{reportGeneratedAt || '—'}
-              </Typography>
-            ) : null}
-          </Stack>
-        )}
-      >
-            <Typography variant="body2" className="scan-report__lead">
-              使用策略
-              {' '}
-              <strong>{reportStrategyName || reportStrategyId || '—'}</strong>
-              {' '}
-              扫描完成：共找到
-              {' '}
-              <Button
-                size="small"
-                variant="text"
-                className="scan-report__count"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  if (!reportStrategyId) return;
-                  openDetail(reportStrategyId);
-                }}
-              >
-                {Number(reportPayload?.total_opportunities ?? 0)}
-              </Button>
-              {' '}
-              个机会
-            </Typography>
-            <div className="scan-report__facts">
-              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 扫描日期：{formatScanDate(reportPayload?.date) || '—'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary" className="scan-report__fact">
-                - 总扫描股票数：{Number(reportPayload?.total_stocks ?? 0) || '—'}
-              </Typography>
-              <Typography variant="body2" color="text.secondary">
-                - 模式：{reportDemo === true ? '演示模式' : '严格模式'}
-              </Typography>
-            </div>
-            <Typography variant="caption" color="text.secondary" className="scan-report__hint">
-              请点击表格里的机会数量查看详情。
-            </Typography>
-      </SectionBlock>
-      ) : null}
-
-      <Dialog open={detailOpen} onClose={closeDetail} maxWidth="md" fullWidth>
-        <DialogTitle>
-          机会明细 · {detailStrategyName || '—'}
-        </DialogTitle>
-        <DialogContent dividers className="scan-detail__body">
-          {detailPayload ? (
-            <>
-              <Typography variant="body2" color="text.secondary" className="scan-detail__note">
-                机会明细与 CLI 输出对齐；可分页查看。
-              </Typography>
-              {(() => {
-                const rows0 = Array.isArray(detailPayload?.opportunities) ? detailPayload.opportunities : [];
-                const dates = Array.from(new Set(
-                  rows0
-                    .map((o) => formatScanDate(o?.trigger_date || o?.triggerDate))
-                    .filter(Boolean),
-                ));
-                if (!dates.length) return null;
-                dates.sort();
-                const label = dates.length === 1 ? dates[0] : `${dates[0]} ~ ${dates[dates.length - 1]}（多日）`;
-                return (
-                  <Typography variant="body2" color="text.secondary" className="scan-detail__dates">
-                    触发日期：{label}
-                  </Typography>
-                );
-              })()}
-              <Box className="scan-detail__grid">
-                <DataGrid
-                  rows={(() => {
-                    const ops = Array.isArray(detailPayload?.opportunities) ? detailPayload.opportunities : null;
-                    if (ops) {
-                      return ops.map((o, idx) => ({
-                        id: String(o?.stock_id || o?.stockId || `${idx}`),
-                        stock_id: String(o?.stock_id || o?.stockId || ''),
-                        stock_name: String(o?.stock_name || o?.stockName || ''),
-                        trigger_price: o?.trigger_price ?? o?.triggerPrice ?? '',
-                        signal_snapshot: o?.signal_snapshot ?? o?.signalSnapshot ?? {},
-                      }));
-                    }
-                    const list = Array.isArray(detailPayload?.summary?.stocks_with_opportunities)
-                      ? detailPayload.summary.stocks_with_opportunities
-                      : [];
-                    return list.map((code) => ({ id: code, stock_id: code, stock_name: '', trigger_price: '', signal_snapshot: {} }));
-                  })()}
-                  columns={[
-                    { field: 'stock_id', headerName: '股票代码', minWidth: 140, flex: 0.6 },
-                    { field: 'stock_name', headerName: '名称', minWidth: 140, flex: 0.6 },
-                    {
-                      field: 'trigger_price',
-                      headerName: '触发价格',
-                      minWidth: 120,
-                      flex: 0.5,
-                      valueFormatter: (v) => {
-                        const raw = v?.value;
-                        if (raw === '' || raw == null) return '—';
-                        const n = Number(raw);
-                        return Number.isFinite(n) ? n.toFixed(2) : String(raw);
-                      },
-                    },
-                    {
-                      field: 'signal_snapshot',
-                      headerName: '信号快照',
-                      minWidth: 220,
-                      flex: 1,
-                      valueGetter: (params) => {
-                        const v = params?.row?.signal_snapshot;
-                        if (!v || (typeof v === 'object' && Object.keys(v).length === 0)) return '';
-                        if (typeof v === 'string') return v;
-                        const rounded = {};
-                        Object.entries(v).forEach(([k, val]) => {
-                          if (typeof val === 'number' && Number.isFinite(val)) {
-                            rounded[k] = Number(val.toFixed(2));
-                          } else {
-                            rounded[k] = val;
-                          }
-                        });
-                        return JSON.stringify(rounded);
-                      },
-                      renderCell: (params) => (
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          className="scan-detail__snapshot"
-                        >
-                          {params.value || '—'}
-                        </Typography>
-                      ),
-                    },
-                  ]}
-                  localeText={zhCN}
-                  disableRowSelectionOnClick
-                  pagination
-                  pageSizeOptions={[10, 25, 50]}
-                  initialState={{
-                    pagination: { paginationModel: { page: 0, pageSize: 10 } },
-                  }}
-                />
-              </Box>
-            </>
-          ) : (
-            <Typography variant="body2" color="text.secondary">
-              暂无明细。
-            </Typography>
-          )}
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={closeDetail}>关闭</Button>
-        </DialogActions>
-      </Dialog>
+      <ScanDetailDialog
+        open={detailOpen}
+        onClose={closeDetail}
+        detailPresenterUi={detailPresenterUi}
+        detailPayload={detailPayload}
+        detailStrategyName={detailStrategyName}
+        detailPresenterHistory={detailPresenterHistory}
+      />
     </PageLayout>
   );
 }
 
 export default Scan;
-

@@ -1,5 +1,5 @@
 """
-股票风险警示时段表（sys_stock_st_periods）。
+股票风险警示时段表（sys_data_stock_st_periods）。
 
 每行表示某只股票在某段简称下处于 ST / *ST 等状态的有效区间（PIT）。
 主键 (stock_id, st_level, start_date)；end_date 为空表示仍有效。
@@ -11,7 +11,8 @@
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_st_periods",
-    "name": "sys_stock_st_periods",
+    "kind": "data",
+    "name": "sys_data_stock_st_periods",
     "primaryKey": ["stock_id", "st_level", "start_date"],
     "fields": [
         {

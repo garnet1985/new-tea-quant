@@ -5,6 +5,7 @@ import logging
 
 from core.infra.project_context import ProjectContext
 from core.modules.data_source.core.data_class.error import ProviderError
+from core.modules.data_source.core.service.rate_limiter import note_remote_rate_limit
 
 logger = logging.getLogger(__name__)
 
@@ -171,6 +172,31 @@ class BaseProvider(ABC):
     
     # ========== 错误处理 ==========
 
+    _RATE_LIMIT_PAUSE_SECONDS = 61.0
+    _RATE_LIMIT_RETRIES = 2
+
+    @staticmethod
+    def is_rate_limit_error(error: Exception) -> bool:
+        """远端按分钟拒绝。这种错误要等窗口过去，不能马上重发。"""
+        seen: set = set()
+
+        def _check(exc: BaseException) -> bool:
+            if exc is None or id(exc) in seen:
+                return False
+            seen.add(id(exc))
+            text = str(exc)
+            if "频率超限" in text or "rate limit" in text.lower():
+                return True
+            cause = exc.__cause__
+            context = exc.__context__
+            if cause and _check(cause):
+                return True
+            if context is not cause and context and _check(context):
+                return True
+            return False
+
+        return _check(error)
+
     @staticmethod
     def is_retryable_error(error: Exception) -> bool:
         """连接中断、DNS 瞬时失败、远端 reset 等错误可重试（含 __cause__ / __context__ 链）。"""
@@ -218,29 +244,46 @@ class BaseProvider(ABC):
         max_retries: int = 3,
         base_delay: float = 1.5,
     ):
-        """执行 Provider API 调用，对可重试的网络错误做指数退避。"""
+        """执行 Provider API 调用。网络错误指数退避；频率超限则停一个窗口再试。"""
         import time
 
-        last_error: Optional[Exception] = None
-        for attempt in range(max_retries):
+        connection_attempt = 0
+        rate_limit_waits = 0
+        while True:
             try:
                 return fn()
             except Exception as e:
-                last_error = e
-                if not self.is_retryable_error(e) or attempt >= max_retries - 1:
-                    raise self.handle_error(e, api_name) from e
-                delay = base_delay * (2 ** attempt)
-                logger.warning(
-                    "%s.%s 失败（%s/%s），%.1fs 后重试: %s",
-                    self.provider_name,
-                    api_name,
-                    attempt + 1,
-                    max_retries,
-                    delay,
-                    e,
-                )
-                time.sleep(delay)
-        raise self.handle_error(last_error or RuntimeError("未知错误"), api_name)
+                if self.is_rate_limit_error(e) and rate_limit_waits < self._RATE_LIMIT_RETRIES:
+                    rate_limit_waits += 1
+                    pause = self._RATE_LIMIT_PAUSE_SECONDS
+                    held = note_remote_rate_limit(self.provider_name, api_name, pause)
+                    logger.warning(
+                        "%s.%s 频率超限（%s/%s），等待 %.0fs 后重试: %s",
+                        self.provider_name,
+                        api_name,
+                        rate_limit_waits,
+                        self._RATE_LIMIT_RETRIES,
+                        pause,
+                        e,
+                    )
+                    if not held:
+                        time.sleep(pause)
+                    continue
+                if self.is_retryable_error(e) and connection_attempt < max_retries - 1:
+                    delay = base_delay * (2 ** connection_attempt)
+                    connection_attempt += 1
+                    logger.warning(
+                        "%s.%s 失败（%s/%s），%.1fs 后重试: %s",
+                        self.provider_name,
+                        api_name,
+                        connection_attempt,
+                        max_retries,
+                        delay,
+                        e,
+                    )
+                    time.sleep(delay)
+                    continue
+                raise self.handle_error(e, api_name) from e
 
     def handle_error(self, error: Exception, api_name: str) -> ProviderError:
         """

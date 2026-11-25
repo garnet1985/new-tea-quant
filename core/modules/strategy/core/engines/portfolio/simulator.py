@@ -10,7 +10,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Callable, Dict, List, Optional, Sequence, Set, Tuple
 
 from core.modules.strategy.core.engines.portfolio.allocation_strategy import (
     AllocationStrategy,
@@ -95,6 +95,7 @@ class PortfolioSimulator:
         events: Sequence[PortfolioEvent],
         *,
         initial_capital: float,
+        on_progress: Optional[Callable[[int, int, str], None]] = None,
     ) -> PortfolioSimResult:
         account = Account(
             initial_cash=float(initial_capital),
@@ -107,11 +108,27 @@ class PortfolioSimulator:
             index_closed_rois(events) if self.allocation.mode == "kelly" else []
         )
 
+        # 按事件序去重日期，作为时间轴进度 total（与选仓「按日」对齐）
+        timeline_dates: List[str] = []
+        seen_dates: Set[str] = set()
+        for event in events:
+            d = str(event.date or "").strip()
+            if d and d not in seen_dates:
+                seen_dates.add(d)
+                timeline_dates.append(d)
+        n_days = len(timeline_dates)
+        day_done = 0
+
         for index, event in enumerate(events):
             date = str(event.date or "").strip()
             if self.save_equity_curve and current_date and date != current_date:
                 self._append_equity(result, current_date)
-            if date:
+            if date and date != current_date:
+                current_date = date
+                day_done += 1
+                if on_progress is not None and n_days > 0:
+                    on_progress(day_done, n_days, f"回放 {date}")
+            elif date:
                 current_date = date
 
             if event.is_buy():
@@ -127,6 +144,8 @@ class PortfolioSimulator:
 
         if self.save_equity_curve and current_date:
             self._append_equity(result, current_date)
+        if on_progress is not None and n_days > 0 and day_done < n_days:
+            on_progress(n_days, n_days, f"回放 {timeline_dates[-1]}")
         return result
 
     def _handle_buy(

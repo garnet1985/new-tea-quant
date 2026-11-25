@@ -13,7 +13,7 @@ SW_INDUSTRY_DECLARATION: Dict[str, Any] = {
         "type": "non_time_series",
         "scope": "global",
         "display_name": "申万行业分类",
-        "description": "sys_sw_industry，申万 2021 一、二、三级分类树",
+        "description": "sys_data_sw_industry，申万 2021 一、二、三级分类树",
         "unique_keys": ["id"],
         "loader": SwIndustryLoader,
     },

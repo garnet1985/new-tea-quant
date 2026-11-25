@@ -1,6 +1,8 @@
 # Trace — 快速开始
 
-**模块：** `infra.trace` · **版本：** `0.1.2`
+**模块：** `infra.trace` · **版本：** `0.1.3`
+
+**最低支持核心版本：** `>=0.5.0`
 
 最短路径：询问同意后立刻上报一条事件。
 
@@ -28,7 +30,7 @@ print(Trace.send(budget="standard"))
 
 ## 改上报地址
 
-- **改内置默认：** 编辑 [`core/defaults.py`](./core/defaults.py) 的 `TraceDefaults.TARGET_URL`
+- **改官网地址：** 编辑 `core/modules/ntq_external/conf/endpoints.py` 的 `TRACE_URL`
 - **不改代码覆盖：** 环境变量 `NTQ_TRACE_ENDPOINT`，或 `userspace/system/config/trace.json` 的 `target_url`
 
 ---

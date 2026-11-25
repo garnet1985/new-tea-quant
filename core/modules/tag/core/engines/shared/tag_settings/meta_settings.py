@@ -12,6 +12,14 @@ from .settings_base import SettingsBase
 from .validation_report import ValidationReport
 
 
+def _coerce_category(raw: Any) -> str:
+    """UI 归类：与策略一致为选填字符串；兼容历史 list 写法。"""
+    if isinstance(raw, list):
+        parts = [str(x).strip() for x in raw if str(x).strip()]
+        return parts[0] if parts else ""
+    return str(raw or "").strip()
+
+
 @dataclass
 class MetaSettings(SettingsBase):
     """``settings.meta``（展示 / CLI alias）。"""
@@ -55,11 +63,9 @@ class MetaSettings(SettingsBase):
         return dict(block) if isinstance(block, dict) else {}
 
     @property
-    def category(self) -> List[str]:
-        raw = self.meta.get("category")
-        if not isinstance(raw, list):
-            return []
-        return [str(x).strip() for x in raw if str(x).strip()]
+    def category(self) -> str:
+        """UI 归类标签（选填；空则 FED 归入「未知归类」）。"""
+        return _coerce_category(self.meta.get("category"))
 
     def apply_defaults(self) -> None:
         if "meta" not in self.raw_settings or not isinstance(self.raw_settings["meta"], dict):
@@ -69,7 +75,10 @@ class MetaSettings(SettingsBase):
         meta.setdefault("description", "")
         meta.setdefault("keywords", [])
         meta.setdefault("details", {})
-        meta.setdefault("category", [])
+        if "category" not in meta:
+            meta["category"] = ""
+        else:
+            meta["category"] = _coerce_category(meta.get("category"))
 
     def ensure_key(self, fallback: str) -> str:
         """若 meta.key 为空，写入 fallback（通常为目录 tag_key）。"""

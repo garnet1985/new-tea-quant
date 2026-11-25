@@ -3,6 +3,9 @@ version: 0.2.2
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "工具函数模块：提供一些通用的业务无关的工具函数。例如日期处理，类型转换，CSV/归档 IO，确定性随机，Markdown 模版填充，本机区域判断，pip/npm 依赖源等等。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "通用函数模块 (Utils)"
+site_display_title: "通用函数工具箱 - Utils 模块"
 dependencies: []
 changelog:
   - version: "0.2.2"

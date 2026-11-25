@@ -1,7 +1,10 @@
 # 测试用例 — `engines.decision_maker`
 
+**模块：** `modules.strategy` · **版本：** `0.12.2`
+
+**最低支持核心版本：** `>=0.5.0`
+
 **包：** `core.engines.decision_maker`  
-**版本：** `0.10.0`  
 **本文件位置：** `core/engines/decision_maker/__test__/`
 
 ---
@@ -32,8 +35,8 @@
 |----------------------|------|------|
 | `test_pauses_on_first_buy_date` | `test_decision_maker.py` | 开局停在第一笔买入日 |
 | `test_asof_stats_exclude_future_exits` | `test_decision_maker.py` | as-of 胜率不含未到期机会 |
-| `test_asof_stats_ticker_completed_before_decision_day` | `test_decision_maker.py` | D 日该标的胜率只统计 exit_date < D 的已完成枚举 |
-| `test_asof_stats_skip_open_lifecycle` | `test_decision_maker.py` | 持仓未归零的枚举行不计 as-of 胜率 |
+| `test_asof_stats_ticker_completed_before_decision_day` | `test_decision_maker.py` | D 日该标的胜率只统计 exit_date < D 的已完成机会盘点 |
+| `test_asof_stats_skip_open_lifecycle` | `test_decision_maker.py` | 持仓未归零的机会盘点行不计 as-of 胜率 |
 | `test_opportunity_list_uses_per_ticker_asof` | `test_decision_maker.py` | 机会列表胜率按标的 as-of，不是全策略同一数字 |
 | `test_pick_done_reset_and_lot_error` | `test_decision_maker.py` | 手数校验、覆盖草稿、done/reset |
 | `test_set_pick_cash_floors_to_lot` | `test_decision_maker.py` | 填金额按手数折成可买股数 |

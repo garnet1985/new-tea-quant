@@ -1,5 +1,5 @@
 """
-市场定义表 Model（表名 sys_markets）
+市场定义表 Model（表名 sys_data_markets）
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db.contracts import DbBaseModel
@@ -8,7 +8,7 @@ from core.tables.stock.markets.schema import schema as _schema
 
 
 class MarketsModel(DbBaseModel):
-    """市场定义表 Model（表名 sys_markets）"""
+    """市场定义表 Model（表名 sys_data_markets）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

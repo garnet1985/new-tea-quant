@@ -3,6 +3,7 @@ import {
   fetchStrategyRunStatus,
   startStrategyRun,
 } from '../../../api/strategyApi';
+import { fetchPipelineStatus } from '../../../api/runtimeApi';
 import {
   mergeStepStatusFromRunProgress,
   resetDownstreamStepStatus,
@@ -15,7 +16,9 @@ import {
   persistDesignActiveRun,
 } from '../lib/strategyDesignActiveRunPersistence';
 import { isSettingsConflictError } from '../lib/settingsOccupancy';
+import { strategyStepFromJobLabel } from '../../../service/jobPipelineLinks';
 import { notifyTaskSuccess } from '../../../service/feedbackPromptBus';
+import { showToast } from 'ui';
 import logClientError from '../../../service/logClientError';
 import { normalizeWorkbenchVersionId } from '../../../service/workbenchVersionId';
 
@@ -70,17 +73,49 @@ export function useStrategyDesignExecution({
     }));
   }, [setSession]);
 
-  const startRun = useCallback(async (target, { isForce = false, _retryAfterBusy = false, forceSettingsWrite = false } = {}) => {
+  const startRun = useCallback(async (target, { isForce = false, forceSettingsWrite = false } = {}) => {
     if (!strategyName || !RUN_STEPS.has(target)) return;
     clearStockKlineMemoryCache();
 
-    if (executionBusy && !_retryAfterBusy) {
-      queueMicrotask(() => startRun(target, { isForce, _retryAfterBusy: true, forceSettingsWrite }));
-      return;
-    }
-
     const prevStatus = getExecutionState()?.stepStatus
       || { enum: 'idle', price: 'idle', portfolio: 'idle', decision: 'idle' };
+
+    // 本页已有任务在跑：不打断轮询，直接请求后端入队。
+    if (executionBusy) {
+      try {
+        setRunError('');
+        const resolvedSettings = getDraftSettingsForSubmit?.();
+        if (!resolvedSettings) throw new Error('当前参数不可用，无法执行');
+        const started = await startStrategyRun(strategyName, target, resolvedSettings, {
+          force_refresh: isForce,
+          settings_rev: getSettingsRev?.() ?? null,
+          force_settings_write: Boolean(forceSettingsWrite),
+        });
+        onSettingsPersisted?.(started);
+        if (started?.queued) {
+          showToast({
+            status: 'info',
+            duration: 5000,
+            content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
+          });
+          return;
+        }
+        if (started?.run_id) {
+          showToast({
+            status: 'info',
+            duration: 4000,
+            content: '已有任务在运行；新请求已提交，请稍后在管道条查看。',
+          });
+        }
+      } catch (err) {
+        if (isSettingsConflictError(err)) {
+          onSettingsConflict?.(err, { target, isForce });
+          return;
+        }
+        setRunError(err?.message || '加入队列失败');
+      }
+      return;
+    }
 
     try {
       setRunError('');
@@ -111,6 +146,21 @@ export function useStrategyDesignExecution({
         force_settings_write: Boolean(forceSettingsWrite),
       });
       onSettingsPersisted?.(started);
+      if (started?.queued) {
+        patchExecutionSession({
+          runningStep: '',
+          activeRunId: '',
+          runId: '',
+          stepStatus: prevStatus,
+        });
+        progressPollStepRef.current = '';
+        showToast({
+          status: 'info',
+          duration: 5000,
+          content: started.reason || '已加入管道队列，当前任务结束后将自动执行',
+        });
+        return;
+      }
       const runId = started?.run_id;
       if (!runId) throw new Error('启动执行失败：缺少 run_id');
 
@@ -166,16 +216,41 @@ export function useStrategyDesignExecution({
   useEffect(() => {
     if (!strategyName || activeRunId || isLoadingSettings) return undefined;
 
-    const saved = loadDesignActiveRun(strategyName);
-    if (!saved?.activeRunId) return undefined;
-
     let cancelled = false;
     (async () => {
       try {
-        const status = await fetchStrategyRunStatus(strategyName, saved.activeRunId);
+        let activeRunIdToRestore = '';
+        let progressPollStep = '';
+
+        const saved = loadDesignActiveRun(strategyName);
+        if (saved?.activeRunId) {
+          activeRunIdToRestore = saved.activeRunId;
+          progressPollStep = saved.progressPollStep || '';
+        } else {
+          // 跨 tab：sessionStorage 没有时，从 JobPipeline 发现本策略的 strategy_run
+          const pipe = await fetchPipelineStatus();
+          const job = pipe?.job;
+          if (
+            job
+            && String(job.kind || '') === 'strategy_run'
+            && String(job.resource_key || '') === String(strategyName)
+            && String(job.job_id || '').trim()
+          ) {
+            activeRunIdToRestore = String(job.job_id).trim();
+            progressPollStep = strategyStepFromJobLabel(job.label) || 'enum';
+            persistDesignActiveRun(strategyName, {
+              activeRunId: activeRunIdToRestore,
+              progressPollStep,
+            });
+          }
+        }
+
+        if (!activeRunIdToRestore || cancelled) return;
+
+        const status = await fetchStrategyRunStatus(strategyName, activeRunIdToRestore);
         if (cancelled) return;
         if (status?.state === 'running') {
-          const pollStep = saved.progressPollStep || status?.running_step || 'enum';
+          const pollStep = progressPollStep || status?.running_step || 'enum';
           progressPollStepRef.current = pollStep;
           setSession((prev) => {
             const stepStatus = mergeStepStatusFromRunProgress(
@@ -192,8 +267,8 @@ export function useStrategyDesignExecution({
               },
               executionState: {
                 ...prev.executionState,
-                activeRunId: saved.activeRunId,
-                runId: saved.activeRunId,
+                activeRunId: activeRunIdToRestore,
+                runId: activeRunIdToRestore,
                 runningStep: status?.running_step || pollStep,
                 stepStatus,
               },
@@ -230,6 +305,8 @@ export function useStrategyDesignExecution({
     if (!strategyName || !activeRunId) return undefined;
 
     let stopped = false;
+    let failCount = 0;
+    const MAX_POLL_FAILS = 5;
 
     const applyStatus = (status) => {
       const patch = status?.step_status_merge && typeof status.step_status_merge === 'object'
@@ -330,9 +407,20 @@ export function useStrategyDesignExecution({
       try {
         const status = await fetchStrategyRunStatus(strategyName, activeRunId);
         if (stopped) return;
+        failCount = 0;
+        // 成功读到进度后清掉「暂缓」提示；终态错误由 applyStatus 写入
+        setRunError((prev) => (
+          prev && String(prev).includes('仍在后台执行') ? '' : prev
+        ));
         applyStatus(status);
       } catch (err) {
         if (stopped) return;
+        failCount += 1;
+        if (failCount < MAX_POLL_FAILS) {
+          // 单次超时/瞬断不放弃：后台 daemon 仍在跑
+          setRunError('进度读取暂缓，任务仍在后台执行…');
+          return;
+        }
         setRunError(err?.message || '读取执行状态失败');
         patchExecutionSession({
           activeRunId: '',
@@ -343,11 +431,21 @@ export function useStrategyDesignExecution({
       }
     };
 
-    poll();
-    const timer = window.setInterval(poll, 800);
+    // 串行轮询，避免 interval 在 BFF 忙时叠请求
+    let timer = null;
+    const scheduleNext = () => {
+      timer = window.setTimeout(runPoll, 800);
+    };
+    const runPoll = async () => {
+      await poll();
+      if (!stopped && failCount < MAX_POLL_FAILS) {
+        scheduleNext();
+      }
+    };
+    runPoll();
     return () => {
       stopped = true;
-      window.clearInterval(timer);
+      if (timer != null) window.clearTimeout(timer);
     };
   }, [
     activeRunId,

@@ -7,8 +7,13 @@
 类型::
 
     from core.modules.indicator.contracts import BatchIndicatorResult
+
+字段命名::
+
+    from core.modules.indicator import field_naming
 """
 
+from core.modules.indicator.core import field_naming
 from core.modules.indicator.core.indicator import Indicator
 
-__all__ = ["Indicator"]
+__all__ = ["Indicator", "field_naming"]

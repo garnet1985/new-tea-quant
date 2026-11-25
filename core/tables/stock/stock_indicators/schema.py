@@ -7,7 +7,8 @@ data_stock_indicators 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_indicators",
-    "name": "sys_stock_indicators",
+    "kind": "data",
+    "name": "sys_data_stock_indicators",
     "primaryKey": ["id", "date"],
     "fields": [
         {
@@ -133,7 +134,6 @@ schema = {
         },
     ],
     "indexes": [
-        {"name": "idx_id_date", "fields": ["id", "date"], "unique": True},
         {"name": "idx_date", "fields": ["date"]},
     ],
 }

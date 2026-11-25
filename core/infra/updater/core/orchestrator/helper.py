@@ -798,8 +798,8 @@ def ignored_paths_under_managed_scope(
     """
     返回 ``update_ignored_paths`` 中落在任一 ``managed_scope`` 前缀下的相对路径（posix）。
 
-    与 README「管辖内镜像会动到子树」一致：例如 ``initialization`` 在 map 内且 ``initialization/data`` 在忽略名单，
-    则需在镜像前 lift-out ``initialization/data``。
+    与 README「管辖内镜像会动到子树」一致：例如 ``initialization`` 在 map 内且某子路径在忽略名单，
+    则需在镜像前 lift-out 该子路径。
     """
     scopes = [_norm_rel_posix(x) for x in managed_scope if _norm_rel_posix(x)]
     out: List[str] = []
@@ -1457,7 +1457,7 @@ def reinstall_runtime_dependencies_cli(repo_root: Path, *, force: bool = True) -
     **纯命令行**：重装运行期依赖，供 ``pipeline._reinstall_dependencies`` 与后续 UI 共用。
 
     1. 若存在 ``requirements.txt`` 且未设 ``NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS``：``pip install -r``（仓库根）。
-    2. 子进程内 ``core.infra.setup.core.ui_runtime.install_ui_runtime(force=...)``（BFF pip + FED ``npm install``，与 ``install.py`` 对齐）。
+    2. 子进程内 ``core.infra.setup.core.orchestrator.install_ui_runtime(force=...)``（BFF pip + FED ``npm install``，与 ``install.py`` 对齐）。
 
     跳过整步：``NTQ_UPDATE_SKIP_RUNTIME_REINSTALL=1``。``PYTHONPATH`` 设为 ``repo_root`` 以便导入 ``setup`` / ``core``。
     """
@@ -1490,7 +1490,7 @@ def reinstall_runtime_dependencies_cli(repo_root: Path, *, force: bool = True) -
             raise RuntimeError("NTQ updater: pip install -r requirements.txt failed")
 
     snippet = (
-        "from core.infra.setup.core.ui_runtime import install_ui_runtime\n"
+        "from core.infra.setup.core.orchestrator import install_ui_runtime\n"
         f"install_ui_runtime(force={force!r})\n"
     )
     r = subprocess.run([str(py), "-c", snippet], cwd=str(repo_root), env=env)
@@ -1510,7 +1510,7 @@ def spawn_mark_install_state_cli(repo_root: Path) -> None:
     snippet = (
         "import time\n"
         "from core.infra.setup import Setup\n"
-        "from core.infra.setup.core.install_runtime import (\n"
+        "from core.infra.setup.core.shared.install_runtime import (\n"
         "    REQUIREMENTS, UI_BFF_REQUIREMENTS, UI_FED_LOCKFILE,\n"
         "    sha256_file, fed_build_fingerprint, ui_dev_mode,\n"
         ")\n"

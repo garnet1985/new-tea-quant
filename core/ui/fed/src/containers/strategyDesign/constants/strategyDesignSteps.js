@@ -3,29 +3,29 @@ export const STRATEGY_DESIGN_STEPS = [
   {
     key: 'enum',
     no: 1,
-    label: '枚举机会',
-    executionPanelTitle: '枚举所有机会',
+    label: '机会盘点',
+    executionPanelTitle: '盘点所有机会，并统计他们的数量和分布',
     pathSegment: 'enum',
   },
   {
     key: 'price',
     no: 2,
     label: '价格回测',
-    executionPanelTitle: '单股价格回测',
+    executionPanelTitle: '合并相似的机会，并统计合并后机会的收益和分布',
     pathSegment: 'price',
   },
   {
     key: 'portfolio',
     no: 3,
     label: '投资模拟',
-    executionPanelTitle: '模拟投资组合',
+    executionPanelTitle: '使用给定的资金和交易策略，模拟实盘投资',
     pathSegment: 'portfolio',
   },
   {
     key: 'decision',
     no: 4,
     label: '决策模拟',
-    executionPanelTitle: '决策模拟',
+    executionPanelTitle: '使用给定的资金，由我自己决策投资。',
     pathSegment: 'decision',
     interactive: true,
     requires: ['enum', 'portfolio'],
@@ -35,20 +35,20 @@ export const STRATEGY_DESIGN_STEPS = [
 /** Meta 顶栏：当前步说明（标题 + 一句摘要） */
 export const STRATEGY_DESIGN_STEP_INTRO = {
   enum: {
-    title: '枚举机会',
-    summary: '测试股票池中发现交易机会的数量与分布',
+    title: '机会盘点',
+    summary: '当前策略能找到机会吗？',
   },
   price: {
     title: '价格回测',
-    summary: '模拟股票样本中单只股票对当前策略的普遍表现',
+    summary: '当前策略能盈利吗？',
   },
   portfolio: {
     title: '投资模拟',
-    summary: '探索资金管理策略在实盘中的表现',
+    summary: '资金管理是否合理？',
   },
   decision: {
     title: '决策模拟',
-    summary: '模拟当前策略下的实盘做决策过程',
+    summary: '我在使用策略的时候能做出更好的决策吗？',
   },
 };
 

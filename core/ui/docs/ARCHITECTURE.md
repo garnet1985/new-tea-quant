@@ -2,6 +2,8 @@
 
 **模块：** `ui` · **版本：** `0.2.3`
 
+**最低支持核心版本：** `>=0.5.0`
+
 浏览器里的 NTQ。React 应用在 `fed/`。HTTP 在 [`core/bff`](../../bff/README.md)，不在本模块。
 
 API 不在这里。安装门面见 `core/infra/setup`，路由见 `core/bff/docs`。
@@ -45,11 +47,22 @@ core/ui/
 
 生产构建产物在 `fed/build`，由 BFF 静态托管。
 
+## 架构图
+
+```mermaid
+flowchart LR
+  Browser --> FED[fed React]
+  FED --> API[fed/api]
+  API --> BFF[core/bff]
+  BFF --> Modules[modules / infra]
+  BFF -->|static| Build[fed/build]
+```
+
 ---
 
 ## 主导航
 
-- **制定策略** `/strategy-design`：策略列表，以及单策略四步（枚举机会、价格回测、投资模拟、决策模拟）。
+- **制定策略** `/strategy-design`：策略列表，以及单策略四步（机会盘点、价格回测、投资模拟、决策模拟）。
 - **策略选股** `/scan`。
 - **高级功能**：特征标签 `/advanced/tags`、数据源 `/advanced/data-sources`、数据契约 `/advanced/data-contracts`。`/advanced` 进入标签页。适配器、库表、备份不在这里。
 - **设置** `/settings`。首次安装完成后，数据库等全局配置在这里维护。
@@ -58,6 +71,6 @@ core/ui/
 
 - Logo 回到欢迎页 `/welcome`。
 - Setup 只在必要配置缺失时把业务页送到 `/setup`，不是常驻入口。
-- 决策模拟是制定策略第四步，依赖枚举机会和投资模拟都完成，价格回测不是前置。跨策略一本账不在这一步。
+- 决策模拟是制定策略第四步，依赖机会盘点和投资模拟都完成，价格回测不是前置。跨策略一本账不在这一步。
 
 旧路径转到现行入口：`/strategy-workbench`、`/decision`、`/decision/play` 到制定策略；`/tags` 到 `/advanced/tags`。

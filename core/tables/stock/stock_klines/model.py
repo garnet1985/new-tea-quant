@@ -8,7 +8,7 @@ from core.tables.stock.stock_klines.schema import schema as _schema
 
 
 class DataStockKlinesModel(DbBaseModel):
-    """股票 K 线表 Model（表名 sys_stock_klines，含 daily/weekly/monthly）"""
+    """股票 K 线表 Model（表名 sys_data_stock_klines，含 daily/weekly/monthly）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)
@@ -41,12 +41,12 @@ class DataStockKlinesModel(DbBaseModel):
         """
         查询 **全市场** 指定周期的最新 K 线日期（YYYYMMDD）。
 
-        行情入库进度锚点；交易日截止请用 ``sys_trade_calendar`` / ``CalendarService``。
+        行情入库进度锚点；交易日截止请用 ``sys_data_trade_calendar`` / ``CalendarService``。
         """
         t = str(term or "").strip() or "daily"
         sql = """
             SELECT MAX(date) AS max_date
-            FROM sys_stock_klines
+            FROM sys_data_stock_klines
             WHERE term = %s
         """
         rows = self.db.execute_sync_query(sql, (t,)) or []
@@ -71,14 +71,14 @@ class DataStockKlinesModel(DbBaseModel):
             placeholders = ",".join(["%s"] * len(ids))
             sql = f"""
                 SELECT MIN(date) AS min_date
-                FROM sys_stock_klines
+                FROM sys_data_stock_klines
                 WHERE term = %s AND id IN ({placeholders})
             """
             params: tuple = (t, *ids)
         else:
             sql = """
                 SELECT MIN(date) AS min_date
-                FROM sys_stock_klines
+                FROM sys_data_stock_klines
                 WHERE term = %s
             """
             params = (t,)

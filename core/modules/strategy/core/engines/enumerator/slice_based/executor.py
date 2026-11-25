@@ -17,7 +17,6 @@ from typing import Any, Dict, List, Optional, Sequence
 
 from core.modules.backtest_engine.contracts import JobContext, Timeline
 from core.modules.data_contract.contracts import DATA_KEY
-from core.modules.strategy.contracts import CalendarAsOfResult
 from core.modules.strategy.core.engines.enumerator.common.base_executor import (
     BaseJobExecutor,
     ExecutorHooksContext,
@@ -32,7 +31,6 @@ from core.modules.strategy.core.engines.shared.services.opportunity_factory impo
 from core.modules.strategy.core.engines.enumerator.common.state.investment_tracker import (
     InvestmentTracker,
 )
-from core.modules.strategy.core.engines.shared.data_class.investment import ExitReason
 from core.modules.strategy.core.engines.shared.services.safe_values.safe_bar_value import SafeBarValue
 from core.modules.strategy.core.services.entity_loader.strategy_data_resolver import (
     StrategyDataResolver,
@@ -42,7 +40,12 @@ from core.modules.strategy.core.engines.shared.services.strategy_settings.strate
 )
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
 from core.modules.strategy.core.helpers.stock_meta import StockMetaHelper
-from core.modules.strategy.core.hooks.hook_params import StrategyContext
+from core.modules.strategy.core.hooks.hook_params import (
+    CalendarSlice,
+    Records,
+    StrategyContext,
+    open_context,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +69,6 @@ class SliceTaskState:
 
     trackers: Dict[str, InvestmentTracker] = field(init=False)
     _stock_info: Dict[str, Dict[str, Any]] = field(init=False, repr=False)
-    _session_state: Dict[str, Any] = field(default_factory=dict, init=False, repr=False)
     _open_dates: List[str] = field(default_factory=list, init=False, repr=False)
     _last_bar_by_entity: Dict[str, Dict[str, Any]] = field(
         default_factory=dict, init=False, repr=False
@@ -74,7 +76,7 @@ class SliceTaskState:
     _base_data_key: str = field(init=False, repr=False)
     _min_required: int = field(init=False, repr=False)
     _rebalance_period: str = field(init=False, repr=False)
-    _ctx_base: Any = field(init=False, repr=False)
+    _ctx: Optional[StrategyContext] = field(default=None, init=False, repr=False)
     _ready_date_by_entity: Dict[str, str] = field(
         default_factory=dict, init=False, repr=False
     )
@@ -135,10 +137,10 @@ class SliceTaskState:
         if self.perf is not None:
             self.perf.begin("enumerate")
         self._open_dates = list(timeline.points)
-        self._ctx_base = StrategyContext.assemble(
+        self._ctx = open_context(
             strategy_key=self.strategy_name,
             settings=self.settings,
-            stock_list=list(self.entity_ids),
+            sample_list=list(self.entity_ids),
         )
         self.entity_contracts = {}
         self._contracts_token = 0
@@ -226,119 +228,48 @@ class SliceTaskState:
             if perf is not None:
                 perf.end("enum_process_tick", accumulate=True)
 
-        # 日历优先：多数天 asof 只看 period 门闩，不必先组全宇宙 by_entity。
-        calendar = self._build_calendar_view(
-            as_of,
-            stocks={},
-            open_date_index=index,
-        )
-        stocks_ctx: Dict[str, Dict[str, Any]] = {}
-        needs_by_entity = self._calendar_asof_needs_by_entity(
-            as_of=as_of, calendar=calendar
-        )
-        if needs_by_entity:
-            if perf is not None:
-                perf.begin("enum_context_fill")
-            stocks_ctx = self._build_stocks_context(
-                sliced_by_entity,
-                as_of=as_of,
-            )
-            if perf is not None:
-                perf.end("enum_context_fill", accumulate=True)
-            calendar = self._build_calendar_view(
-                as_of,
-                stocks=stocks_ctx,
-                open_date_index=index,
-            )
-
-        asof_ctx = StrategyContext.fill(
-            self._ctx_base,
-            now=as_of,
-            by_entity=stocks_ctx,
-            calendar=calendar,
+        calendar = self._build_calendar_view(as_of, open_date_index=index)
+        calendar_slice = CalendarSlice(
+            flags=calendar,
+            base_data_key=self._base_data_key,
+            loader=lambda: self._build_stocks_context(sliced_by_entity, as_of=as_of),
         )
         try:
             if perf is not None:
                 perf.begin("enum_calendar_asof")
-            asof_result = self.hook_runtime.call("on_calendar_asof", asof_ctx)
+            selected = self.hook_runtime.call(
+                "on_calendar_slice", self._ctx, calendar_slice
+            )
             if perf is not None:
                 perf.end("enum_calendar_asof", accumulate=True)
         except Exception as exc:
             if perf is not None:
                 perf.end("enum_calendar_asof", accumulate=True)
             logger.error(
-                "on_calendar_asof 失败：as_of=%s error=%s",
+                "on_calendar_slice 失败：as_of=%s error=%s",
                 as_of,
                 exc,
                 exc_info=True,
             )
             return
 
-        if not isinstance(asof_result, CalendarAsOfResult):
+        if isinstance(selected, (str, bytes)) or not isinstance(selected, (list, tuple)):
             raise TypeError(
-                f"on_calendar_asof 必须返回 CalendarAsOfResult，实际: {type(asof_result).__name__}"
+                "on_calendar_slice 必须返回 id 列表，"
+                f"实际: {type(selected).__name__}"
             )
-
-        # 声明不需要市况却返回了 stocks → 回退全量组包再调一次。
-        if (not needs_by_entity) and asof_result.stocks:
-            if perf is not None:
-                perf.begin("enum_context_fill")
-            stocks_ctx = self._build_stocks_context(
-                sliced_by_entity,
-                as_of=as_of,
-            )
-            if perf is not None:
-                perf.end("enum_context_fill", accumulate=True)
-            calendar = self._build_calendar_view(
-                as_of,
-                stocks=stocks_ctx,
-                open_date_index=index,
-            )
-            asof_ctx = StrategyContext.fill(
-                self._ctx_base,
-                now=as_of,
-                by_entity=stocks_ctx,
-                calendar=calendar,
-            )
-            if perf is not None:
-                perf.begin("enum_calendar_asof")
-            asof_result = self.hook_runtime.call("on_calendar_asof", asof_ctx)
-            if perf is not None:
-                perf.end("enum_calendar_asof", accumulate=True)
-            if not isinstance(asof_result, CalendarAsOfResult):
-                raise TypeError(
-                    f"on_calendar_asof 必须返回 CalendarAsOfResult，实际: {type(asof_result).__name__}"
-                )
-
-        self._session_state = dict(asof_result.session_state)
-        calendar["session_state"] = dict(self._session_state)
-
-        force_exit_date = str(self._session_state.get("force_exit_open_date") or "").strip()
-        if force_exit_date == as_of:
-            for entity_id, tracker in self.trackers.items():
-                if not tracker.has_live:
-                    continue
-                bar = self._last_bar_by_entity.get(entity_id)
-                if bar is None:
-                    continue
-                tracker.settle_incomplete(
-                    as_of,
-                    bar,
-                    reason=ExitReason.PERIOD_END.value,
-                )
 
         open_dates_tuple = tuple(self._open_dates)
-        for stock_id in asof_result.stocks:
+        for stock_id in selected:
             entity_id = str(stock_id).strip()
             tracker = self.trackers.get(entity_id)
             if tracker is None:
-                raise ValueError(f"on_calendar_asof 返回未知 stock_id: {entity_id}")
+                raise ValueError(f"on_calendar_slice 返回未知 stock_id: {entity_id}")
             self._scan_entity(
                 tracker=tracker,
                 entity_id=entity_id,
                 as_of=as_of,
                 sliced_by_entity=sliced_by_entity,
-                calendar=calendar,
                 open_dates=open_dates_tuple,
             )
 
@@ -378,25 +309,6 @@ class SliceTaskState:
             "entities_count": len(self.entity_ids),
         }
 
-    def _calendar_asof_needs_by_entity(
-        self, *, as_of: str, calendar: Dict[str, Any]
-    ) -> bool:
-        """Decide whether to build full by_entity before on_calendar_asof."""
-        if not self.hook_runtime.is_overridden("on_calendar_asof"):
-            return False
-        probe_ctx = StrategyContext.fill(
-            self._ctx_base,
-            now=as_of,
-            by_entity={},
-            calendar=calendar,
-        )
-        try:
-            return bool(
-                self.hook_runtime.call("calendar_asof_needs_by_entity", probe_ctx)
-            )
-        except Exception:
-            return True
-
     def _scan_entity(
         self,
         *,
@@ -404,7 +316,6 @@ class SliceTaskState:
         entity_id: str,
         as_of: str,
         sliced_by_entity: Dict[str, Dict[str, Any]],
-        calendar: Dict[str, Any],
         open_dates: Sequence[str],
     ) -> None:
         if tracker.has_live:
@@ -425,33 +336,18 @@ class SliceTaskState:
             complete_data = {**self.global_data, **per_entity}
 
         stock_info = self._stock_info.get(entity_id, {"id": entity_id})
-        scan_ctx = StrategyContext.fill(
-            self._ctx_base,
-            now=as_of,
-            items=complete_data,
-            calendar=calendar,
+        records = Records(
             entity_id=entity_id,
             entity_info={"id": entity_id, **stock_info},
+            items=complete_data,
+            base_data_key=self._base_data_key,
         )
 
         perf = self.perf
         try:
             if perf is not None:
                 perf.begin("enum_scan")
-            self.hook_runtime.call_if_overridden("on_before_scan", scan_ctx)
-            opportunity = OpportunityFactory.resolve(self.hook_runtime, scan_ctx)
-            self.hook_runtime.call_if_overridden(
-                "on_after_scan",
-                StrategyContext.fill(
-                    self._ctx_base,
-                    now=as_of,
-                    items=complete_data,
-                    calendar=calendar,
-                    entity_id=entity_id,
-                    entity_info={"id": entity_id, **stock_info},
-                    opportunity=opportunity,
-                ),
-            )
+            opportunity = OpportunityFactory.resolve(self.hook_runtime, self._ctx, records)
             if perf is not None:
                 perf.end("enum_scan", accumulate=True)
         except Exception as exc:
@@ -523,7 +419,6 @@ class SliceTaskState:
         self,
         as_of: str,
         *,
-        stocks: Dict[str, Dict[str, Any]],
         open_date_index: int,
     ) -> Dict[str, Any]:
         all_open: Sequence[str] = self._open_dates
@@ -533,10 +428,8 @@ class SliceTaskState:
         else:
             is_period_start = CalendarOpenDateHelper.is_first_open_of_year(as_of, all_open)
             is_period_end = CalendarOpenDateHelper.is_last_open_of_year(as_of, all_open)
-        _ = stocks  # 全市场 payload 在 StrategyData.by_entity
         return {
             "as_of_date": as_of,
-            "session_state": dict(self._session_state),
             "open_date_index": open_date_index,
             "is_period_start": is_period_start,
             "is_period_end": is_period_end,

@@ -1,5 +1,5 @@
 """
-sys_trade_calendar 表 Model
+sys_data_trade_calendar 表 Model
 """
 from typing import Any, Dict, List, Optional
 
@@ -60,13 +60,13 @@ class TradeCalendarModel(DbBaseModel):
         if is_open_only:
             sql = """
                 SELECT MAX(cal_date) AS max_date
-                FROM sys_trade_calendar
+                FROM sys_data_trade_calendar
                 WHERE market = %s AND is_open = 1 AND cal_date <= %s
             """
         else:
             sql = """
                 SELECT MAX(cal_date) AS max_date
-                FROM sys_trade_calendar
+                FROM sys_data_trade_calendar
                 WHERE market = %s AND cal_date <= %s
             """
         rows = self.db.execute_sync_query(sql, (market, d)) or []
@@ -86,7 +86,7 @@ class TradeCalendarModel(DbBaseModel):
             return ""
         sql = """
             SELECT MAX(cal_date) AS max_date
-            FROM sys_trade_calendar
+            FROM sys_data_trade_calendar
             WHERE market = %s AND is_open = 1 AND cal_date < %s
         """
         rows = self.db.execute_sync_query(sql, (market, d)) or []
@@ -106,7 +106,7 @@ class TradeCalendarModel(DbBaseModel):
             return ""
         sql = """
             SELECT MIN(cal_date) AS min_date
-            FROM sys_trade_calendar
+            FROM sys_data_trade_calendar
             WHERE market = %s AND is_open = 1 AND cal_date > %s
         """
         rows = self.db.execute_sync_query(sql, (market, d)) or []

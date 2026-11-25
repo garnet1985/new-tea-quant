@@ -4,6 +4,9 @@ version: "0.2.1"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "发现模块：自动发现一些带有特征的文件/类/文件夹的模块，用来服务于用户自定义的功能文件和类。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "发现模块 (Discovery)"
+site_display_title: "主动发现和探测 - Discovery模块"
 dependencies: []
 changelog:
   - version: "0.2.1"

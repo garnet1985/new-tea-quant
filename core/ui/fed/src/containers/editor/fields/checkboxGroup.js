@@ -1,12 +1,8 @@
 import React from 'react';
-import {
-  Checkbox,
-  FormControlLabel,
-  FormGroup,
-  Typography,
-} from '@mui/material';
+import { Checkbox } from 'ui';
 import { getByPath, runFieldEvents, setByPath } from '../editor.helper';
 import EditorFieldLabel from './editorFieldLabel';
+import './style.scss';
 
 function normalizeSelected(raw) {
   if (!Array.isArray(raw)) return [];
@@ -49,33 +45,28 @@ function CheckboxGroupField({ field, value, onChange, emitChangeMeta, context = 
   };
 
   return (
-    <div key={field.name}>
+    <div key={field.name} className="ntq-editor-checkbox-group">
       <EditorFieldLabel field={field} context={context} />
-      <FormGroup>
+      <div className="ntq-editor-checkbox-group__list" role="group">
         {options.map((item) => {
           const tag = String(item?.value || '').trim().toLowerCase();
           if (!tag) return null;
           return (
-            <FormControlLabel
-              key={tag}
-              control={(
-                <Checkbox
-                  size="small"
-                  checked={selected.has(tag)}
-                  disabled={isReadonly}
-                  onChange={(e) => toggle(tag, e.target.checked)}
-                />
-              )}
-              label={item.label || tag}
-              title={item.tooltip || undefined}
-            />
+            <span key={tag} title={item.tooltip || undefined}>
+              <Checkbox
+                label={item.label || tag}
+                checked={selected.has(tag)}
+                disabled={isReadonly}
+                onChange={(e) => toggle(tag, e.target.checked)}
+              />
+            </span>
           );
         })}
-      </FormGroup>
+      </div>
       {field.description && !field.tooltip ? (
-        <Typography variant="caption" color="text.secondary" sx={{ mt: 0.5, display: 'block' }}>
+        <p className="ntq-editor-input-field__hint ntq-muted">
           {field.description}
-        </Typography>
+        </p>
       ) : null}
     </div>
   );

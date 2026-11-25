@@ -7,7 +7,8 @@ data_ppi 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "macro_ppi",
-    "name": "sys_ppi",
+    "kind": "data",
+    "name": "sys_data_ppi",
     "primaryKey": "date",
     "fields": [
         {

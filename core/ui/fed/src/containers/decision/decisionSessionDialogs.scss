@@ -1,0 +1,13 @@
+.ntq-decision-session-dialog__title {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  width: 100%;
+}
+
+.ntq-decision-session-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}

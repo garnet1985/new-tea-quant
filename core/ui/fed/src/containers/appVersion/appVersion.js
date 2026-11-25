@@ -1,5 +1,5 @@
 import React from 'react';
-import AppVersionMark from 'views/appVersion';
+import AppVersionMark from 'ntq-ui/appVersion';
 import { useAppVersion } from './useAppVersion';
 
 function AppVersion() {

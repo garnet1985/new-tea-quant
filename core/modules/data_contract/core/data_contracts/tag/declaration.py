@@ -5,6 +5,7 @@ from typing import Dict, Any
 
 from ..data_keys import SYS_DATA_KEY
 from .contract import TagContract
+from .loader import TagLoader
 
 
 TAG_DECLARATION: Dict[str, Any] = {
@@ -17,11 +18,14 @@ TAG_DECLARATION: Dict[str, Any] = {
         "display_name": "特征标签（按场景）",
         "description": "特征标签数据，需要 scenario 参数才能加载",
         "unique_keys": ["entity_id", "tag_definition_id", "as_of_date"],
-        "contract_class": TagContract,  # 使用自定义 Contract 类
-        # loader 由 TagContract 内部处理
+        "contract_class": TagContract,
+        "loader": TagLoader,
     },
     # runtime 在声明里不需要，运行时注入
-    "specific": {},
+    "specific": {
+        # 落库与 loader 使用 as_of_date；until / 切片须认这个字段，不能默认 date
+        "time_axis_field": "as_of_date",
+    },
 }
 
 

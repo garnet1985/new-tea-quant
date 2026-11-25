@@ -1,18 +1,19 @@
 """
-sys_tag_value 表结构定义（Python，变量名 schema）
+sys_data_tag_value 表结构定义（Python，变量名 schema）
 
 标签值（点事实）：某实体在某 as_of 命中某条标签定义时带上的注解。
 特性在 tag_definition，不在本表的 json_value。
 主键 (entity_id, tag_definition_id, as_of_date)。
 
 SOT 边界：
-- attach_to_data_key → sys_tag_scenario（不在本表重复）
-- 计算推进 frontier → sys_tag_calc_progress（不是 as_of / calculated_at）
+- attach_to_data_key → sys_data_tag_scenario（不在本表重复）
+- 计算推进 frontier → sys_meta_tag_calc_progress（不是 as_of / calculated_at）
 """
 schema = {
     "storage_domain": "tag",
     "update_key": "tag_tag_value",
-    "name": "sys_tag_value",
+    "kind": "data",
+    "name": "sys_data_tag_value",
     "primaryKey": ["entity_id", "tag_definition_id", "as_of_date"],
     "fields": [
         {

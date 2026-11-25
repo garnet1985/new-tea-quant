@@ -50,7 +50,7 @@ class EnumeratorPipeline:
     """枚举统一编排入口。
 
     边界:
-    - 负责: SimulateSession 上跑枚举（采样 / jobs / BE / 报告）
+    - 负责: SimulateSession 上跑机会盘点（采样 / jobs / BE / 报告）
     - 不负责: 指纹、系统级 GlobalEntityCache 加载、DB 缓存；不建平行 session / TimelineBuilder
     - 调用方: Strategy._run_steps（cache miss 之后）
     """

@@ -31,7 +31,7 @@ class DbCacheService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model - 私有属性，不对外暴露
-        self._cache_model = data_manager.get_table("sys_cache")
+        self._cache_model = data_manager.get_table("sys_cache_kv")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db.contracts import DatabaseManager

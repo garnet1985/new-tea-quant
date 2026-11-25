@@ -4,7 +4,28 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+from core.modules.data_source.core.catalog.freshness_probe import _resolve_freshness_end_date
+from core.modules.data_source.core.service import renew_progress
 from core.modules.data_source.core.service.date_range.date_range_service import needs_renew_work
+
+
+class _UnreadyManager:
+    _data_service = None
+    _initialized = False
+
+    @property
+    def service(self):
+        raise RuntimeError("DataManager 未初始化，请先调用 initialize()")
+
+
+def test_freshness_end_date_is_calendar_only(monkeypatch):
+    monkeypatch.setattr(renew_progress, "sync_market_day", lambda _dm: "20260115")
+    assert _resolve_freshness_end_date(_UnreadyManager()) == "20260115"
+
+
+def test_freshness_end_date_empty_when_calendar_unavailable(monkeypatch):
+    monkeypatch.setattr(renew_progress, "sync_market_day", lambda _dm: "")
+    assert _resolve_freshness_end_date(_UnreadyManager()) == ""
 
 
 def test_needs_renew_work_refresh_stock_list_when_table_has_rows():
@@ -17,7 +38,7 @@ def test_needs_renew_work_refresh_stock_list_when_table_has_rows():
     config.get_renew_mode.return_value = __import__(
         "core.modules.data_source.core.enums", fromlist=["UpdateMode"]
     ).UpdateMode.REFRESH
-    config.get_table_name.return_value = "sys_stock_list"
+    config.get_table_name.return_value = "sys_data_stock_list"
     config.is_per_entity.return_value = False
     config.get_needs_stock_grouping.return_value = None
 

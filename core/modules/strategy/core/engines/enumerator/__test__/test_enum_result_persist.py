@@ -1,4 +1,4 @@
-"""枚举落盘走 EnumResultsManager JSON。"""
+"""机会盘点落盘走 EnumResultsManager JSON。"""
 from __future__ import annotations
 
 from pathlib import Path

@@ -1,11 +1,39 @@
-# Tag
+# Tag（`modules.tag`）
 
-**模块：** `modules.tag` · **版本：** `0.4.0` · **最低核心版本：** `>=0.5.0`
+**模块：** `modules.tag` · **版本：** `0.4.2`
 
-标签资产层。按 `data.base` 路由：per_entity 交给 BacktestEngine，global 和 non_time_series 在主进程推进。公开入口是 `Tag`。钩子和枚举从 `contracts` 导入。最短示例见 [QUICKSTART.md](./QUICKSTART.md)，调用面见 [API.md](./API.md)。
+**最低支持核心版本：** `>=0.5.0`
 
-依赖：`modules.data_manager`、`modules.data_contract`、`modules.backtest_engine`、`modules.strategy`、`infra.project_context`、`infra.discovery`、`infra.utils`、`infra.trace`。
+## 简介
 
-CLI 和工作台触发单个或全部已启用 tag。场景目录在 `userspace/extensions/tags`，每个场景是 `settings.py` 加 `tag.py`。本模块不另做一套和回测引擎平行的调度。界面上的目录和运行在 `core/bff/APIs/tag`。
+批量算因子并持久化到数据库。比如每日把全市场股票的 PE-TTM 跑一遍存起来，策略回测时直接查表用。因子有两种算的方式：逐股跑（委托 BacktestEngine）和一次性批量算（主进程）。
 
-测试见 [`__test__/TEST_CASES.md`](__test__/TEST_CASES.md)。架构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，设计见 [docs/DESIGN.md](docs/DESIGN.md)，名词见 [glossary.yaml](glossary.yaml)。
+## 适用场景
+
+- 每日定时更新一批因子（PE、PB、换手率、市值等）
+- 策略回测需要某个因子但不想自己在代码里算一遍，直接查 Tag 表
+
+## 模块依赖
+
+- `infra.discovery`：自动发现因子配置
+- `infra.project_context`：路径与配置
+- `infra.trace`：匿名上报
+- `infra.utils`：通用工具
+- `modules.backtest_engine`：批量跑 `per_entity` 型因子
+- `modules.data_contract`：声明式取数
+- `modules.data_manager`：底层数据读取
+- `modules.strategy`：策略元数据（因子可能引用策略产物）
+
+## 设计初衷
+
+- **要解决的问题：** 因子需要批量、持久化、可跨策略复用，不能让每个策略各自算一遍。
+- **明确不做：** 不做因子研究（选哪个因子好是分析层的事）；不做多因子合成（那是 Strategy 的事）。
+
+## 相关文档
+
+- [用户指南](./docs/USER_GUIDE.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [快速开始](./QUICKSTART.md)
+- [决策](./docs/DECISIONS.md)

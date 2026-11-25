@@ -1,0 +1,56 @@
+// =============================================================================
+// NTQ 产品 Token（壳层 / 品牌 / 视区）
+// -----------------------------------------------------------------------------
+// 供 `src/ntq-ui/**`、应用壳、产品页使用。命名：`--ntq-*`
+// 通用原语应优先 `--ui-*`（见 `_ui-tokens.scss`）
+// =============================================================================
+
+:root,
+body {
+  // --- 品牌色板 ---
+  --ntq-ink: #060612;
+  --ntq-cyan: #22d3ee;
+  --ntq-violet: #a855f7;
+  --ntq-green: #22c55e;
+  --ntq-error: #ef4444;
+  --ntq-warning: #fbbf24;
+
+  // 产品主题注入通用层（可脱离 NTQ 的组件仍读 --ui-*）
+  --ui-ink: var(--ntq-ink);
+  --ui-accent: var(--ntq-cyan);
+  --ui-accent-2: var(--ntq-violet);
+  --ui-success: var(--ntq-green);
+  --ui-error: var(--ntq-error);
+  --ui-warning: var(--ntq-warning);
+
+  // --- 壳层尺寸 ---
+  --ntq-header-height: 64px;
+  --ntq-member-strip-height: 36px;
+  --ntq-member-join: 0.875rem; // 14px，会员条底圆角
+  --ntq-page-bg-height: clamp(350px, 50vh, 450px);
+  --ntq-body-min-width: 1280px;
+  --ntq-content-width: 88vw;
+  --ntq-content-max-width: 1920px;
+
+  // --- 品牌表面 / 渐变（产品特有）---
+  --ntq-brand-text-gradient: linear-gradient(90deg, var(--ntq-violet), var(--ntq-cyan), var(--ntq-green));
+  --ntq-brand-text-glow: 0 0 1rem rgba(34, 211, 238, 0.38);
+  // 壳层装饰玻璃（顶栏等）；wrapper 三档请用 --ui-surface-glass|frost|frost-strong
+  --ntq-glass-bg:
+    radial-gradient(900px 420px at 12% 0%, rgba(255, 255, 255, 0.02), transparent 55%),
+    radial-gradient(720px 360px at 88% -10%, rgba(34, 211, 238, 0.04), transparent 58%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.01));
+
+  // RainbowButton 等产品控件
+  --ntq-rainbow-aurora: conic-gradient(
+    from 0deg,
+    var(--ntq-violet) 0deg,
+    var(--ntq-cyan) 120deg,
+    var(--ntq-green) 240deg,
+    var(--ntq-violet) 360deg
+  );
+  --ntq-rainbow-still: linear-gradient(135deg, var(--ntq-cyan) 0%, var(--ntq-violet) 100%);
+  --ntq-rainbow-text: var(--ntq-brand-text-gradient);
+  --ntq-rainbow-mask-play: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath fill='%23000' d='M340-236.16v-487.68L723.07-480 340-236.16Z'/%3E%3C/svg%3E");
+  --ntq-rainbow-mask-refresh: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -960 960 960'%3E%3Cpath fill='%23000' d='M483.08-200q-117.25 0-198.63-81.34-81.37-81.34-81.37-198.54 0-117.2 81.37-198.66Q365.83-760 483.08-760q71.3 0 133.54 33.88 62.23 33.89 100.3 94.58V-760h40v209.23H547.69v-40h148q-31.23-59.85-87.88-94.54Q551.15-720 483.08-720q-100 0-170 70t-70 170q0 100 70 170t170 70q77 0 139-44t87-116h42.46Q725.08-310.15 651-255.08 576.92-200 483.08-200Z'/%3E%3C/svg%3E");
+}

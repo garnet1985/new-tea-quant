@@ -1,6 +1,8 @@
 # Export / Import — 架构
 
-**版本：** `0.2.0`
+**模块：** `infra.export_import` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 门面 `ExportImport` + 实现包 `core/`。词条见 [glossary.yaml](../glossary.yaml)。
 
@@ -43,9 +45,19 @@ core/infra/export_import/
            └── types → contracts
 ```
 
+```mermaid
+flowchart LR
+  Caller --> ExportImport
+  ExportImport --> Archive[BundleArchive]
+  ExportImport --> Install[ConflictChecker / BundleInstaller]
+  ExportImport --> Types[contracts]
+```
+
 ---
 
 ## 相关文档
 
-- [DESIGN.md](./DESIGN.md)
+- [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
+- [术语表](../glossary.yaml)
+- [决策](./DECISIONS.md)

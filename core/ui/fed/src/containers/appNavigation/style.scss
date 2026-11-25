@@ -1,5 +1,3 @@
-@use '../../styles/variables' as *;
-
 .ntq-app-header {
   position: relative;
   z-index: 1200;
@@ -10,19 +8,23 @@
 }
 
 .ntq-app-header__toolbar {
-  min-height: $ntq-header-height;
+  min-height: var(--ntq-header-height);
   display: block;
   width: 100%;
   overflow: visible;
+}
+
+.ntq-app-header__band {
+  position: relative;
 }
 
 .ntq-app-header__inner {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  min-height: $ntq-header-height;
-  padding-left: 16px;
-  padding-right: 16px;
+  min-height: var(--ntq-header-height);
+  padding-left: var(--ntq-space-md);
+  padding-right: var(--ntq-space-md);
   box-sizing: border-box;
   overflow: visible;
 }

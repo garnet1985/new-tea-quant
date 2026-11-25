@@ -1,7 +1,7 @@
 """POSIX resource tracker：退出时回收残留共享内存，已删除的段不再警告。
 
-Python 3.9 在 Ctrl+C 杀掉进程后仍记着 ``/psm_*``。段若已被 unlink，
-标准 tracker 会先警告泄漏，再因文件不存在再警告一次。
+Ctrl+C 杀掉进程后，标准 tracker 仍记着 ``/psm_*``。段若已被 unlink，
+会先警告泄漏，再因文件不存在再警告一次。
 """
 from __future__ import annotations
 

@@ -1,0 +1,22 @@
+.ntq-update-status-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ui-space-xxs);
+  min-width: 0;
+  max-width: 100%;
+}
+
+.ntq-update-status-chip--pending.ntq-loading {
+  justify-content: flex-start;
+  gap: 0.625rem;
+  padding: 0;
+
+  .ntq-loading__message {
+    color: var(--ntq-cyan);
+    font-size: var(--ui-font-xs);
+  }
+}
+
+.ntq-update-status-chip--with-hint {
+  gap: var(--ui-space-xs);
+}

@@ -3,6 +3,9 @@ version: "0.1.0"
 compatible_core_versions: ">=0.5.3"
 package: core.infra
 description: "官网会员通用凭证：设置页写入 userspace，后续会员功能只读状态与凭证。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "会员认证 (Membership)"
+site_display_title: "会员凭证的管理 - Membership 模块"
 dependencies:
   - infra.project_context
 changelog:

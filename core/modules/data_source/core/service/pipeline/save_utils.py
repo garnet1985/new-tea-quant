@@ -1,30 +1,9 @@
-"""Bundle 保存与结果判定（JobPipeline on_result 与 handler 钩子共用）。"""
+"""Bundle 结果判定与写库后的检查点。"""
 from __future__ import annotations
 
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Dict, Tuple
 
 BundleSaveItem = Tuple[Any, Dict[str, Any]]
-
-
-def invoke_bundle_save(
-    context: Dict[str, Any],
-    batch_items: List[BundleSaveItem],
-    save_mode: str,
-    on_single_bundle_complete: Callable[[Dict[str, Any], Any, Dict[str, Any]], Any],
-    on_batch_bundles_complete: Callable[[Dict[str, Any], List[BundleSaveItem]], Any],
-) -> int:
-    """
-    batch：N 个 bundle 合并一次 on_batch_bundles_complete。
-    immediate：逐 bundle 调用 on_single_bundle_complete。
-    """
-    if not batch_items:
-        return 0
-    if save_mode == "batch":
-        on_batch_bundles_complete(context, batch_items)
-        return len(batch_items)
-    for job_bundle, fetched in batch_items:
-        on_single_bundle_complete(context, job_bundle, fetched)
-    return len(batch_items)
 
 
 def has_actual_data(result_dict: Dict[str, Any]) -> bool:

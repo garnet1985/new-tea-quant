@@ -7,15 +7,12 @@ Consumers: ``helpers/workbench_snapshots``, ``routes/report``.
 from __future__ import annotations
 
 import logging
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
-from core.modules.strategy.core.services.artifacts import ArtifactStore
 from core.modules.strategy import Strategy
 from core.bff.APIs.strategy.helpers.portfolio_event_timeline import (
     attach_portfolio_event_timeline,
 )
-from core.bff.shared.client_log import log_degraded
 
 logger = logging.getLogger(__name__)
 
@@ -73,33 +70,6 @@ def _merge_ui_into_slot(slot: Dict[str, Any], ui: Dict[str, Any]) -> Dict[str, A
     return out
 
 
-def _load_overall_ui(step: str, output_dir: Path) -> Optional[Dict[str, Any]]:
-    try:
-        kind = ArtifactStore.parse_kind(step)
-    except ValueError:
-        return None
-    store = ArtifactStore.for_kind(kind).at(output_dir)
-    if not store.file("overall_report").is_file():
-        return None
-    try:
-        if step == "enum":
-            from core.modules.strategy.core.engines.enumerator.common.report_manager.overall_report import (
-                OverallReport,
-            )
-        elif step == "price":
-            from core.modules.strategy.core.engines.price_factor.report_manager.overall_report import (
-                OverallReport,
-            )
-        else:
-            from core.modules.strategy.core.engines.portfolio.report_manager.overall_report import (
-                OverallReport,
-            )
-        return OverallReport.load(output_dir).to_ui_dict()
-    except Exception as exc:
-        log_degraded("report.hydrate.overallReport", exc, f"{step}:{output_dir}")
-        return None
-
-
 def hydrate_enum_slot(
     strategy_name: str,
     slot: Dict[str, Any],
@@ -115,7 +85,7 @@ def hydrate_enum_slot(
     for output_dir in Strategy.resolve_simulation_output_dirs(
         sn, step="enum", slot=slot, workbench_version=workbench_version
     ):
-        ui = _load_overall_ui("enum", output_dir)
+        ui = Strategy.load_overall_report_ui("enum", output_dir)
         if ui:
             return _merge_ui_into_slot(slot, ui)
     return slot
@@ -136,7 +106,7 @@ def hydrate_price_slot(
     for output_dir in Strategy.resolve_simulation_output_dirs(
         sn, step="price", slot=slot, workbench_version=workbench_version
     ):
-        ui = _load_overall_ui("price", output_dir)
+        ui = Strategy.load_overall_report_ui("price", output_dir)
         if ui:
             return _merge_ui_into_slot(slot, ui)
     return slot
@@ -168,7 +138,7 @@ def hydrate_portfolio_slot(
     )
     if not _slot_has_metrics(out, "capitalMetrics"):
         for output_dir in dirs:
-            ui = _load_overall_ui("portfolio", output_dir)
+            ui = Strategy.load_overall_report_ui("portfolio", output_dir)
             if ui:
                 out = _merge_ui_into_slot(out, ui)
                 break

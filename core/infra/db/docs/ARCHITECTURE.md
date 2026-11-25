@@ -1,6 +1,8 @@
 # Database — 架构
 
-**版本：** `0.3.1`
+**模块：** `infra.db` · **版本：** `0.3.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 统一数据库基础设施：门面 `Db` + 实现包 `core/`（按 backend 挂载 Engine）。词条见 [glossary.yaml](../glossary.yaml)。
 
@@ -43,7 +45,6 @@ core/infra/db/
 ├── core/**/__test__/     # 功能包单测（下沉；helper 包可不索引业务 case）
 └── docs/
     ├── ARCHITECTURE.md   # 模块总览（SSOT）
-    ├── DESIGN.md
     ├── storage-domains.md
     └── （engines 细部见 core/engines/ARCHITECTURE.md）
 ```
@@ -94,9 +95,10 @@ flowchart LR
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [存储域](./storage-domains.md)
 - [快速开始](../QUICKSTART.md)
+- [决策](./DECISIONS.md)

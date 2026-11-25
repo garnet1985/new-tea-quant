@@ -359,6 +359,8 @@ class Indicator:
         if ctx is None:
             return []
 
+        from core.modules.indicator.core.field_naming import compute_params
+
         results: List[BatchIndicatorResult] = []
         for name, configs in indicators_cfg.items():
             if not configs:
@@ -369,14 +371,16 @@ class Indicator:
                 if not isinstance(cfg, dict):
                     continue
                 item_cfg = dict(cfg)
+                calc_cfg = compute_params(item_cfg)
                 try:
                     result = cls._compute_single(
                         str(name).lower().strip(),
                         klines,
-                        item_cfg,
+                        calc_cfg,
                         batch_ctx=ctx,
                     )
                     if result:
+                        # 返回仍带 alias，供落盘命名
                         results.append((str(name).lower().strip(), item_cfg, result))
                 except Exception as exc:
                     logger.error(
@@ -707,23 +711,38 @@ class Indicator:
     
     @classmethod
     def list_indicators(cls) -> List[str]:
-        """
-        列出所有可用的指标
-        
-        Returns:
-            List[str]: 指标名称列表
-        """
+        """列出可用指标名（不触发类别子包懒加载，避免 ``math`` 等缺失模块炸裂）。"""
         if cls._ta is None:
             cls._init_ta()
-        
-        # 获取所有公开的函数（排除内部方法和类）
-        indicators = [
-            name for name in dir(cls._ta)
-            if not name.startswith('_') and callable(getattr(cls._ta, name))
-        ]
-        
+
+        from_registry = cls._indicator_names_from_registry()
+        if from_registry is not None:
+            return from_registry
+
+        # 旧版 / 无注册表时：dir + 安全 getattr（跳过类别子包与坏导入）
+        indicators: List[str] = []
+        for name in dir(cls._ta):
+            if name.startswith("_"):
+                continue
+            try:
+                obj = getattr(cls._ta, name)
+            except (AttributeError, ImportError, ModuleNotFoundError):
+                continue
+            if callable(obj):
+                indicators.append(name)
         return sorted(indicators)
-    
+
+    @classmethod
+    def _indicator_names_from_registry(cls) -> Optional[List[str]]:
+        """优先读 pandas_ta_classic 指标注册表（仅函数名，不含 momentum/math 等类别）。"""
+        try:
+            from pandas_ta_classic._indicator_loader import _INDICATOR_TO_CATEGORY
+        except Exception:
+            return None
+        if not isinstance(_INDICATOR_TO_CATEGORY, dict) or not _INDICATOR_TO_CATEGORY:
+            return None
+        return sorted(str(name) for name in _INDICATOR_TO_CATEGORY if name)
+
     @classmethod
     def get_indicator_help(cls, indicator_name: str) -> str:
         """
@@ -737,9 +756,14 @@ class Indicator:
         """
         if cls._ta is None:
             cls._init_ta()
-        
-        if not hasattr(cls._ta, indicator_name):
-            return f"指标不存在: {indicator_name}"
-        
-        indicator_func = getattr(cls._ta, indicator_name)
+
+        name = str(indicator_name or "").strip()
+        if not name:
+            return "指标不存在: "
+        try:
+            indicator_func = getattr(cls._ta, name)
+        except (AttributeError, ImportError, ModuleNotFoundError):
+            return f"指标不存在: {name}"
+        if not callable(indicator_func):
+            return f"指标不存在: {name}"
         return indicator_func.__doc__ or "无文档"

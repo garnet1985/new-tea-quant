@@ -41,26 +41,23 @@ def resolve_reserved_dependency(dep_key: str) -> Any:
 
 def _resolve_latest_completed_trading_date() -> List[dict]:
     """
-    通过 CalendarService.get_latest_completed_trading_date 解析最新已完成交易日。
+    Renew 注入的截止日：交易日历推导（不读 assumed_latest）。
     返回 [{"date": "YYYYMMDD"}]。
     """
     from core.modules.data_manager import DataManager
+    from core.modules.data_source.core.service.renew_progress import resolve_uptodate_day
 
     data_manager = DataManager.get_instance()
-    if not data_manager or not getattr(data_manager, "service", None):
+    date_str = ""
+    try:
+        date_str = str(resolve_uptodate_day(data_manager) or "").strip()
+    except Exception as exc:
+        logger.warning("保留依赖 latest_completed_trading_date 解析失败: %s", exc)
+    if not date_str:
         logger.warning(
-            "DataManager 或 service 不可用，保留依赖 latest_completed_trading_date 无法解析"
+            "保留依赖 latest_completed_trading_date 为空，使用当前日期兜底"
         )
         from core.infra.utils import Utils
-        fallback = Utils.date.today()
-        return [{"date": fallback}]
-    calendar = getattr(data_manager.service, "calendar", None)
-    if not calendar or not hasattr(calendar, "get_latest_completed_trading_date"):
-        logger.warning(
-            "CalendarService 不可用，保留依赖 latest_completed_trading_date 使用当前日期兜底"
-        )
-        from core.infra.utils import Utils
-        fallback = Utils.date.today()
-        return [{"date": fallback}]
-    date_str = calendar.get_latest_completed_trading_date()
+
+        date_str = Utils.date.today()
     return [{"date": date_str}]

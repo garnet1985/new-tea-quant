@@ -8,7 +8,7 @@ from unittest.mock import patch
 import pytest
 
 from core.modules.cli.dev.scripts.temp_cleanup import TempCleanup
-from core.infra.task_guard import TaskGuard
+from core.infra.job_pipeline import JobPipeline
 
 pytestmark = pytest.mark.force_run
 
@@ -24,14 +24,14 @@ def userspace_layout(tmp_path, monkeypatch):
     ntq.mkdir(parents=True)
     (sim / "out.json").write_text("{}", encoding="utf-8")
     (scan / "opportunities.csv").write_text("x", encoding="utf-8")
-    (ntq / "task_guard_active.json").write_text("{}", encoding="utf-8")
+    (ntq / "job_pipeline_running.json").write_text("{}", encoding="utf-8")
     (strategies / "settings.py").write_text("settings = {}\n", encoding="utf-8")
     (strategies / "strategy.py").write_text(
         "\n".join(
             [
                 "from core.modules.strategy.hooks import StrategyHooks",
                 "class StrategyHooksImpl(StrategyHooks):",
-                "    def has_opportunity(self, ctx):",
+                "    def is_opportunity(self, ctx, records):",
                 "        return False",
                 "",
             ]
@@ -56,9 +56,9 @@ def userspace_layout(tmp_path, monkeypatch):
 
 def test_run_temp_cleanup_rejects_when_task_busy(userspace_layout):
     with patch.object(
-        TaskGuard,
-        "read_status",
-        return_value={"busy": True, "label": "Tag 计算中", "kind": "tag_run"},
+        JobPipeline,
+        "get_running_job",
+        return_value={"label": "Tag 计算中", "kind": "tag_run", "job_id": "x"},
     ):
         out = TempCleanup.run(clear_userspace_ntq=True)
     assert out["ok"] is False
@@ -68,9 +68,9 @@ def test_run_temp_cleanup_rejects_when_task_busy(userspace_layout):
 
 def test_run_temp_cleanup_selected_targets(userspace_layout):
     with patch.object(
-        TaskGuard,
-        "read_status",
-        return_value={"busy": False},
+        JobPipeline,
+        "get_running_job",
+        return_value=None,
     ), patch.object(
         TempCleanup,
         "_discovered_strategy_folders",
@@ -107,3 +107,18 @@ def test_run_temp_cleanup_nothing_selected():
     out = TempCleanup.run()
     assert out["ok"] is False
     assert out["error"] == "nothing_selected"
+
+
+def test_run_temp_cleanup_static_packages_only(userspace_layout, monkeypatch):
+    packages = userspace_layout / ".ntq" / "packages" / "demo"
+    packages.mkdir(parents=True)
+    (packages / "data_demo.zip").write_bytes(b"PK\x03\x04")
+    monkeypatch.setattr(
+        "core.infra.project_context.core.path_manager.PathManager.get_packages_root",
+        lambda: userspace_layout / ".ntq" / "packages",
+    )
+    with patch.object(JobPipeline, "get_running_job", return_value=None):
+        out = TempCleanup.run(clear_static_packages=True)
+    assert out["ok"] is True
+    assert not packages.exists()
+    assert (userspace_layout / ".ntq").exists()

@@ -1,6 +1,8 @@
 # Project Context — 快速开始
 
-**模块：** `infra.project_context` · **版本：** `0.2.0`
+**模块：** `infra.project_context` · **版本：** `0.2.1`
+
+**最低支持核心版本：** `>=0.5.0`
 
 最短路径：取根路径并加载一份配置。
 

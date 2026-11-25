@@ -91,6 +91,34 @@ def get_membership_settings():
     return ok(settings_service.get_membership_settings())
 
 
+@settings_api_bp.route("/v1/membership/profile", methods=["GET"])
+def get_membership_profile():
+    """用本地通用凭证向官网读取用户名、头像和点数。响应不含凭证。"""
+    from core.modules.ntq_external.member_profile import member_profile
+
+    return ok(member_profile())
+
+
+@settings_api_bp.route("/v1/membership/catfood-ledger", methods=["GET"])
+def get_membership_catfood_ledger():
+    """用本地通用凭证向官网读取最近猫粮流水。"""
+    from core.modules.ntq_external.ai.member_channel import fetch_member_usage
+
+    limit = request.args.get("limit", 40, type=int)
+    body = fetch_member_usage(limit=limit if limit else 40)
+    if not body:
+        return ok({"items": [], "catfood": None, "currency": "猫粮", "available": False})
+    return ok({**body, "available": True})
+
+
+@settings_api_bp.route("/v1/membership/mail-quota", methods=["GET"])
+def get_membership_mail_quota():
+    """用本地通用凭证向官网读取会员邮件代发额度与规则说明。响应不含凭证。"""
+    from core.modules.ntq_external.member_mail_quota import member_mail_quota
+
+    return ok(member_mail_quota())
+
+
 @settings_api_bp.route("/v1/settings/membership", methods=["PUT"])
 def put_membership_settings():
     """把官网通用凭证写入 userspace/system/membership/membership_token.txt。"""

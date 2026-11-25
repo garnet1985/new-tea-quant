@@ -590,7 +590,7 @@ class SlicePlanner(BasePlanner):
             return [batch]
 
         batches: List[SliceJobBatch] = []
-        for index, job in enumerate(jobs):
+        for job in jobs:
             parsed = BacktestJob.from_dict(job)
             job_id, payload = parsed.id, parsed.payload
             slice_id = str(payload.get("slice_id") or job_id)

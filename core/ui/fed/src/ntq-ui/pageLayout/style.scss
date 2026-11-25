@@ -1,0 +1,31 @@
+.ntq-page {
+  padding: var(--ntq-space-md) 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.ntq-page__shell {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+
+  > .ntq-breadcrumbs {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    margin-bottom: var(--ntq-space-lg);
+  }
+}
+
+.ntq-page__body {
+  margin-top: 0.75rem; // 12px
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+
+  &.is-loading {
+    min-height: 48vh;
+  }
+}

@@ -58,6 +58,28 @@ export function getStrategyListPath(listBasePath = '/strategy-design', options =
 
 export const STRATEGY_PEER_LIST_LIMIT = 5;
 
+/** 列表展示名：prefer display_name，再回退 name / key。 */
+export function getStrategySortLabel(row) {
+  return String(
+    row?.display_name || row?.displayName || row?.name || row?.key || '',
+  ).trim();
+}
+
+/** 同类内排序：按展示名自然序（演示1/2/4a/4b…），同名再比 path。 */
+export function compareStrategiesForList(a, b) {
+  const byLabel = getStrategySortLabel(a).localeCompare(
+    getStrategySortLabel(b),
+    'zh-CN',
+    { numeric: true, sensitivity: 'base' },
+  );
+  if (byLabel !== 0) return byLabel;
+  return String(a?.path || a?.name || '').localeCompare(
+    String(b?.path || b?.name || ''),
+    'zh-CN',
+    { numeric: true },
+  );
+}
+
 function strategyRowIds(row) {
   return [
     String(row?.name || '').trim(),
@@ -95,10 +117,13 @@ export function listPeerStrategies(rows, current, { limit = STRATEGY_PEER_LIST_L
   if (queryValue === UNKNOWN_STRATEGY_CATEGORY_QUERY) {
     return { ...empty, categoryLabel: UNKNOWN_STRATEGY_CATEGORY, queryValue };
   }
-  const peers = list.filter((row) => (
-    getStrategyCategoryQueryValue(row) === queryValue
-    && !isSameStrategyRow(row, current)
-  ));
+  const peers = list
+    .filter((row) => (
+      getStrategyCategoryQueryValue(row) === queryValue
+      && !isSameStrategyRow(row, current)
+    ))
+    .slice()
+    .sort(compareStrategiesForList);
   const cap = Math.max(0, Number(limit) || 0);
   return {
     categoryLabel: getStrategyCategoryLabel(currentRow),
@@ -111,6 +136,7 @@ export function listPeerStrategies(rows, current, { limit = STRATEGY_PEER_LIST_L
 
 /**
  * 按 category 分组；命名类按中文序，``未知归类`` 始终在最后。
+ * 组内按展示名自然序（便于演示1/2/4a/4b 按编号排列）。
  * @param {object[]} rows
  * @returns {{ category: string, queryValue: string, rows: object[] }[]}
  */
@@ -131,6 +157,6 @@ export function groupStrategiesByCategory(rows) {
   return order.map((category) => ({
     category,
     queryValue: getStrategyCategoryQueryValue(category),
-    rows: map.get(category) || [],
+    rows: (map.get(category) || []).slice().sort(compareStrategiesForList),
   }));
 }

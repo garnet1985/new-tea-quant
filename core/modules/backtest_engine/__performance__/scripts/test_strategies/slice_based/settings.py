@@ -82,7 +82,6 @@ settings = {
         "output": {"save_trades": False, "save_equity_curve": False},
     },
     "scanner": {
-        "adapters": ["console"],
         "use_strict_previous_trading_day": False,
         "max_cache_days": 10,
         "watch_list": "",

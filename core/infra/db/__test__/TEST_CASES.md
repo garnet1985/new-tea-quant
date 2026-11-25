@@ -1,7 +1,9 @@
 # 测试用例 — `infra.db`（模块根）
 
-**模块：** `infra.db`  
-**版本：** `0.3.1`  
+**模块：** `infra.db` · **版本：** `0.3.2`
+
+**最低支持核心版本：** `>=0.5.0`
+
 **本文件位置：** `__test__/`
 
 ---
@@ -32,7 +34,7 @@
 
 | Case | 文件 | 说明 |
 |------|------|------|
-| `test_facade_exported_only` | `test_api.py` | `__all__ == ["Db"]` |
+| `test_facade_exported_only` | `test_api.py` | `__all__` 含 `Db` + 契约短导入再导出；无游离引擎工厂 |
 | `test_manager_namespace` | `test_api.py` | manager |
 | `test_migration_namespace` | `test_api.py` | migration + snapshot path |
 | `test_engine_namespace` | `test_api.py` | engine.build_meta / create |

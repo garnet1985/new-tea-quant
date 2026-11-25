@@ -93,7 +93,7 @@
 ## 6. 依赖重装（当前实现）
 
 - **默认不主动删除 `venv/`**：除非该项出现在 `managed_scope` 中并被镜像覆盖。业务上可约定 **不动用户 venv**，以当前产品为准。  
-- **命令行重装**：`helper.reinstall_runtime_dependencies_cli(repo_root)`（`pipeline` 模块亦再导出同名符号）：先可选 `pip install -r requirements.txt`，再子进程调用 `setup.ui_runtime.install_ui_runtime(force=True)`（BFF + FED `npm install`）。  
+- **命令行重装**：`helper.reinstall_runtime_dependencies_cli(repo_root)`（`pipeline` 模块亦再导出同名符号）：先可选 `pip install -r requirements.txt`，再子进程调用 `setup.orchestrator.install_ui_runtime(force=True)`（BFF + FED `npm install`）。  
 - **环境变量**：`NTQ_UPDATE_SKIP_RUNTIME_REINSTALL`、`NTQ_UPDATE_SKIP_ROOT_REQUIREMENTS` 与现有 `NTQ_PIP_NO_CACHE` 等见 `helper.py` 文档字符串。后续 UI 向导可调用同一接口。
 
 ---

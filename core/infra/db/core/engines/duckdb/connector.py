@@ -136,7 +136,12 @@ class DuckdbDomainConnection:
     @staticmethod
     def _is_lock_error(exc: BaseException) -> bool:
         msg = str(exc).lower()
-        return "conflicting lock" in msg or "could not set lock" in msg
+        return (
+            "conflicting lock" in msg
+            or "could not set lock" in msg
+            or "unique file handle conflict" in msg
+            or "different configuration than existing connections" in msg
+        )
 
     @staticmethod
     def _is_corrupt_wal_error(exc: BaseException) -> bool:
@@ -303,7 +308,7 @@ class _DuckDBTransactionCursor:
 
 
 class _DuckDBBufferedResult:
-    """在锁内取走的查询结果。DuckDB 1.4 的结果挂在连接上，锁外再 fetch 会被别的语句覆盖。"""
+    """在锁内取走的查询结果。DuckDB 的结果挂在连接上，锁外再 fetch 会被别的语句覆盖。"""
 
     def __init__(self, rows: List[Any], columns: List[str]) -> None:
         self._rows = rows

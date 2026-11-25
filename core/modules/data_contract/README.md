@@ -1,9 +1,35 @@
-# Data Contract
+# Data Contract（`modules.data_contract`）
 
 **模块：** `modules.data_contract` · **版本：** `0.4.3`
 
-声明式取数。用 DataKey 签发契约，分成 meta、runtime、specific 三层。公开入口是 `ContractIssuer`。`DATA_KEY`、基类和专用子类从 `contracts` 导入。最短示例见 [QUICKSTART.md](./QUICKSTART.md)，调用面见 [API.md](./API.md)。
+**最低支持核心版本：** `>=0.5.0`
 
-依赖：`modules.data_manager`、`infra.project_context`、`infra.utils`。
+## 简介
 
-测试见 [`__test__/TEST_CASES.md`](__test__/TEST_CASES.md)。架构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，设计见 [docs/DESIGN.md](docs/DESIGN.md)，原理见 [docs/CONCEPTS.md](docs/CONCEPTS.md)，名词见 [glossary.yaml](glossary.yaml)。
+声明式取数。上层模块（策略、回测、标签）只写"我要 XX 数据"，不用管底层是查表还是拼多源。模块把声明翻译成实际的数据加载。
+
+## 适用场景
+
+- 策略回测需要某列因子、某张表的某个 key，不想知道底层加载细节
+- 标签计算需要多个数据源拼在一起，不想自己写 join
+
+## 模块依赖
+
+- `infra.project_context`：路径与配置
+- `infra.utils`：通用工具
+- `modules.data_manager`：底层数据读取
+
+## 设计初衷
+
+- **要解决的问题：** 把"要什么数据"和"怎么拿到"分开，上层只写声明。
+- **明确不做：** 不缓存原始数据、不做业务调度。
+
+## 相关文档
+
+- [用户指南](./docs/USER_GUIDE.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [快速开始](./QUICKSTART.md)
+- [概念](./docs/CONCEPTS.md)
+- [决策](./docs/DECISIONS.md)

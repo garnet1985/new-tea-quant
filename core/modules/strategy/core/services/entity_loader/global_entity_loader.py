@@ -194,9 +194,6 @@ class GlobalEntityCache:
         self._shm = None
         self._shm_name = None
         self._shm_size = 0
-        if not shm_mod.shared_memory_available():
-            logger.warning("共享内存不可用，使用普通 dict 存储")
-            return
         if not self._global_data:
             logger.warning("没有全局数据，跳过共享内存创建")
             return
@@ -224,9 +221,6 @@ class GlobalEntityCache:
     def access_shared_memory(shm_name: str, shm_size: int) -> Dict[str, Any]:
         """子进程从共享内存读取 global 数据。"""
         shm_mod = _owned_shm()
-        if not shm_mod.shared_memory_available():
-            logger.warning("共享内存不可用，无法读取")
-            return {}
         if not shm_name or shm_size <= 0:
             logger.warning("共享内存信息无效，无法读取")
             return {}

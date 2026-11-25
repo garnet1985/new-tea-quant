@@ -130,12 +130,46 @@ def _venv_pip_version(python: Path) -> str:
     return (proc.stdout or "").strip()
 
 
+def _venv_python_version(python: Path) -> tuple[int, int]:
+    try:
+        proc = subprocess.run(
+            [
+                str(python),
+                "-c",
+                "import sys; print(f'{sys.version_info[0]}.{sys.version_info[1]}')",
+            ],
+            capture_output=True,
+            text=True,
+        )
+    except OSError:
+        return (0, 0)
+    if proc.returncode != 0:
+        return (0, 0)
+    raw = (proc.stdout or "").strip()
+    try:
+        major_s, minor_s = raw.split(".", 1)
+        return (int(major_s), int(minor_s))
+    except ValueError:
+        return (0, 0)
+
+
 def _ensure_venv(venv_dir: Path) -> Path:
     vpy = _venv_python(venv_dir)
-    if not vpy.is_file():
+    min_py = (3, 11)
+    need_create = not vpy.is_file()
+    if not need_create:
+        ver = _venv_python_version(vpy)
+        if ver < min_py:
+            print(
+                f"最小环境 Python {ver[0]}.{ver[1]} < {min_py[0]}.{min_py[1]}，重建: {venv_dir}",
+                flush=True,
+            )
+            need_create = True
+    if need_create:
         print(f"创建最小环境 venv: {venv_dir}", flush=True)
         builder = venv.EnvBuilder(with_pip=True, clear=True)
         builder.create(venv_dir)
+        vpy = _venv_python(venv_dir)
     print(f"安装 BFF 依赖: {BFF_REQUIREMENTS}", flush=True)
     if not BFF_REQUIREMENTS.is_file():
         raise FileNotFoundError(BFF_REQUIREMENTS)

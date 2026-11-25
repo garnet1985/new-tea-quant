@@ -1,12 +1,13 @@
 """
-板块定义表（sys_boards）：id、value（板块名）、is_alive。
-如主板、科创板、创业板、北交所。与 sys_stock_board_map 配合。
+板块定义表（sys_data_boards）：id、value（板块名）、is_alive。
+如主板、科创板、创业板、北交所。与 sys_map_stock_board 配合。
 主键 id nullable=false；其余 nullable=true。
 """
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_boards",
-    "name": "sys_boards",
+    "kind": "data",
+    "name": "sys_data_boards",
     "primaryKey": "id",
     "fields": [
         {

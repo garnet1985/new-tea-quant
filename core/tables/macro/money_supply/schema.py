@@ -7,7 +7,8 @@ data_money_supply 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "macro_money_supply",
-    "name": "sys_money_supply",
+    "kind": "data",
+    "name": "sys_data_money_supply",
     "primaryKey": "date",
     "fields": [
         {

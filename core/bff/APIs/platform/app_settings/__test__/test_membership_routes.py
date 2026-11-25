@@ -18,8 +18,16 @@ def token_file(tmp_path, monkeypatch):
     return path
 
 
-def test_membership_roundtrip_hides_token(token_file):
+def test_membership_roundtrip_hides_token(token_file, monkeypatch):
     from core.bff.app import create_app
+    from core.infra.trace import Trace
+
+    binds = []
+    monkeypatch.setattr(
+        Trace,
+        "track_member_bind",
+        staticmethod(lambda **kwargs: binds.append(kwargs)),
+    )
 
     app = create_app()
     app.config["TESTING"] = True
@@ -30,6 +38,23 @@ def test_membership_roundtrip_hides_token(token_file):
         assert body["configured"] is False
         assert body["invalid"] is False
         assert TOKEN not in empty.get_data(as_text=True)
+
+        guest = client.get("/api/v1/membership/profile")
+        assert guest.status_code == 200
+        profile = guest.get_json()["message"]
+        assert profile["signed_in"] is False
+        assert profile["reason"] == "missing"
+        assert profile["register_url"].endswith("/zh-hans/user/register")
+        assert TOKEN not in guest.get_data(as_text=True)
+
+        mail = client.get("/api/v1/membership/mail-quota")
+        assert mail.status_code == 200
+        quota = mail.get_json()["message"]
+        assert quota["available"] is False
+        assert quota["reason"] == "missing"
+        assert "共可发" in quota["policy"]
+        assert "注册邮箱" in quota["policy"]
+        assert TOKEN not in mail.get_data(as_text=True)
 
         bad = client.put("/api/v1/settings/membership", json={"token": "sk-vendor"})
         assert bad.status_code == 400
@@ -42,6 +67,7 @@ def test_membership_roundtrip_hides_token(token_file):
         assert TOKEN not in saved.get_data(as_text=True)
         assert token_file.read_text(encoding="utf-8").strip() == TOKEN
         assert token_file.stat().st_mode & 0o777 == 0o600
+        assert binds == [{"source": "membership_save", "force": True}]
 
         cleared = client.delete("/api/v1/settings/membership")
         assert cleared.status_code == 200

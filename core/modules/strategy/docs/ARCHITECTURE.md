@@ -1,12 +1,12 @@
 # Strategy — 架构
 
-**版本：** `0.10.0`
+**模块：** `modules.strategy` · **版本：** `0.12.2`
 
-`modules.strategy` 对外仅暴露 **`Strategy`**：机会扫描、模拟三步（enum / price / portfolio）、决策者回放、结果摘要与策略发现。引擎经 BacktestEngine `RunCallbacks` 挂入回测；可变业务状态挂在 `JobContext.init`。
-
----
+**最低支持核心版本：** `>=0.5.0`
 
 ## 职责与边界（结论）
+
+`modules.strategy` 对外仅暴露 **`Strategy`**：机会扫描、模拟三步（enum / price / portfolio）、决策者回放、结果摘要与策略发现。引擎经 BacktestEngine `RunCallbacks` 挂入回测；可变业务状态挂在 `JobContext.init`。
 
 **负责**
 
@@ -23,7 +23,7 @@
 - 不把归因拆成与 strategy 平级的模块；统计原语在 `modules.analysis`，无调度、无读盘
 - 不在单次回测里顺便归因
 
-硬约束细节见 [DESIGN.md](./DESIGN.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
+硬约束细节见 [DECISIONS.md](./DECISIONS.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 
 ---
 
@@ -75,7 +75,7 @@ flowchart TB
 
 ---
 
-## 归因数据流
+## 数据流（若有）
 
 `sea` / `spa` / `soa` 共用一条管道。差别是补到哪一层、总结哪一层指标。运作见 [CONCEPTS.md](./CONCEPTS.md)。
 
@@ -101,8 +101,6 @@ attribution.py + 当前 settings
 
 ---
 
-## 与 BacktestEngine
-
 | 组件 | 职责 |
 |------|------|
 | BE | jobs 调度、Timeline、`JobContext`、slice 装载 |
@@ -114,9 +112,9 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
-- [DESIGN.md](./DESIGN.md)
 - [CONCEPTS.md](./CONCEPTS.md)
 - [VERSIONING.md](./VERSIONING.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
@@ -124,3 +122,4 @@ portfolio 不用 BE；price_factor 业务在 after_task 事件回放。
 - [资金层日频盯市风险比（未实现）](../core/engines/portfolio/docs/DAILY_MTM_RISK_RATIOS.md)
 - [决策者模式：资金回测回放](./notes/DECISION_MAKER.md)
 - [跨策略决策模拟（0.5.1）](./notes/DECISION_MAKER_CROSS.md)
+- [决策](./DECISIONS.md)

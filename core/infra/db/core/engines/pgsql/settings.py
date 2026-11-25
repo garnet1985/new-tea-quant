@@ -17,6 +17,7 @@ class PgsqlSettings:
     pgsql_schema: str = "public"
     pool_minconn: int = 1
     pool_maxconn: int = 10
+    statement_timeout_seconds: int = 300
 
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> PgsqlSettings:
@@ -33,6 +34,7 @@ class PgsqlSettings:
             ),
             pool_minconn=int(d.get("pool_minconn", 1)),
             pool_maxconn=int(d.get("pool_maxconn", pool_size)),
+            statement_timeout_seconds=max(0, int(d.get("statement_timeout_seconds", 300))),
         )
 
     def as_dict(self) -> Dict[str, Any]:
@@ -47,4 +49,5 @@ class PgsqlSettings:
             "pool_minconn": self.pool_minconn,
             "pool_maxconn": self.pool_maxconn,
             "pool_size": self.pool_maxconn,
+            "statement_timeout_seconds": self.statement_timeout_seconds,
         }

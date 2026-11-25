@@ -9,7 +9,6 @@ import uuid
 from typing import Any, Dict, Optional
 
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.services.progress import ScanProgress
 
 logger = logging.getLogger(__name__)
 
@@ -35,11 +34,16 @@ def get_scan_readiness(*, strategy_name: str, demo: bool = False) -> Dict[str, A
 
 
 def get_scan_progress(*, strategy_name: str, job_id: str) -> Optional[Dict[str, Any]]:
-    return ScanProgress.get_poll_dto(strategy_name, job_id)
+    return Strategy.get_scan_progress(strategy_name, job_id)
 
 
 def _background_scan_job(
-    job_id: str, strategy_name: str, *, demo: bool, force: bool
+    job_id: str,
+    strategy_name: str,
+    *,
+    demo: bool,
+    force: bool,
+    run_post_process: bool,
 ) -> None:
     try:
         Strategy.scan_run(
@@ -47,6 +51,7 @@ def _background_scan_job(
             progress_id=job_id,
             demo=bool(demo),
             force=bool(force),
+            run_post_process=bool(run_post_process),
         )
     except Exception as exc:
         logger.exception(
@@ -62,7 +67,11 @@ def _background_scan_job(
 
 
 def trigger_strategy_scan_run(
-    *, strategy_name: str, demo: bool = False, force: bool = False
+    *,
+    strategy_name: str,
+    demo: bool = False,
+    force: bool = False,
+    run_post_process: bool = True,
 ) -> Dict[str, Any]:
     t0 = time.time()
     name = str(strategy_name or "").strip()
@@ -81,19 +90,31 @@ def trigger_strategy_scan_run(
         jid = str(uuid.uuid4())
         _ACTIVE_JOB_ID = jid
 
-    ScanProgress.for_job(name, jid).seed(demo=bool(demo), force=bool(force))
+    Strategy.seed_scan_progress(
+        name,
+        jid,
+        demo=bool(demo),
+        force=bool(force),
+        run_post_process=bool(run_post_process),
+    )
     logger.info(
-        "[scanner_run] triggered job_id=%s strategy=%s demo=%s force=%s in %.1fms",
+        "[scanner_run] triggered job_id=%s strategy=%s demo=%s force=%s "
+        "run_post_process=%s in %.1fms",
         jid,
         name,
         bool(demo),
         bool(force),
+        bool(run_post_process),
         (time.time() - t0) * 1000.0,
     )
     thread = threading.Thread(
         target=_background_scan_job,
         args=(jid, name),
-        kwargs={"demo": bool(demo), "force": bool(force)},
+        kwargs={
+            "demo": bool(demo),
+            "force": bool(force),
+            "run_post_process": bool(run_post_process),
+        },
         daemon=True,
         name=f"scanner-run-{jid[:8]}",
     )

@@ -1,47 +1,63 @@
 # Data Source 术语表
-# Version: 0.2.1
+# Version: 0.4.0
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# 本模块 = 外部 API 抓取与 renew；落库后的读访问走 data_manager；声明式依赖走 data_contract。
 
 terms:
-  Facade:
-    definition: "对外统一入口类。本模块门面是 DataSourceManager。"
-    aliases:
-      - "门面"
-    avoid:
-      - "deep-import core.service / core.catalog（优先包根 / contracts）"
-      - "from ...core.data_source_manager import DataSourceManager（优先包根）"
-
   DataSourceManager:
-    definition: "数据源 Facade：mapping 发现、handler 构建、依赖拓扑执行与 renew。"
+    definition: |
+      数据源 Facade：发现 userspace mapping、构建 handler、按依赖拓扑执行与 renew。
+      包根导入；不要 deep-import core.service / catalog 或 core.data_source_manager。
+    in_code: "from core.modules.data_source import DataSourceManager"
     aliases:
       - "data source manager"
     avoid:
-      - "from ...data_source_manager import DataSourceManager（优先包根）"
+      - "deep-import core.service / core.catalog"
+      - "from ...core.data_source_manager import DataSourceManager"
 
   BaseProvider:
-    definition: "外部 API Provider 基类；从 contracts.py 导入。"
+    definition: |
+      外部 API Provider 基类：封装某一数据供应商的鉴权与 HTTP/SDK 调用。
+      Handler 通过 Provider 拉原始数据。从 contracts 导入。
+    in_code: "contracts.BaseProvider"
     aliases:
       - "provider"
-    avoid: []
+    avoid:
+      - "与 infra.ai 的 AI Provider 混称（本处是行情/基本面数据源）"
 
   BaseHandler:
-    definition: "单数据源同步执行管线；从 contracts.py 导入。"
+    definition: |
+      单数据源同步执行管线：算日期窗、组 ApiJob、调 Provider、落库。
+      每个启用的数据源对应一个 handler 实现。从 contracts 导入。
+    in_code: "contracts.BaseHandler"
     aliases:
       - "handler"
     avoid: []
 
   ApiJob:
-    definition: "单次 API 抓取 job 描述；从 contracts.py 导入。"
+    definition: |
+      单次 API 抓取任务描述（实体、日期窗、接口参数等）。Handler 把它交给 Provider 执行。
+    in_code: "contracts.ApiJob"
     aliases: []
     avoid: []
 
   ApiJobBundle:
-    definition: "一组 ApiJob 的执行与落库批次单元。"
+    definition: |
+      一组 ApiJob 的执行与落库批次单元：便于批处理、重试与进度。相对单 Job 是「这一批」。
+    in_code: "contracts.ApiJobBundle"
     aliases:
       - "bundle"
-    avoid: []
+    avoid:
+      - "与 export_import 的 zip bundle 混称"
 
   DateRangeService:
-    definition: "基于 renew 配置计算 last_update 与实体抓取窗；委托 date_range_helper / RenewCommonHelper。"
+    definition: |
+      基于 renew 配置计算 last_update 与实体抓取时间窗；委托 date_range_helper /
+      RenewCommonHelper。不要再用已删除的 RenewManager /
+      IncrementalRenewService / RollingRenewService / RefreshRenewService 等旧名。
+    in_code: "DateRangeService；renew 窗计算"
     aliases:
       - "日期范围服务"
     avoid:
@@ -49,13 +65,19 @@ terms:
       - "IncrementalRenewService / RollingRenewService / RefreshRenewService"
 
   UpdateMode:
-    definition: "renew 模式：incremental / refresh / rolling（enums.UpdateMode）。"
+    definition: |
+      renew 模式枚举：incremental（续抓）、refresh（重刷区间）、rolling（滚动窗）。
+      决定 DateRangeService 怎么切抓取窗。见 enums.UpdateMode。
+    in_code: "enums.UpdateMode；incremental | refresh | rolling"
     aliases:
       - "renew_mode"
     avoid: []
 
   DATA_SOURCES:
-    definition: "userspace mapping 中启用的数据源字典键集。"
+    definition: |
+      userspace mapping 里启用的数据源字典键集——「当前要跑哪些源」。
+      发现与拓扑执行以这份 mapping 为准。
+    in_code: "userspace mapping；DATA_SOURCES 键集"
     aliases:
       - "mapping"
     avoid: []

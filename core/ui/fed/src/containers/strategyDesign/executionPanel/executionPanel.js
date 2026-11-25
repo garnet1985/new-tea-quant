@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo } from 'react';
-import { Box, LinearProgress, Tooltip, Typography } from '@mui/material';
+import { Message, ProgressBar } from 'ui';
+import { RainbowButton } from 'ntq-ui';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { getStrategyDesignPath } from '../../../api/strategyApi';
 import {
@@ -8,22 +9,10 @@ import {
 } from '../constants/strategyDesignSteps';
 import { EXECUTION_PANEL_TITLE } from 'containers/strategyExecution';
 import { useStrategyDesignWorkbenchContext } from '../strategyDesignWorkbenchContext';
-import RainbowButton from 'views/rainbowButton';
 import './style.scss';
 
 const ATTRIBUTE_IDLE_TOOLTIP = '请先完成本层回测。需要在策略目录配置 attribution.py 才能开始归因。';
-const ROLLING_IDLE_TOOLTIP = '请先完成枚举、价格和资金回测。需要在策略目录配置 rolling.py 才能滚动测试。';
-
-function disabledTip(button, howTo) {
-  if (!button || !howTo) return button;
-  return (
-    <Tooltip title={howTo} placement="top">
-      <span className="ntq-design-exec-panel__attr-tip-wrap">
-        {button}
-      </span>
-    </Tooltip>
-  );
-}
+const ROLLING_IDLE_TOOLTIP = '请先完成机会盘点、价格回测与投资模拟。需要在策略目录配置 rolling.py 才能开始滚动对照。';
 
 function resolveExecutionStatusCopy({
   activeStep,
@@ -103,7 +92,7 @@ function resolveExecutionStatusCopy({
 
   return {
     primary: `当前步骤：${stepLabel}`,
-    secondary: '点击左侧开始模拟运行本步回测',
+    secondary: '点击左侧「开始模拟」运行本步回测',
     showProgress: false,
     progress: 0,
   };
@@ -182,11 +171,12 @@ function StrategyDesignExecutionPanel() {
   const attributeHowTo = !wb.attributeEnabled
     ? (wb.attributeTooltip || ATTRIBUTE_IDLE_TOOLTIP)
     : '';
-  const attributeButton = showAttributeButton ? (
+  const attributeControl = showAttributeButton ? (
     <RainbowButton
       shape="pill"
       icon={attributeDone ? 'refresh' : 'play'}
       shimmer
+      tooltip={attributeHowTo}
       disabled={wb.disableMetaActions || panelBusy || !wb.attributeEnabled}
       onClick={wb.handleAttributeRun}
       aria-label={attributeDone ? '重新归因' : '开始归因'}
@@ -196,63 +186,68 @@ function StrategyDesignExecutionPanel() {
     </RainbowButton>
   ) : null;
 
-  const attributeControl = disabledTip(attributeButton, attributeHowTo);
-
   const showRollingButton = wb.activeStep === 'portfolio';
   const rollingHowTo = !wb.rollingEnabled
     ? (wb.rollingTooltip || ROLLING_IDLE_TOOLTIP)
     : '';
-  const rollingButton = showRollingButton ? (
+  const rollingControl = showRollingButton ? (
     <RainbowButton
       shape="pill"
       icon={rollingDone ? 'refresh' : 'play'}
       shimmer
+      tooltip={rollingHowTo}
       disabled={wb.disableMetaActions || panelBusy || !wb.rollingEnabled}
       onClick={wb.handleRollingRun}
-      aria-label={rollingDone ? '重新滚动' : '滚动测试'}
+      aria-label={rollingDone ? '重新滚动对照' : '开始滚动对照'}
       data-ntq-help="start-rolling"
     >
-      {rollingDone ? '重新滚动' : '滚动测试'}
+      {rollingDone ? '重新滚动对照' : '开始滚动对照'}
     </RainbowButton>
   ) : null;
-  const rollingControl = disabledTip(rollingButton, rollingHowTo);
+
+  const progressValue = statusCopy.showProgress
+    ? (statusCopy.progress > 0 ? statusCopy.progress : null)
+    : null;
 
   return (
-    <Box className="ntq-design-exec-panel" data-ntq-help="design-execution">
-      <Box className="ntq-design-exec-panel__title-row">
-        <Typography variant="subtitle2" fontWeight={600} className="ntq-design-exec-panel__title">
-          {panelTitle}
-        </Typography>
-      </Box>
+    <section className="ntq-design-exec-panel" data-ntq-help="design-execution">
+      <div className="ntq-design-exec-panel__title-row">
+        <h3 className="ntq-design-exec-panel__title">{panelTitle}</h3>
+      </div>
 
       {wb.runError ? (
-        <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">
-          {wb.runError}
-        </Typography>
+        <Message status="error" className="ntq-design-exec-panel__error">{wb.runError}</Message>
       ) : null}
       {wb.attrError ? (
-        <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">
-          {wb.attrError}
-        </Typography>
+        <Message status="error" className="ntq-design-exec-panel__error">{wb.attrError}</Message>
       ) : null}
       {wb.rollingError ? (
-        <Typography variant="caption" color="error" className="ntq-design-exec-panel__error">
-          {wb.rollingError}
-        </Typography>
+        <Message status="error" className="ntq-design-exec-panel__error">{wb.rollingError}</Message>
       ) : null}
 
-      <Box className="ntq-design-exec-panel__body">
-        <Box className="ntq-design-exec-panel__actions">
+      <div className="ntq-design-exec-panel__body">
+        <div className="ntq-design-exec-panel__actions">
           <RainbowButton
             shape="pill"
-            icon={currentStepDone ? 'refresh' : 'play'}
+            icon={currentStepDone || wb.executionBusy ? 'refresh' : 'play'}
             shimmer
-            disabled={wb.disableMetaActions || panelBusy}
+            disabled={
+              wb.disableMetaActions
+              || wb.attributeBusy
+              || wb.rollingBusy
+              || (panelBusy && !wb.executionBusy)
+            }
             onClick={wb.handleRunCurrentStep}
-            aria-label={currentStepDone ? '重新模拟' : '开始模拟'}
+            aria-label={
+              wb.executionBusy
+                ? '加入队列'
+                : (currentStepDone ? '重新模拟' : '开始模拟')
+            }
             data-ntq-help="start-simulation"
           >
-            {currentStepDone ? '重新模拟' : '开始模拟'}
+            {wb.executionBusy
+              ? '加入队列'
+              : (currentStepDone ? '重新模拟' : '开始模拟')}
           </RainbowButton>
           {attributeControl}
           {rollingControl}
@@ -276,28 +271,32 @@ function StrategyDesignExecutionPanel() {
               下一步
             </RainbowButton>
           ) : null}
-        </Box>
+        </div>
 
-        <Box className="ntq-design-exec-panel__status">
-          <Typography variant="body2" className="ntq-design-exec-panel__status-primary">
+        <div className="ntq-design-exec-panel__status">
+          <div className="ntq-design-exec-panel__status-primary">
             {statusCopy.primary}
-          </Typography>
-          <Typography variant="caption" color="text.secondary" className="ntq-design-exec-panel__status-secondary">
+          </div>
+          <div className="ntq-muted ntq-design-exec-panel__status-secondary">
             {statusCopy.secondary}
-          </Typography>
-          <Box className="ntq-design-exec-panel__progress-slot" aria-hidden={!statusCopy.showProgress}>
-            <LinearProgress
-              variant={statusCopy.showProgress && statusCopy.progress > 0 ? 'determinate' : 'indeterminate'}
-              value={statusCopy.showProgress ? statusCopy.progress : 0}
+          </div>
+          <div
+            className="ntq-design-exec-panel__progress-slot"
+            aria-hidden={!statusCopy.showProgress}
+          >
+            <ProgressBar
+              size="sm"
+              value={progressValue}
               className={[
                 'ntq-design-exec-panel__progress',
                 statusCopy.showProgress ? 'ntq-design-exec-panel__progress--visible' : '',
               ].filter(Boolean).join(' ')}
+              aria-label="执行进度"
             />
-          </Box>
-        </Box>
-      </Box>
-    </Box>
+          </div>
+        </div>
+      </div>
+    </section>
   );
 }
 

@@ -3,6 +3,9 @@ version: "0.2.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "回测引擎模块：对上层应用提供的任务进行规划，重组和按时间推进。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "回测引擎模块 (Backtest Engine)"
+site_display_title: "回测的核心执行者 - Backtest Engine 模块"
 dependencies:
   - infra.project_context
   - infra.db

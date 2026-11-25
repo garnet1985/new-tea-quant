@@ -1,154 +1,195 @@
 # Database 术语表
-# Version: 0.3.1
+# Version: 0.3.2
+# Compatible-Core: >=0.5.0
 #
-# 缩写与生僻英文优先在此说明；正文首次出现宜括注或链到本表
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块屏蔽后端差异、管 schema / 读写 / DuckDB 多域；不做业务逻辑；升级编排见 infra.updater。
 
 terms:
-  NTQ:
-    definition: "New Tea Quant 的简称，即本项目 / 框架名称。"
-    aliases:
-      - "New Tea Quant"
-    avoid: []
-
-  Facade:
-    definition: "门面：对外统一入口类。本模块门面类是 Db；公开行为一律挂在 Db 命名空间上。"
-    aliases:
-      - "门面"
-      - "门面类"
-    avoid:
-      - "导出游离函数"
-      - "长期把 core.infra.db.core.* 深路径当公开 API"
-
-  namespace:
-    definition: "命名空间：挂在门面类下的分组（如 Db.manager），按职责组织一组方法。"
-    aliases:
-      - "命名空间"
-    avoid: []
-
   Db:
-    definition: "本模块门面类；挂载 manager / migration / engine / duckdb / sql / rows。"
+    definition: |
+      数据库 Facade：挂载 manager / migration / engine / duckdb / sql / rows。
+      上层经此（或经 DataManager）访问库，不直接连后端。包根只导出 Db；类型走 contracts，
+      不要把 core.infra.db.core.* 深路径当长期公开 API，也不要导出游离工厂函数。
+    in_code: "from core.infra.db import Db"
     aliases: []
-    avoid: []
+    avoid:
+      - "导出游离函数 create_engine / build_engine_meta"
+      - "长期 deep-import core.infra.db.core.*"
 
   contracts:
-    definition: "跨模块契约导入面（contracts.py）：只导出类型 / 类 / 常量，不导出行为工厂函数。"
+    definition: |
+      跨模块类型契约面（contracts.py）：只导出类型 / 类 / 常量，不导出行为工厂。
+      DatabaseManager、Field、DbBaseModel、BatchWriteQueue 等从这里或 Db.*.types 取。
+    in_code: "from core.infra.db.contracts import ..."
     aliases:
       - "contracts.py"
     avoid:
       - "在 contracts 里找 create_engine / build_engine_meta（已移除）"
 
   DatabaseManager:
-    definition: "按配置挂载一个 backend Engine 的运行时管理器；类型从 contracts 导入，实例多经 Db.manager。"
+    definition: |
+      按配置挂载一个 backend Engine 的运行时管理器：初始化连接、暴露表操作、协调 schema。
+      进程内常用 Db.manager.get_default()；类型从 contracts 导入。不要 from core.infra.db import DatabaseManager。
+    in_code: "Db.manager.get_default / create / set_default；contracts.DatabaseManager"
     aliases:
       - "Db.manager"
       - "默认数据库管理器"
     avoid:
-      - "from core.infra.db import DatabaseManager  # 已移除；用 contracts 或 Db.manager"
+      - "from core.infra.db import DatabaseManager"
 
   Engine:
-    definition: "某一数据库后端的实现包（mysql / pgsql / duckdb），含 connector、table_operator 等。"
+    definition: |
+      某一数据库后端的实现包（mysql / pgsql / duckdb），含 connector、table_operator、方言 DDL 等。
+      配置经 Db.engine.build_meta → create 实例化；业务代码认 Engine 抽象，不硬绑某一后端。
+    in_code: "Db.engine.build_meta / create；engines/mysql|pgsql|duckdb"
     aliases:
       - "后端引擎"
-      - "Db.engine（配置元信息与工厂命名空间）"
     avoid: []
 
   EngineConfigMeta:
-    definition: "从原始 database 配置解析出的类型化引擎元信息；经 Db.engine.build_meta 得到，再交给 Db.engine.create。"
+    definition: |
+      从原始 database 配置解析出的类型化引擎元信息（类型、路径、连接参数等）。
+      先 build_meta，再交给 create；历史名 build_engine_meta 已不在包根/contracts 导出。
+    in_code: "Db.engine.build_meta；EngineConfigMeta.from_raw_config"
     aliases:
       - "engine meta"
     avoid:
-      - "build_engine_meta 作为包根/contracts 导出名"
+      - "从包根或 contracts 导入 build_engine_meta"
+
+  create_engine:
+    definition: |
+      历史包根/contracts 工厂名。现为 Db.engine.create(meta) / EngineFactory.create。
+      旧 import 路径已移除，不要再写 from core.infra.db import create_engine。
+    in_code: "Db.engine.create(meta)"
+    aliases:
+      - "EngineFactory.create"
+    avoid:
+      - "from core.infra.db import create_engine"
+      - "from core.infra.db.contracts import create_engine"
 
   SchemaManager:
-    definition: "加载期望表 schema、生成/执行方言 DDL 的协作对象；多挂在 Engine / DatabaseManager 上。"
+    definition: |
+      加载期望表 schema、按方言生成并执行 DDL 的协作对象，多挂在 Engine / DatabaseManager 上。
+      管「表应该长什么样」；与 schema_migration（对比旧快照升级）配合，但日常 CRUD 不直接碰它。
+    in_code: "Engine / DatabaseManager 上的 SchemaManager"
     aliases: []
     avoid: []
 
-  StorageRegistry:
-    definition: "按表 schema 的 storage_domain 把逻辑表路由到 DuckDB 存储域；常量 STORAGE_DOMAINS 列出合法域名。"
-    aliases:
-      - "STORAGE_DOMAINS"
-    avoid: []
-
   storage_domain:
-    definition: "DuckDB 多文件存储域标签；v1 为 data / tag / strategy（factor 预留）。"
+    definition: |
+      DuckDB 多文件存储域标签：一张逻辑表属于哪个 .duckdb 文件。v1 合法域见 STORAGE_DOMAINS：
+      data / tag / strategy（factor 预留）。归属写在表 schema 上，不要用目录路径猜测。
+    in_code: "schema.storage_domain；StorageRegistry；STORAGE_DOMAINS"
     aliases:
       - "存储域"
       - "domain"
+      - "StorageRegistry"
     avoid:
       - "用目录路径猜测表归属"
 
   data_domain:
-    definition: "storage_domain=data：行情与主数据等外部抓取结果（默认 data.duckdb）。"
+    definition: |
+      storage_domain=data：行情与主数据等外部抓取结果，默认落 data.duckdb。
+    in_code: "storage_domain=\"data\""
     aliases:
       - "data"
     avoid: []
 
   tag_domain:
-    definition: "storage_domain=tag：标签相关表（默认 tag.duckdb）。"
+    definition: |
+      storage_domain=tag：标签相关表，默认落 tag.duckdb。
+    in_code: "storage_domain=\"tag\""
     aliases:
       - "tag"
     avoid: []
 
   strategy_domain:
-    definition: "storage_domain=strategy：策略运行时 DB 产出与工作台快照等（默认 strategy.duckdb）。"
+    definition: |
+      storage_domain=strategy：策略运行时 DB 产出与工作台快照等，默认落 strategy.duckdb。
+    in_code: "storage_domain=\"strategy\""
     aliases:
       - "strategy"
     avoid: []
 
   overlay_domain_paths:
-    definition: "Db.duckdb.overlay_domain_paths：为性能/临时库场景覆盖各域 db_path 的配置拼装入口。"
+    definition: |
+      为性能/临时库等场景覆盖各 storage_domain 的 db_path 的配置拼装入口。
+      不改 schema 归属，只改「这个域的文件落到哪」。
+    in_code: "Db.duckdb.overlay_domain_paths(...)"
     aliases: []
     avoid: []
 
   DbBaseModel:
-    definition: "单表 CRUD / 导入导出的业务表模型基类；定义在 contracts，实现在 core/table_queriers。"
+    definition: |
+      单表 CRUD / 导入导出的业务表模型基类。定义在 contracts，实现在 core/table_queriers。
+      业务表类继承它，而不是直接拼 SQL 字符串满天飞。
+    in_code: "contracts.DbBaseModel"
     aliases: []
     avoid: []
 
   Field:
-    definition: "跨后端的列类型语义定义；各 engine 的 schema_parser 再生成方言 DDL。"
+    definition: |
+      跨后端的列类型语义定义（逻辑类型、可空、主键等）。各 engine 的 schema_parser
+      再生成方言 DDL——同一 Field，MySQL / PG / DuckDB 落成不同 SQL。
+    in_code: "contracts.Field；schema 列定义"
     aliases: []
     avoid: []
 
   WritePipeline:
-    definition: "DuckDB 每存储域异步写管道（engines/duckdb/write_pipeline）；与 mysql/pgsql 的 BatchWriteQueue 路径不同。"
+    definition: |
+      DuckDB 每存储域的异步写管道（engines/duckdb/write_pipeline）：把写入攒批、按域落盘。
+      与 mysql/pgsql 的 BatchWriteQueue 不是同一条路径，不要混名。
+    in_code: "engines/duckdb/write_pipeline"
     aliases:
       - "duckdb write pipeline"
     avoid:
       - "把 WritePipeline 当成 mysql/pgsql 写队列名"
 
   BatchWriteQueue:
-    definition: "mysql/pgsql 侧批量写队列（contracts 可导入）；经 engine 挂载。"
+    definition: |
+      mysql/pgsql 侧批量写队列（contracts 可导入），经对应 engine 挂载。
+      队列内单元常称 BatchOperation。DuckDB 用 WritePipeline，不要互相套用。
+    in_code: "contracts.BatchWriteQueue；mysql/pgsql engine 挂载"
     aliases:
-      - "BatchOperation（队列内批量操作单元）"
-    avoid: []
+      - "BatchOperation"
+    avoid:
+      - "在 DuckDB 路径上找 BatchWriteQueue"
 
   worker_pool:
-    definition: "多进程 DuckDB worker 池期间，主进程释放/恢复数据库句柄的协作；实现类 DuckdbWorkerPool，公开入口 Db.duckdb.worker_pool。"
+    definition: |
+      多进程 DuckDB worker 池期间，主进程释放/恢复数据库句柄的协作，避免父子争同一文件锁。
+      公开入口 Db.duckdb.worker_pool（实现 DuckdbWorkerPool）；配置可经
+      NTQ_DATABASE_CONFIG_JSON（旧名 NTQ_DUCKDB_CONFIG_JSON 已废）传入子进程。
+      不要直接 import 已收成类的 process_pool_scope 自由函数。
+    in_code: "Db.duckdb.worker_pool；DuckdbWorkerPool；NTQ_DATABASE_CONFIG_JSON"
     aliases:
-      - "process_pool_scope"
       - "DuckdbWorkerPool"
-      - "Db.duckdb.worker_pool"
+      - "process_pool_scope"
       - "worker pool scope"
-      - "NTQ_DATABASE_CONFIG_JSON"
-      - "CONFIG_OVERLAY_ENV"
     avoid:
-      - "直接 import process_pool_scope 模块级自由函数（已收成类）"
+      - "直接 import process_pool_scope 模块级自由函数"
+      - "NTQ_DUCKDB_CONFIG_JSON（已更名）"
       - "process_pool_module（已删除）"
-      - "NTQ_DUCKDB_CONFIG_JSON（已更名为 NTQ_DATABASE_CONFIG_JSON）"
 
   WAL:
-    definition: "Write-Ahead Log；实现类 DuckdbWalPolicy，公开入口 Db.duckdb.wal（checkpoint / 策略开关）。"
+    definition: |
+      Write-Ahead Log 策略：DuckDB 的 checkpoint / WAL 开关与时机。
+      公开入口 Db.duckdb.wal（实现 DuckdbWalPolicy）。长任务前后常显式 checkpoint，降低损坏窗口。
+    in_code: "Db.duckdb.wal；DuckdbWalPolicy"
     aliases:
       - "CHECKPOINT"
-      - "DuckdbWalPolicy"
-      - "Db.duckdb.wal"
       - "wal_policy"
+      - "DuckdbWalPolicy"
     avoid: []
 
   schema_migration:
-    definition: "对比期望 schema 与快照/库，生成并执行 DDL plan 的升级过程；实现类 MigrationRunner，编排入口 Db.migration → MigrationManager。"
+    definition: |
+      对比期望 schema 与 pre-mirror 快照/库，生成 DDL plan 并执行的升级过程。
+      编排入口 Db.migration（MigrationManager → MigrationRunner）。
+      只管库结构；应用升级总编排（镜像、post_upgrade）是 infra.updater，不要塞进 db。
+    in_code: "Db.migration.build_plan / run / apply；MigrationManager"
     aliases:
       - "结构迁移"
       - "MigrationManager"
@@ -157,31 +198,20 @@ terms:
     avoid:
       - "把 updater 编排当成 db 模块职责"
 
-  Db_sql:
-    definition: "Db.sql 命名空间：方言相关的 SQL 标识符辅助（如 qualify_table_name）。"
+  Db.sql:
+    definition: |
+      方言相关的 SQL 标识符辅助命名空间，例如 qualify_table_name（按后端给表名加限定）。
+      写跨后端 SQL 片段时用这里，不要手拼反引号/引号。
+    in_code: "Db.sql.qualify_table_name(...)"
     aliases:
-      - "Db.sql"
       - "qualify_table_name"
     avoid: []
 
-  Db_rows:
-    definition: "Db.rows 命名空间：行数据规范化辅助（如 clean_nan_in_list）。"
+  Db.rows:
+    definition: |
+      行数据规范化辅助命名空间，例如 clean_nan_in_list（把 NaN 等收成库可接受的值）。
+      写入前清洗走这里，避免各模块复制一套 float 清理。
+    in_code: "Db.rows.clean_nan_in_list(...)"
     aliases:
-      - "Db.rows"
       - "clean_nan_in_list"
     avoid: []
-
-  create_engine:
-    definition: "历史包根/contracts 工厂名；现为 Db.engine.create(meta) / EngineFactory.create。"
-    aliases:
-      - "EngineFactory.create"
-    avoid:
-      - "from core.infra.db import create_engine"
-      - "from core.infra.db.contracts import create_engine"
-
-  build_engine_meta:
-    definition: "历史配置解析函数名；现为 Db.engine.build_meta / EngineConfigMeta.from_raw_config。"
-    aliases:
-      - "EngineConfigMeta.from_raw_config"
-    avoid:
-      - "从包根或 contracts 导入 build_engine_meta"

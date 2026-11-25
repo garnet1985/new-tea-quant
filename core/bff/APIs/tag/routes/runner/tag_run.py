@@ -1,4 +1,4 @@
-"""BFF tag async shell: lock / lease / thread; progress via ``TagRunProgress``."""
+"""BFF tag async shell: lock / lease / thread; progress via Tag Facade helpers."""
 
 from __future__ import annotations
 
@@ -7,17 +7,15 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.task_guard import TaskGuard
-from core.infra.task_guard.contracts import TaskLeaseBusyError
-from core.modules.tag.core.services.discovery import DiscoveryService
-from core.modules.tag.core.services.progress import TagRunProgress
+from core.infra.job_pipeline import JobPipeline
+from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.modules.tag import Tag
 
 logger = logging.getLogger(__name__)
 
 
 class TagRunLauncher:
-    """UI 异步跑 tag：锁 / lease / 后台线程；进度落盘在 TagRunProgress。"""
+    """UI 异步跑 tag：锁 / lease / 后台线程；计算仍走 ``Tag.execute``。"""
 
     _LOCK = threading.Lock()
     _JOBS: Dict[str, Dict[str, Any]] = {}
@@ -25,22 +23,35 @@ class TagRunLauncher:
 
     @classmethod
     def trigger(cls, *, tag_key: str) -> Dict[str, Any]:
+        """校验后交给 ``JobPipeline.submit``。"""
         key = str(tag_key or "").strip()
-        item = cls._find_info(key) if key else None
-        if not key or item is None:
+        info = Tag.get_tag_info(key) if key else None
+        if not key or info is None:
             return {"is_triggered": False, "reason": f"未知 Tag scenario: {tag_key}"}
-        settings = item.settings if isinstance(item.settings, dict) else {}
-        if not bool(settings.get("is_enabled")):
+        if not bool(info.get("is_enabled")):
             return {"is_triggered": False, "reason": "Scenario 未启用"}
-        run_key = str(item.id())
+        run_key = str(info.get("unique_relative_path") or key)
 
-        status = TaskGuard.read_status()
-        if status.get("busy"):
-            kind = status.get("kind") or "unknown"
-            return {
-                "is_triggered": False,
-                "reason": f"系统任务进行中（{kind}），请稍后再试",
+        return JobPipeline.submit(
+            {
+                "kind": "tag_run",
+                "resource_key": run_key,
+                "label": f"Tag: {run_key}",
+                "domains": ["data", "tag"],
+                "payload": {},
             }
+        )
+
+    @classmethod
+    def start_now(cls, *, tag_key: str) -> Dict[str, Any]:
+        """管道 handler 调用：立刻开跑，不再入队。"""
+        key = str(tag_key or "").strip()
+        info = Tag.get_tag_info(key) if key else None
+        if not key or info is None:
+            return {"is_triggered": False, "reason": f"未知 Tag scenario: {tag_key}"}
+        if not bool(info.get("is_enabled")):
+            return {"is_triggered": False, "reason": "Scenario 未启用"}
+        run_key = str(info.get("unique_relative_path") or key)
 
         with cls._LOCK:
             if cls._has_active_tag_run_locked():
@@ -51,7 +62,7 @@ class TagRunLauncher:
             jid = cls._job_create(tag_key=run_key)
             cls._ACTIVE_TAG_JOB_ID = jid
 
-        TagRunProgress.for_job(run_key, jid).seed()
+        Tag.seed_run_progress(run_key, jid)
         thread = threading.Thread(
             target=cls._background_tag_job,
             args=(jid, run_key),
@@ -68,18 +79,8 @@ class TagRunLauncher:
         }
 
     @classmethod
-    def _find_info(cls, key_or_id: str):
-        needle = str(key_or_id or "").strip()
-        if not needle:
-            return None
-        for info in DiscoveryService.discover_tags():
-            if info.key == needle or info.id() == needle:
-                return info
-        return None
-
-    @classmethod
     def get_progress(cls, *, tag_key: str, job_id: str) -> Optional[Dict[str, Any]]:
-        return TagRunProgress.get_poll_dto(tag_key=tag_key, job_id=job_id)
+        return Tag.get_run_progress(tag_key=tag_key, job_id=job_id)
 
     @classmethod
     def _has_active_tag_run_locked(cls) -> bool:
@@ -101,7 +102,6 @@ class TagRunLauncher:
         jid = f"tag-run-{uuid.uuid4().hex[:12]}"
         cls._JOBS[jid] = {
             "tag_key": tag_key,
-            "progress": 0.0,
             "status": "queued",
             "error": None,
         }
@@ -109,73 +109,94 @@ class TagRunLauncher:
 
     @staticmethod
     def _require_successful_run(result: Optional[Dict[str, Any]]) -> None:
-        """计算未成功或行数对不上时抛错，避免 UI 把未落库标成完成。"""
-        if not isinstance(result, dict) or not result.get("success"):
-            message = ""
-            if isinstance(result, dict):
-                message = str(result.get("message") or "").strip()
-                failed = int(result.get("fail") or 0)
-                if not message and failed:
-                    message = f"标签计算失败（{failed} 个任务）"
-            raise RuntimeError(message or "标签计算未完成")
-        if result.get("dry_run"):
-            return
-        produced = int(result.get("tag_values_count") or 0)
-        saved = int(result.get("saved_tag_values") or 0)
-        if produced > 0 and saved < produced:
-            raise RuntimeError(
-                f"标签值未全部落库（计算 {produced} 行，写入 {saved} 行）"
-            )
+        Tag.interpret_execute_result(result)
 
     @classmethod
     def _background_tag_job(cls, job_id: str, tag_key: str) -> None:
-        prog = TagRunProgress.for_job(tag_key, job_id)
-        lease = TaskGuard.lease(
+        lease = JobPipeline.running_lease(
             kind="tag_run",
             job_id=job_id,
             resource_key=tag_key,
             label=f"Tag: {tag_key}",
             domains=["data", "tag"],
         )
+        acquired = False
         try:
             lease.acquire()
-        except TaskLeaseBusyError as exc:
+            acquired = True
+        except JobRunningBusyError as exc:
             err = str(exc)
-            prog.fail(err)
+            Tag.fail_run_progress(tag_key, job_id, err)
             with cls._LOCK:
                 row = cls._JOBS.get(job_id)
                 if row:
-                    row.update({"status": "failed", "error": err, "progress": 100.0})
+                    row.update({"status": "failed", "error": err})
+            cls._clear_active(job_id)
+            cls._notify_finished()
             return
 
         try:
-            prog.mark_running()
+            Tag.mark_run_running(tag_key, job_id)
+            if JobPipeline.is_cancel_requested(job_id):
+                Tag.fail_run_progress(tag_key, job_id, "用户取消")
+                with cls._LOCK:
+                    row = cls._JOBS.get(job_id)
+                    if row:
+                        row.update({"status": "failed", "error": "用户取消"})
+                return
+            base_cb = Tag.run_progress_callback(tag_key, job_id)
+
+            def _on_progress(*args, **kwargs):
+                if JobPipeline.is_cancel_requested(job_id):
+                    raise RuntimeError("用户取消")
+                if callable(base_cb):
+                    return base_cb(*args, **kwargs)
+                return None
+
             result = Tag(is_verbose=False).execute(
                 scenario_name=tag_key,
-                on_pipeline_progress=prog.on_progress_callback(),
+                on_pipeline_progress=_on_progress,
             )
+            if JobPipeline.is_cancel_requested(job_id):
+                Tag.fail_run_progress(tag_key, job_id, "用户取消")
+                with cls._LOCK:
+                    row = cls._JOBS.get(job_id)
+                    if row:
+                        row.update({"status": "failed", "error": "用户取消"})
+                return
             cls._require_successful_run(result)
-            prog.complete()
+            Tag.complete_run_progress(tag_key, job_id)
             with cls._LOCK:
                 row = cls._JOBS.get(job_id)
                 if row:
-                    row.update({"status": "completed", "progress": 100.0})
+                    row.update({"status": "completed"})
         except Exception as exc:
             logger.exception(
                 "Tag UI run failed tag_key=%s job_id=%s", tag_key, job_id
             )
-            prog.fail(str(exc))
+            Tag.fail_run_progress(tag_key, job_id, str(exc))
             with cls._LOCK:
                 row = cls._JOBS.get(job_id)
                 if row:
-                    row.update(
-                        {"status": "failed", "error": str(exc), "progress": 100.0}
-                    )
+                    row.update({"status": "failed", "error": str(exc)})
         finally:
-            lease.release()
-            with cls._LOCK:
-                if str(cls._ACTIVE_TAG_JOB_ID or "") == job_id:
-                    cls._ACTIVE_TAG_JOB_ID = None
+            if acquired:
+                lease.release()
+            cls._clear_active(job_id)
+            cls._notify_finished()
+
+    @classmethod
+    def _clear_active(cls, job_id: str) -> None:
+        with cls._LOCK:
+            if str(cls._ACTIVE_TAG_JOB_ID or "") == job_id:
+                cls._ACTIVE_TAG_JOB_ID = None
+
+    @staticmethod
+    def _notify_finished() -> None:
+        try:
+            JobPipeline.notify_job_finished()
+        except Exception:
+            logger.exception("JobPipeline.notify_job_finished after tag failed")
 
 
 __all__ = ["TagRunLauncher"]

@@ -1,7 +1,10 @@
 # 测试用例 — `engines.shared.services.hfq_roi`
 
+**模块：** `modules.strategy` · **版本：** `0.12.2`
+
+**最低支持核心版本：** `>=0.5.0`
+
 **包：** `core.engines.shared.services.hfq_roi`  
-**版本：** `0.10.0`  
 **本文件位置：** `core/engines/shared/services/hfq_roi/__test__/`
 
 ---

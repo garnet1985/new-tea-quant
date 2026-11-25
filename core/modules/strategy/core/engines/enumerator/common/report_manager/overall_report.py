@@ -190,7 +190,7 @@ class OverallReport:
         start = str(period.get("start_date") or "")
         end = str(period.get("end_date") or "")
 
-        CmdLayout.title.print_h1(f"{icon('search')} 枚举报告", stream=out)
+        CmdLayout.title.print_h1(f"{icon('search')} 机会盘点报告", stream=out)
         print(
             f"{icon('gear')} {self.strategy_key or '-'} "
             f"v{self.version_id}  "

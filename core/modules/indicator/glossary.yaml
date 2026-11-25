@@ -1,33 +1,61 @@
 # Indicator 术语表
 # Version: 0.2.0
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# 本模块 = 技术指标计算（pandas-ta-classic 代理）；不是 Tag 持久化因子，也不是 factor 研究模块。
 
 terms:
-  Facade:
-    definition: "对外统一入口类。本模块门面是 Indicator。"
-    aliases:
-      - "门面"
-    avoid:
-      - "IndicatorService"
-      - "deep-import core.indicator（优先包根）"
-
   Indicator:
-    definition: "技术指标 Facade：pandas-ta-classic 代理与 K 线 List[Dict] 格式转换；静态 API，勿实例化。"
+    definition: |
+      技术指标 Facade：把 K 线 List[Dict] 转成 TA 库需要的形态，算完再转回。
+      静态 API，勿实例化。不要用旧名 IndicatorService，不要 deep-import core.indicator。
+    in_code: "from core.modules.indicator import Indicator；calculate / compute / compute_batch"
     aliases:
       - "指标门面"
     avoid:
       - "IndicatorService"
-
-  BatchIndicatorResult:
-    definition: "compute_batch 单项结果元组 (name, params, values)；从 contracts.py 导入。"
-    aliases: []
-    avoid: []
+      - "deep-import core.indicator"
 
   calculate:
-    definition: "通用指标入口；未知指标走完整 OHLCV 宽表 DataFrame。"
+    definition: |
+      通用指标入口：按指标名与参数计算；未知指标走完整 OHLCV 宽表 DataFrame 路径。
+      相对 compute 更「底层/通用」。
+    in_code: "Indicator.calculate(...)"
     aliases: []
     avoid: []
 
   compute:
-    definition: "策略配置友好的单指标计算（close / 裁剪 OHLCV / 宽表分层）。"
+    definition: |
+      策略配置友好的单指标计算：按需只用 close 或裁剪 OHLCV，并处理宽表多列分层。
+      策略 settings 里声明指标时优先走这条。
+    in_code: "Indicator.compute(...)"
+    aliases: []
+    avoid: []
+
+  BatchIndicatorResult:
+    definition: |
+      compute_batch 单项结果元组 (name, params, values)。批量算多个指标时的一元素类型；
+      从 contracts 导入。
+    in_code: "contracts.BatchIndicatorResult；Indicator.compute_batch"
+    aliases: []
+    avoid: []
+
+  alias:
+    definition: |
+      indicators 参数 dict 中的可选键：只决定落盘/输出字段名，不传入 TA 库本身。
+      单列结果用 alias；多列用 alias_列名。不要写成 as / as_name。
+    in_code: "indicators 配置里的 alias / alias_*"
+    aliases:
+      - "指标别名"
+    avoid:
+      - "as"
+      - "as_name"
+
+  field_naming:
+    definition: |
+      包根导出的落盘命名与校验模块：默认 {name}{length}、尊重 alias、检查重名。
+      保证策略产物列名稳定、不冲突。
+    in_code: "field_naming 模块；包根导出"
     aliases: []
     avoid: []

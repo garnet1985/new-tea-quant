@@ -1,6 +1,5 @@
 import React from 'react';
-import { Typography } from '@mui/material';
-import NtqHelpTooltip from 'views/ntqHelpTooltip';
+import { HelpTooltip } from 'ui';
 import './style.scss';
 import {
   BACKTEST_PERIOD_TOOLTIP,
@@ -14,14 +13,9 @@ export default function BacktestPeriodBanner({ slot }) {
   if (!line) return null;
 
   return (
-    <Typography
-      variant="body2"
-      color="text.secondary"
-      className="ntq-backtest-period-banner"
-      component="div"
-    >
+    <div className="ntq-backtest-period-banner ntq-muted">
       {line}
-      <NtqHelpTooltip title={BACKTEST_PERIOD_TOOLTIP} />
-    </Typography>
+      <HelpTooltip title={BACKTEST_PERIOD_TOOLTIP} />
+    </div>
   );
 }

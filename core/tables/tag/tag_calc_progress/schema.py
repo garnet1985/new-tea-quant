@@ -1,7 +1,7 @@
 """
-sys_tag_calc_progress 表结构定义（Python，变量名 schema）
+sys_meta_tag_calc_progress 表结构定义（Python，变量名 schema）
 
-Tag 增量计算水位（业务推进 frontier），与 sys_tag_value 同属 tag 域。
+Tag 增量计算水位（业务推进 frontier），与 sys_data_tag_value 同属 tag 域。
 
 语义（SOT）：
 - 记录「某 scenario 下某 entity 已成功算到的业务日」last_calculated_end（YYYYMMDD）
@@ -17,7 +17,8 @@ Tag 增量计算水位（业务推进 frontier），与 sys_tag_value 同属 tag
 schema = {
     "storage_domain": "tag",
     "update_key": "tag_tag_calc_progress",
-    "name": "sys_tag_calc_progress",
+    "kind": "meta",
+    "name": "sys_meta_tag_calc_progress",
     "primaryKey": ["scenario_id", "entity_id"],
     "fields": [
         {
@@ -25,7 +26,7 @@ schema = {
             "type": "bigint",
             "isRequired": True,
             "nullable": False,
-            "description": "外键 → sys_tag_scenario.id",
+            "description": "外键 → sys_data_tag_scenario.id",
         },
         {
             "name": "entity_id",
@@ -33,7 +34,7 @@ schema = {
             "length": 64,
             "isRequired": True,
             "nullable": False,
-            "description": "实体 ID（与 sys_tag_value.entity_id 同语义）",
+            "description": "实体 ID（与 sys_data_tag_value.entity_id 同语义）",
         },
         {
             "name": "last_calculated_end",

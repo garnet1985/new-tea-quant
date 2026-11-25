@@ -1,34 +1,36 @@
 import React, { useCallback, useEffect, useMemo } from 'react';
-import { Navigate, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
-import { Box, Paper, Tab, Tabs } from '@mui/material';
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom';
+import PageLayout from 'ntq-ui/pageLayout';
+import Column from 'ui/layout/column';
+import Block from 'ui/layout/block';
+import SideNav from 'ui/layout/sideNav';
 import {
   fetchDatabaseSettings,
   fetchDataSettings,
   saveDatabaseSettings,
   saveDataSettings,
 } from '../../api/settingsApi';
-import PageLayout from '../../views/pageLayout';
 import {
+  SettingsAgentPanel,
   SettingsAssistantPanel,
   SettingsCachePanel,
   SettingsDataPanel,
   SettingsDatabasePanel,
-  SettingsFeedbackPanel,
+  SettingsFeedbackAndTracePanel,
   SettingsMembershipPanel,
   SettingsSystemPanel,
-  SettingsTracePanel,
 } from './settingsPanels';
 import './settingsPage.scss';
 
 const SETTINGS_TABS = [
+  { id: 'membership', label: '会员', path: 'membership' },
   { id: 'system', label: '安装与维护', path: 'system' },
   { id: 'database', label: '数据库', path: 'database' },
-  { id: 'membership', label: '会员', path: 'membership' },
-  { id: 'assistant', label: 'AI 助理', path: 'assistant' },
+  { id: 'ai', label: 'AI 配置', path: 'ai' },
+  { id: 'agent', label: 'Agent 配置', path: 'agent' },
   { id: 'data', label: '数据范围', path: 'data' },
   { id: 'cache', label: '缓存管理', path: 'cache' },
-  { id: 'trace', label: '使用统计', path: 'trace' },
-  { id: 'feedback', label: '反馈', path: 'feedback' },
+  { id: 'feedback', label: '反馈与统计', path: 'feedback' },
 ];
 
 function useSettingsSection() {
@@ -36,12 +38,11 @@ function useSettingsSection() {
   return useMemo(() => {
     const tail = location.pathname.replace(/\/+$/, '').split('/').pop() || '';
     const found = SETTINGS_TABS.find((tab) => tab.path === tail);
-    return found ? found.path : 'system';
+    return found ? found.path : 'membership';
   }, [location.pathname]);
 }
 
 function SettingsPage() {
-  const navigate = useNavigate();
   const section = useSettingsSection();
 
   const [loading, setLoading] = React.useState(true);
@@ -59,9 +60,17 @@ function SettingsPage() {
   const [dataSaveOk, setDataSaveOk] = React.useState('');
   const [dataSaving, setDataSaving] = React.useState(false);
   const [defaultStartDate, setDefaultStartDate] = React.useState('');
-  const [asOfLatestCompletedDate, setAsOfLatestCompletedDate] = React.useState('');
-  const [useSampleStockList, setUseSampleStockList] = React.useState('');
+  const [assumedLatestCompletedDate, setAssumedLatestCompletedDate] = React.useState('');
   const [simulationResultsMaxStaleEnvs, setSimulationResultsMaxStaleEnvs] = React.useState('');
+
+  const navItems = useMemo(
+    () => SETTINGS_TABS.map((tab) => ({
+      id: tab.path,
+      label: tab.label,
+      to: `/settings/${tab.path}`,
+    })),
+    [],
+  );
 
   const loadDatabase = useCallback(() => {
     setLoading(true);
@@ -84,10 +93,7 @@ function SettingsPage() {
     fetchDataSettings()
       .then((r) => {
         setDefaultStartDate(r.default_start_date || '');
-        setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
-        setUseSampleStockList(
-          r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
-        );
+        setAssumedLatestCompletedDate(r.assumed_latest_completed_trading_date || '');
         setSimulationResultsMaxStaleEnvs(
           r.simulation_results_max_stale_envs != null
             ? String(r.simulation_results_max_stale_envs)
@@ -128,16 +134,12 @@ function SettingsPage() {
     setDataSaving(true);
     saveDataSettings({
       default_start_date: defaultStartDate.trim(),
-      as_of_latest_completed_trading_date: asOfLatestCompletedDate.trim(),
-      use_sample_stock_list: useSampleStockList.trim(),
+      assumed_latest_completed_trading_date: assumedLatestCompletedDate.trim(),
       simulation_results_max_stale_envs: simulationResultsMaxStaleEnvs.trim(),
     })
       .then((r) => {
         setDefaultStartDate(r.default_start_date || '');
-        setAsOfLatestCompletedDate(r.as_of_latest_completed_trading_date || '');
-        setUseSampleStockList(
-          r.use_sample_stock_list != null ? String(r.use_sample_stock_list) : '',
-        );
+        setAssumedLatestCompletedDate(r.assumed_latest_completed_trading_date || '');
         setSimulationResultsMaxStaleEnvs(
           r.simulation_results_max_stale_envs != null
             ? String(r.simulation_results_max_stale_envs)
@@ -151,35 +153,47 @@ function SettingsPage() {
       .finally(() => setDataSaving(false));
   };
 
-  const handleTabChange = (_event, nextPath) => {
-    navigate(`/settings/${nextPath}`);
-  };
-
   return (
     <PageLayout
       className="settings-page"
       breadcrumbsItems={[{ label: '制定策略', to: '/strategy-design' }]}
       breadcrumbsCurrent="设置"
       bannerTitle="设置"
-      bannerDescription="系统安装、数据库连接、会员凭证、AI 助理、数据范围、缓存清理、使用统计与反馈。"
+      bannerDescription="会员、安装维护、数据库、AI、数据范围与反馈等系统偏好。"
     >
-      <Box className="settings-page-layout">
-        <Paper className="settings-page-nav" elevation={0}>
-          <Tabs
-            orientation="vertical"
-            value={section}
-            onChange={handleTabChange}
+      <Column
+        className="settings-page-layout"
+        variant="sidebar"
+        gap="md"
+        align="stretch"
+        stack
+      >
+        <Block
+          className="settings-page-nav"
+          surface="glass"
+          bordered
+          padding="sm"
+          gap="none"
+        >
+          <SideNav
+            variant="rail"
+            radius="none"
+            activeId={section}
+            items={navItems}
             aria-label="设置分类"
-          >
-            {SETTINGS_TABS.map((tab) => (
-              <Tab key={tab.id} label={tab.label} value={tab.path} />
-            ))}
-          </Tabs>
-        </Paper>
+          />
+        </Block>
 
-        <Paper className="settings-page-panel" elevation={0}>
+        <Block
+          className="settings-page-panel"
+          surface="glass"
+          bordered
+          padding="lg"
+          gap="none"
+        >
           <Routes>
-            <Route index element={<Navigate to="system" replace />} />
+            <Route index element={<Navigate to="membership" replace />} />
+            <Route path="membership" element={<SettingsMembershipPanel />} />
             <Route path="system" element={<SettingsSystemPanel />} />
             <Route
               path="database"
@@ -210,27 +224,25 @@ function SettingsPage() {
                   saveOk={dataSaveOk}
                   saving={dataSaving}
                   defaultStartDate={defaultStartDate}
-                  asOfLatestCompletedDate={asOfLatestCompletedDate}
-                  useSampleStockList={useSampleStockList}
+                  assumedLatestCompletedDate={assumedLatestCompletedDate}
                   simulationResultsMaxStaleEnvs={simulationResultsMaxStaleEnvs}
                   onDefaultStartDateChange={setDefaultStartDate}
-                  onAsOfLatestCompletedDateChange={setAsOfLatestCompletedDate}
-                  onUseSampleStockListChange={setUseSampleStockList}
+                  onAssumedLatestCompletedDateChange={setAssumedLatestCompletedDate}
                   onSimulationResultsMaxStaleEnvsChange={setSimulationResultsMaxStaleEnvs}
                   onSave={handleSaveData}
                   onReload={loadDataSettings}
                 />
               )}
             />
-            <Route path="membership" element={<SettingsMembershipPanel />} />
-            <Route path="assistant" element={<SettingsAssistantPanel />} />
+            <Route path="ai" element={<SettingsAssistantPanel />} />
+            <Route path="agent" element={<SettingsAgentPanel />} />
             <Route path="cache" element={<SettingsCachePanel />} />
-            <Route path="trace" element={<SettingsTracePanel />} />
-            <Route path="feedback" element={<SettingsFeedbackPanel />} />
-            <Route path="*" element={<Navigate to="system" replace />} />
+            <Route path="feedback" element={<SettingsFeedbackAndTracePanel />} />
+            <Route path="trace" element={<Navigate to="/settings/feedback" replace />} />
+            <Route path="*" element={<Navigate to="membership" replace />} />
           </Routes>
-        </Paper>
-      </Box>
+        </Block>
+      </Column>
     </PageLayout>
   );
 }

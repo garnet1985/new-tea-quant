@@ -2,7 +2,7 @@
 
 消费者: TagEntityJobBuilder
 
-incremental：从 DB ``sys_tag_calc_progress`` 取 entity → last_calculated_end map，
+incremental：从 DB ``sys_meta_tag_calc_progress`` 取 entity → last_calculated_end map，
 再对 list 内实体裁窗（start = end+1）；无行则从 settings 起点。
 refresh：全员使用 settings 默认窗。
 

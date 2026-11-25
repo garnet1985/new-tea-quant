@@ -12,10 +12,10 @@ from typing import Any, Dict, List, Optional, Tuple
 from core.infra.project_context import ProjectContext
 from core.infra.project_context.contracts import DUCKDB_DOMAIN_FILES
 from core.infra.setup import Setup
-from core.infra.setup.core.db_install_config import write_database_install_config
-from core.infra.setup.core.pipeline_state import wants_skip_input
-from core.infra.setup.core.step_errors import setup_failure_message
-from core.infra.setup.core import setup_session
+from core.infra.setup.core.steps.db_connection.db_install_config import write_database_install_config
+from core.infra.setup.core.shared.pipeline_state import wants_skip_input
+from core.infra.setup.core.shared.step_errors import setup_failure_message
+from core.infra.setup.core.shared import setup_session
 from core.bff.shared.client_log import log_degraded
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
@@ -91,8 +91,55 @@ class SetupRuntimeManager:
         )
         return {"status": "ok", "message": payload}
 
+    def get_import_data_plan(self) -> Dict[str, Any]:
+        """设置页导入说明：按会员凭证自动选 demo / member。"""
+        from core.infra.setup.core.steps.import_data.import_plan import build_import_plan
+
+        return {"status": "ok", "message": build_import_plan()}
+
     def import_demo_data(self) -> Dict[str, Any]:
-        """设置页补导入演示数据。不重跑整次安装。"""
+        """设置页导入数据：非会员同步导 demo；会员走 JobPipeline 导 member。"""
+        from core.infra.setup.core.steps.import_data.import_plan import build_import_plan
+
+        plan = build_import_plan()
+        pack_kind = str(plan.get("packKind") or "demo")
+        if pack_kind == "member":
+            from core.bff.APIs.platform.setup.import_data_launcher import (
+                ImportDataLauncher,
+            )
+
+            out = ImportDataLauncher.trigger(pack_kind="member", force=False)
+            if not out.get("is_triggered") and not out.get("queued"):
+                reason = str(out.get("reason") or "无法启动会员数据导入")
+                return self._error("SETUP_IMPORT_DATA_FAILED", reason)
+            with self._lock:
+                state = self._load_state()
+                # 任务已入队/开跑；完成后由用户在管道坞确认。此处先标成功避免安装向导卡住。
+                self._set_step_state(state, "import_data", self.STATUS_SUCCESS, "")
+                self._unmark_step_skipped(state, "import_data")
+                state.setdefault("inputsByStep", {})["import_data"] = {
+                    "skip": False,
+                    "packKind": "member",
+                }
+                self._bump_version(state)
+                self._save_state(state)
+            return {
+                "status": "ok",
+                "message": {
+                    "imported": False,
+                    "queued": bool(out.get("queued")),
+                    "running": bool(out.get("is_triggered") or out.get("running")),
+                    "jobId": str(out.get("job_id") or ""),
+                    "packKind": "member",
+                    "packLabel": plan.get("packLabel") or "",
+                    "message": (
+                        "会员数据包导入已加入任务管道，可在右下角任务坞查看进度。"
+                        if out.get("queued")
+                        else "会员数据包正在后台下载并导入，可在右下角任务坞查看进度。"
+                    ),
+                },
+            }
+
         script = (
             REPO_ROOT
             / "core"
@@ -133,11 +180,25 @@ class SetupRuntimeManager:
             state = self._load_state()
             self._set_step_state(state, "import_data", self.STATUS_SUCCESS, "")
             self._unmark_step_skipped(state, "import_data")
-            state.setdefault("inputsByStep", {})["import_data"] = {"skip": False}
+            state.setdefault("inputsByStep", {})["import_data"] = {
+                "skip": False,
+                "packKind": "demo",
+            }
             self._record_step_seconds(state, "import_data", elapsed)
             self._bump_version(state)
             self._save_state(state)
-        return {"status": "ok", "message": {"imported": True}}
+        return {
+            "status": "ok",
+            "message": {
+                "imported": True,
+                "queued": False,
+                "running": False,
+                "jobId": "",
+                "packKind": "demo",
+                "packLabel": plan.get("packLabel") or "",
+                "message": "演示数据已导入。",
+            },
+        }
 
     def start(self) -> Dict[str, Any]:
         definition = self.get_definition()
@@ -211,52 +272,15 @@ class SetupRuntimeManager:
         }
 
     def get_import_data_progress(self) -> Dict[str, Any]:
-        progress_file = REPO_ROOT / "initialization" / "data" / ".import_progress.json"
-        if not progress_file.is_file():
-            return {
-                "status": "ok",
-                "message": {
-                    "running": False,
-                    "totalTables": 0,
-                    "completedCount": 0,
-                    "currentTable": "",
-                    "percent": 0,
-                    "updatedAt": 0,
-                },
-            }
-        try:
-            payload = json.loads(progress_file.read_text(encoding="utf-8"))
-        except Exception as exc:
-            log_degraded("setup.importProgressRead", exc, str(progress_file))
-            payload = {}
+        from core.infra.setup.core.shared.install_progress import read_import_progress
 
-        completed_tables = payload.get("completed_tables", {}) or {}
-        total_tables = int(payload.get("total_tables") or 0)
-        if total_tables <= 0:
-            order = payload.get("table_order", []) or []
-            if isinstance(order, list) and order:
-                total_tables = len(order)
-            else:
-                total_tables = max(len(completed_tables), 1)
-
-        completed_count = sum(1 for v in completed_tables.values() if v == "done")
-        current_table = str(payload.get("in_progress_table") or "")
-        running = bool(current_table) or completed_count < total_tables
-        percent = int(round((completed_count / total_tables) * 100)) if total_tables > 0 else 0
         return {
             "status": "ok",
-            "message": {
-                "running": running,
-                "totalTables": total_tables,
-                "completedCount": completed_count,
-                "currentTable": current_table,
-                "percent": max(0, min(percent, 100)),
-                "updatedAt": int(payload.get("updated_at") or 0),
-            },
+            "message": read_import_progress(),
         }
 
     def _run_pipeline(self, state: Dict[str, Any], force_step_id: Optional[str] = None) -> Dict[str, Any]:
-        from core.infra.setup.core.trace_events import SetupTrace
+        from core.infra.setup.core.shared.trace_events import SetupTrace
 
         SetupTrace.ensure_install_id()
         definition = self.get_definition()
@@ -269,6 +293,24 @@ class SetupRuntimeManager:
         else:
             next_ids = ordered_ids
 
+        from core.infra.setup.core.shared.install_progress import (
+            begin_install_step,
+            bind_install_progress_dir,
+            close_install,
+            fail_install,
+            finish_install_step,
+            open_install,
+            pause_install_step,
+        )
+
+        done_ids = [
+            step_id
+            for step_id in ordered_ids
+            if self._get_step_state(state, step_id) == self.STATUS_SUCCESS
+        ]
+        bind_install_progress_dir(self._resolve_userspace_root(state))
+        open_install(ordered_ids, done_ids=done_ids)
+
         for step_id in next_ids:
             step = by_id[step_id]
             cur = self._get_step_state(state, step_id)
@@ -279,6 +321,8 @@ class SetupRuntimeManager:
                 self._set_step_state(state, step_id, self.STATUS_WAITING_INPUT, "")
                 self._bump_version(state)
                 self._save_state(state)
+                begin_install_step(step_id)
+                pause_install_step(step_id)
                 return {
                     "status": "ok",
                     "message": {
@@ -288,10 +332,14 @@ class SetupRuntimeManager:
                     },
                 }
 
+            begin_install_step(step_id)
             ok, err, trace_err = self._execute_step(state, step)
             self._bump_version(state)
             self._save_state(state)
+            if ok:
+                finish_install_step(step_id)
             if not ok:
+                fail_install(step_id, err or trace_err or "")
                 Setup.trace.install_step_failed(
                     step=step_id,
                     entry="ui",
@@ -319,6 +367,8 @@ class SetupRuntimeManager:
         self._save_state(state)
         if state["isReady"]:
             Setup.runtime.mark_cli_ready()
+            Setup.license.apply_trace_consent()
+            close_install()
         Setup.trace.install_complete(success=True, entry="ui", **self._timing_kwargs(state))
         return {
             "status": "ok",
@@ -407,7 +457,7 @@ class SetupRuntimeManager:
             self._set_step_state(state, step_id, self.STATUS_SUCCESS, "")
             if step_id == "init_userspace":
                 ProjectContext.cache.clear_userspace_cache()
-                from core.infra.setup.core.trace_events import SetupTrace
+                from core.infra.setup.core.shared.trace_events import SetupTrace
 
                 SetupTrace.ensure_install_id()
             return True, "", ""
@@ -435,6 +485,8 @@ class SetupRuntimeManager:
         return setup_session.new_state(definition)
 
     def _build_snapshot(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        from core.infra.setup.core.steps.import_data.data_packages import describe_data_packages
+
         return {
             "sessionId": state.get("sessionId", ""),
             "version": int(state.get("version", 1)),
@@ -442,6 +494,7 @@ class SetupRuntimeManager:
             "stepStates": state.get("stepStates", []),
             "inputsByStep": state.get("inputsByStep", {}),
             "noticesByStep": state.get("noticesByStep", {}),
+            "dataPackages": describe_data_packages(),
         }
 
     def _load_state(self) -> Dict[str, Any]:

@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class StockCorporateFinanceLoader(BaseDataContractLoader):
-    """按股票加载 sys_corporate_finance（季度序列）。"""
+    """按股票加载 sys_data_corporate_finance（季度序列）。"""
 
     def load(self, params: Mapping[str, Any]) -> Any:
         dm = DataManager()

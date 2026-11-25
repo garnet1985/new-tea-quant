@@ -68,7 +68,7 @@ class CorporateFinanceService(BaseDataService):
     def _get_model(self):
         """获取财务数据 Model（延迟初始化）"""
         if not self._finance_model:
-            self._finance_model = self.data_manager.get_table("sys_corporate_finance")
+            self._finance_model = self.data_manager.get_table("sys_data_corporate_finance")
         return self._finance_model
     
     def _filter_fields(self, data: Dict[str, Any], indicators: Optional[List[str]]) -> Dict[str, Any]:

@@ -1,28 +1,19 @@
 import React, { useMemo } from 'react';
-import {
-  Button,
-  Chip,
-  Dialog,
-  DialogContent,
-  DialogTitle,
-  Stack,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
+import { Button, DataGrid, Dialog, Tag } from 'ui';
 import { formatDateTime } from '../../service/format/formatDateTime';
 import { unfinishedSessions } from './decisionSessionPick';
+import './decisionSessionDialogs.scss';
 
 function statusChip(status) {
   const completed = status === 'completed';
   return (
-    <Chip
-      size="small"
-      label={completed ? '已完成' : '进行中'}
-      color={completed ? 'success' : 'warning'}
-      variant="outlined"
-    />
+    <Tag
+      size="sm"
+      status={completed ? 'success' : 'warning'}
+      variant="outline"
+    >
+      {completed ? '已完成' : '进行中'}
+    </Tag>
   );
 }
 
@@ -68,8 +59,7 @@ export default function DecisionSessionDialogs({
           flex: 0.5,
           renderCell: (params) => (
             <Button
-              size="small"
-              variant="contained"
+              variant="primary"
               disabled={busy || params.row.dmId === current}
               onClick={() => onSelect(params.row.dmId)}
             >
@@ -91,25 +81,22 @@ export default function DecisionSessionDialogs({
           const isCurrent = params.row.dmId === current;
           const completed = params.row.status === 'completed';
           return (
-            <Stack direction="row" spacing={1}>
+            <div className="ntq-decision-session-actions">
               <Button
-                size="small"
-                variant="outlined"
+                variant="glass"
                 disabled={busy || isCurrent}
                 onClick={() => onSelect(params.row.dmId)}
               >
                 {isCurrent ? '当前' : (completed ? '回看' : '进入')}
               </Button>
               <Button
-                size="small"
-                variant="outlined"
-                color="error"
+                variant="danger"
                 disabled={busy}
                 onClick={() => onDelete(params.row)}
               >
                 删除
               </Button>
-            </Stack>
+            </div>
           );
         },
       },
@@ -117,33 +104,32 @@ export default function DecisionSessionDialogs({
   }, [busy, current, onDelete, onSelect, panel]);
 
   return (
-    <Dialog open={Boolean(panel)} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>
-        <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={2}>
-          <Typography variant="h6" component="span">
+    <Dialog
+      open={Boolean(panel)}
+      onClose={onClose}
+      title={(
+        <span className="ntq-decision-session-dialog__title">
+          <span>
             {panel === 'continue' ? '选择要继续的模拟回测' : '管理模拟回测'}
-          </Typography>
-          <Button size="small" onClick={onClose}>关闭</Button>
-        </Stack>
-      </DialogTitle>
-      <DialogContent dividers>
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1 }}>
-          {panel === 'continue'
-            ? '只能选进行中的模拟回测接着下。时钟停在该次回测上次停留的交易日。'
-            : '进入或回看会打开该次回测当时的时钟；删除不可恢复。'}
-        </Typography>
-        <DataGrid
-          autoHeight
-          rows={rows}
-          columns={columns}
-          getRowId={(row) => row.id || row.dmId}
-          localeText={zhCN.components.MuiDataGrid.defaultProps.localeText}
-          hideFooter
-          disableRowSelectionOnClick
-          slots={NTQ_DATA_GRID_LOADING_SLOTS}
-          sx={{ border: 0, '& .MuiDataGrid-cell': { py: 1 } }}
-        />
-      </DialogContent>
+          </span>
+          <Button variant="ghost" onClick={onClose}>关闭</Button>
+        </span>
+      )}
+      size="lg"
+    >
+      <p className="ntq-muted">
+        {panel === 'continue'
+          ? '只能选择进行中的模拟回测继续。时钟停在该次回测上次停留的交易日。'
+          : '进入或回看会打开该次回测当时的时钟；删除不可恢复。'}
+      </p>
+      <DataGrid
+        autoHeight
+        bordered={false}
+        rows={rows}
+        columns={columns}
+        getRowId={(row) => row.id || row.dmId}
+        hideFooter
+      />
     </Dialog>
   );
 }

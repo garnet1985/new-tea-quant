@@ -1,4 +1,4 @@
-"""枚举报告 build 共用：扫描 entities JSON。"""
+"""机会盘点报告 build 共用：扫描 entities JSON。"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field

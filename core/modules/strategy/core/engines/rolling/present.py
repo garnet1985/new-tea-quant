@@ -57,7 +57,7 @@ class RollingPresenter:
             return
         rows = ([baseline_row] if baseline_row else []) + windows
         self._print_span(rows, out)
-        for layer, title in (("enum", "枚举"), ("price", "价格"), ("portfolio", "资金")):
+        for layer, title in (("enum", "机会盘点"), ("price", "价格"), ("portfolio", "资金")):
             self._print_layer(title, layer, rows, out)
         path = report.get("report_path")
         if path:

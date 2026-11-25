@@ -1,18 +1,24 @@
 """``settings.data`` — base/required 数据声明校验。
 
 本文件:
-- DataSettings: base_data_key、required 声明结构与校验
+- DataSettings: base_data_key、required、stock_list_filter 声明结构与校验
   边界: 负责 data section 校验；不负责 Contract 加载（StrategyDataResolver / loaders）
+  股票池维度查询由 SampleListResolver 调用 DataManager.stock.list.filter_ids
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set
 
 from .settings_base import SettingsBase
 from .validation_report import ValidationReport
+
+# 与 DataManager.stock.list.filter_ids 维度名对齐（结构校验用；查询仍走 DM）
+_STOCK_LIST_FILTER_DIMS = frozenset(
+    {"area", "industry", "board", "market", "list_status"}
+)
 
 
 @dataclass
@@ -41,6 +47,19 @@ class DataSettings(SettingsBase):
         except (TypeError, ValueError):
             return 0
 
+    @property
+    def stock_list_filter(self) -> Dict[str, Any]:
+        """原始 ``data.stock_list_filter`` 块；省略时 ``{}``。"""
+        block = self.data.get("stock_list_filter")
+        return dict(block) if isinstance(block, dict) else {}
+
+    def normalized_stock_list_filter(self) -> Optional[Dict[str, Dict[str, List[Any]]]]:
+        """规范化后的 include/exclude；无约束时返回 ``None``。"""
+        try:
+            return self.normalize_stock_list_filter(self.data.get("stock_list_filter"))
+        except ValueError:
+            return None
+
     def apply_defaults(self) -> None:
         if "data" not in self.raw_settings or not isinstance(self.raw_settings["data"], dict):
             self.raw_settings["data"] = {}
@@ -62,6 +81,7 @@ class DataSettings(SettingsBase):
             data["required"] = []
         if "min_required_records" not in data:
             data["min_required_records"] = 100
+        # stock_list_filter 可整段省略；不强制写入
 
     def validate(self) -> ValidationReport:
         report = SettingsBase.new_validation()
@@ -89,6 +109,20 @@ class DataSettings(SettingsBase):
                 "data.required must be list",
             )
 
+        if "stock_list_filter" in self.data:
+            try:
+                self.normalize_stock_list_filter(self.data.get("stock_list_filter"))
+            except ValueError as exc:
+                SettingsBase.add_critical(
+                    report,
+                    "data.stock_list_filter",
+                    str(exc),
+                    suggested_fix=(
+                        "Use include/exclude dicts with dims: "
+                        + ", ".join(sorted(_STOCK_LIST_FILTER_DIMS))
+                    ),
+                )
+
         if report.is_valid:
             try:
                 self.issue_declarations()
@@ -98,12 +132,104 @@ class DataSettings(SettingsBase):
         return report
 
     @classmethod
+    def normalize_stock_list_filter(
+        cls, raw: Any
+    ) -> Optional[Dict[str, Dict[str, List[Any]]]]:
+        """校验并规范化 ``stock_list_filter``。
+
+        返回 ``{"include": {...}, "exclude": {...}}``；两侧皆空时返回 ``None``。
+        """
+        if raw is None:
+            return None
+        if not isinstance(raw, dict):
+            raise ValueError("data.stock_list_filter 须为 dict")
+        if not raw:
+            return None
+        unknown = set(raw) - {"include", "exclude"}
+        if unknown:
+            raise ValueError(
+                "data.stock_list_filter 仅允许 include/exclude，多余键: "
+                + ", ".join(sorted(str(k) for k in unknown))
+            )
+        include = cls._normalize_filter_side(raw.get("include"), side="include")
+        exclude = cls._normalize_filter_side(raw.get("exclude"), side="exclude")
+        if not include and not exclude:
+            return None
+        return {"include": include, "exclude": exclude}
+
+    @classmethod
+    def _normalize_filter_side(
+        cls,
+        raw: Any,
+        *,
+        side: str,
+    ) -> Dict[str, List[Any]]:
+        if raw is None:
+            return {}
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"data.stock_list_filter.{side} 须为 dict")
+        out: Dict[str, List[Any]] = {}
+        for key, values in raw.items():
+            dim = str(key or "").strip()
+            if not dim:
+                continue
+            if dim not in _STOCK_LIST_FILTER_DIMS:
+                raise ValueError(
+                    f"data.stock_list_filter 未知维度 {dim!r}；"
+                    f"允许: {', '.join(sorted(_STOCK_LIST_FILTER_DIMS))}"
+                )
+            normalized = cls._normalize_filter_values(values, dim=dim, side=side)
+            if normalized:
+                out[dim] = normalized
+        return out
+
+    @staticmethod
+    def _normalize_filter_values(
+        values: Any,
+        *,
+        dim: str,
+        side: str,
+    ) -> List[Any]:
+        if values is None:
+            return []
+        if isinstance(values, (str, int)):
+            items: Iterable[Any] = (values,)
+        elif isinstance(values, Sequence):
+            items = values
+        else:
+            raise ValueError(
+                f"data.stock_list_filter.{side}.{dim} 须为 list 或标量"
+            )
+        out: List[Any] = []
+        seen: Set[str] = set()
+        for item in items:
+            if item is None:
+                continue
+            if isinstance(item, int):
+                key = str(item)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(item)
+                continue
+            text = str(item).strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            out.append(text)
+        return out
+
+    @classmethod
     def normalize_indicators(cls, raw: Any) -> Dict[str, Any]:
         if raw is None:
             return {}
         if not isinstance(raw, dict):
             raise ValueError("indicators 须为 dict")
-        return deepcopy(raw)
+        from core.modules.indicator import field_naming
+
+        out = deepcopy(raw)
+        field_naming.validate_indicators_config(out)
+        return out
 
     def normalize_base(self, block: Dict[str, Any]) -> Dict[str, Any]:
         if not isinstance(block, dict):

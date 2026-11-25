@@ -22,13 +22,13 @@ core/bff/APIs/tag/
     visualization/  # T1-07
 ```
 
-进度落盘：``TagRunProgress``（``modules.tag.core.services.progress``）；BFF `tag_run.py` 只做锁 / lease / 线程。
+进度落盘经 Tag Facade（`get_run_progress` / `seed_run_progress` …）；BFF `tag_run.py` 只做锁 / lease / 线程。
 
 ## 原则
 
 - **编排层（routes）**：解析路径/query、调用 implementer、返回 `ok` / `error`。
 - **列表**：`helpers.TagCatalog.fetch_page`。
-- **执行**：`TagRunLauncher.trigger` → 后台 `Tag().execute`；进度经 `TagRunProgress`。
+- **执行**：BFF `TagRunLauncher.trigger` → `start_now` 后台 `Tag().execute`；进度经 Tag Facade。
 - **第 1 层互斥（tag↔tag）**：进程内 tag run 锁。
 - **第 2 层互斥（全局 pipeline）**：`pipeline_lease`。
 - **Progress 文件**：`userspace/.ntq/tmp/progress/tag-run/{tag_key}__{job_id}.json`；轮询只读。
@@ -37,8 +37,8 @@ core/bff/APIs/tag/
 
 | T1 | 方法 | 路由 | 归属 | 编排摘要 |
 |----|------|------|------|----------|
-| T1-00 | GET | `/v1/runtime/pipeline` | **platform/runtime**（非本包） | `TaskGuard.read_status()` |
+| T1-00 | GET | `/v1/runtime/pipeline` | **platform/runtime**（非本包） | `JobPipeline.get_running_job()`（message 含 `job` + 兼容 `busy`） |
 | T1-01 | GET | `/v1/tags/list` | `routes/catalog` | `TagCatalog.fetch_page` |
 | T1-02 | POST | `/v1/tag/<path:tag_key>/run` | `routes/runner` | `TagRunLauncher.trigger` → `ok` / **409** |
-| T1-03 | GET | `/v1/tag/<path:tag_key>/run/progress` | `routes/runner` | `TagRunProgress.get_poll_dto` → `ok` / **404** |
+| T1-03 | GET | `/v1/tag/<path:tag_key>/run/progress` | `routes/runner` | `Tag.get_run_progress` → `ok` / **404** |
 | T1-07 | GET | `/v1/tag/<path:tag_key>/visualization` | `routes/visualization` | `TagVisualization.fetch` → `ok` / **404** / **500** |

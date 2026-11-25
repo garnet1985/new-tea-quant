@@ -9,7 +9,6 @@ from typing import Dict, Any, Tuple, Optional
 import logging
 
 from core.modules.data_source.core.enums import TermType
-from core.infra.project_context import ProjectContext
 from core.infra.utils import Utils
 
 logger = logging.getLogger(__name__)
@@ -24,22 +23,22 @@ class RenewCommonHelper:
 
     @staticmethod
     def resolve_latest_completed_trading_date(data_manager) -> str:
-        if not data_manager or not getattr(data_manager, "service", None):
-            return ""
+        """Renew 截止日：真实日历推导，不读 assumed_latest_completed_trading_date。"""
+        from core.modules.data_source.core.service.renew_progress import resolve_uptodate_day
+
         try:
-            return str(
-                data_manager.service.calendar.get_latest_completed_trading_date() or ""
-            ).strip()
+            return str(resolve_uptodate_day(data_manager) or "").strip()
         except Exception as exc:
-            logger.warning("获取 latest completed trading date 失败: %s", exc)
+            logger.warning("获取 renew 截止交易日失败: %s", exc)
             return ""
     
     @staticmethod
     def get_default_date_range(data_manager, date_format: str, context: Dict[str, Any] = None) -> Tuple[str, str]:
         """
-        获取默认日期范围（数据库为空时使用）
+        获取默认日期范围（数据库为空 / force 时使用）
         
-        公共逻辑：从系统默认时间开始到最近完成的交易日
+        起点：data.json default_start_date（全局地板）
+        终点：context 或 resolve_uptodate_day（真实日历；不读 assumed）
         
         Args:
             data_manager: DataManager 实例（用于查询数据库）
@@ -49,19 +48,19 @@ class RenewCommonHelper:
         Returns:
             Tuple[str, str]: (start_date, end_date)
         """
+        from core.infra.project_context import ProjectContext
+
         context = context or {}
-        
-        # 获取系统默认开始日期
-        default_start_date = ProjectContext.config.get_default_start_date()
-        
-        # 获取最近完成的交易日（优先从 context 读取）
+
+        default_start_date = str(ProjectContext.config.get_default_start_date() or "").strip()
+
+        # 获取最近完成的交易日（优先从 context 读取；注入方须用 sync_market_day）
         latest_completed_trading_date = context.get("latest_completed_trading_date")
         if not latest_completed_trading_date:
             latest_completed_trading_date = RenewCommonHelper.resolve_latest_completed_trading_date(
                 data_manager
             )
         
-        # 根据 date_format 转换日期格式
         start_date = RenewCommonHelper.convert_date_to_format(default_start_date, date_format)
         end_date = RenewCommonHelper.convert_date_to_format(
             latest_completed_trading_date, date_format
@@ -81,6 +80,8 @@ class RenewCommonHelper:
         Returns:
             转换后的日期字符串
         """
+        if not date_str:
+            return ""
         if date_format == TermType.QUARTERLY.value:
             year = int(date_str[:4])
             month = int(date_str[4:6])
@@ -350,7 +351,7 @@ class RenewCommonHelper:
             if latest_date:
                 start_date = calculate_start_date_fn(latest_date, end_date, date_format)
             else:
-                # 没找到（新股票）：使用系统默认起始时间
+                # 没找到（新股票）：用全局 default_start_date
                 start_date = default_start_date
 
             result[stock_id_str] = (start_date, end_date)

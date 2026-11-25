@@ -486,6 +486,47 @@ export function useStrategyDesignWorkbench() {
     [draftSettings],
   );
 
+  const [enabledToggling, setEnabledToggling] = useState(false);
+
+  const handleSetEnabled = useCallback(async (nextEnabled) => {
+    if (!strategyName || enabledToggling || isLoadingSettings || !hasValidSettings) return;
+    const prevDraft = draftSettingsRef.current;
+    const nextDraft = {
+      ...deepClone(prevDraft),
+      is_enabled: Boolean(nextEnabled),
+    };
+    setDraftSettings(nextDraft);
+    setEnabledToggling(true);
+    setSaveError('');
+    try {
+      const payload = stripRuntimeStrategySettings(deepClone(nextDraft));
+      const occupancy = await persistStrategySettings(strategyName, payload, {
+        settings_rev: loadedRevRef.current,
+      });
+      adoptPersistedRev(occupancy.settings_rev, nextDraft);
+      setRestoreOk(nextEnabled ? '策略已设为可用' : '策略已设为不可用');
+    } catch (err) {
+      setDraftSettings(prevDraft);
+      if (isSettingsConflictError(err)) {
+        setDiskConflict({
+          intent: 'save',
+          ...occupancyFromError(err),
+        });
+        setSaveError('settings.py 已被外部修改，请先处理冲突');
+      } else {
+        setSaveError(err?.message || '更新可用状态失败');
+      }
+    } finally {
+      setEnabledToggling(false);
+    }
+  }, [
+    adoptPersistedRev,
+    enabledToggling,
+    hasValidSettings,
+    isLoadingSettings,
+    strategyName,
+  ]);
+
   const getSettingsRev = useCallback(() => loadedRevRef.current, []);
 
   const onSettingsPersisted = useCallback((started) => {
@@ -889,6 +930,8 @@ export function useStrategyDesignWorkbench() {
     marketProfileLabel,
     marketProfileOptionsError,
     isEnabled: Boolean(draftSettings?.is_enabled ?? initialSettings?.is_enabled),
+    enabledToggling,
+    handleSetEnabled,
     currentVersionDisplay,
     isAppliedSettings,
     rollingDone: Boolean(

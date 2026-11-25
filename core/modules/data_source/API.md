@@ -1,6 +1,7 @@
 # Data Source API 文档
 
-**版本：** `0.2.1`  
+**模块：** `modules.data_source` · **版本：** `0.4.0`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 一致。  
@@ -24,7 +25,7 @@
 - **状态：** `beta`
 - **描述：** CLI / 脚本统一 renew 入口
 - **参数：**
-  - `table_name`：绑定表名（如 `sys_stock_klines`）或 data source key；`None` = 全部已启用
+  - `table_name`：绑定表名（如 `sys_data_stock_klines`）或 data source key；`None` = 全部已启用
   - `force`：强制从默认起点重拉，跳过日缓存与 `renew_if_over_days`
 
 ### resolve_renew_target
@@ -55,8 +56,34 @@
 `DataSourceManager.get_data_end_meta_light() -> dict`（staticmethod）
 
 - **状态：** `beta`
-- **描述：** 数据截断 / 有效结束日（供 scan UI）；对齐 `data.json` as_of 与交易日历。跨模块入口，勿 deep-import `catalog.freshness_probe`
+- **描述：** 有效结束日摘要（供 scan UI）：renew 截止走真实日历；`assumed_latest_completed_trading_date` 仅作计算侧展示。跨模块入口，勿 deep-import `catalog.freshness_probe`
 
+### fetch_catalog_page / fetch_freshness
+
+`DataSourceManager.fetch_catalog_page(page, limit) -> (items, total, data_end)`（staticmethod）  
+`DataSourceManager.fetch_freshness(source_names=None) -> (status_by_source, data_end)`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** UI 数据源列表与懒加载新鲜度（实现在 `catalog/ui_catalog`）。BFF 只薄封装。
+
+### read_renew_ui_status / read_renew_ui_tasks / read_renew_ui_progress
+
+`DataSourceManager.read_renew_ui_status() -> dict`（staticmethod）  
+`DataSourceManager.read_renew_ui_tasks() -> list[dict]`（staticmethod）  
+`DataSourceManager.read_renew_ui_progress() -> dict`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** Renew UI 任务栏与 Progress 投影（实现在 `service/renew_ui`）。BFF launcher 只拼 JobPipeline/`_ACTIVE` 壳，勿 deep-import `run_status` / Progress
+
+### scaffold_user_handler / write_user_handler_files / apply_mapping_entry / validate_user_handler
+
+`DataSourceManager.scaffold_user_handler(*, key, hooks_class_name=None) -> dict`（staticmethod）  
+`DataSourceManager.write_user_handler_files(*, key, handler_py="", settings_py="") -> dict`（staticmethod）  
+`DataSourceManager.apply_mapping_entry(*, key, handler, is_enabled=True, depends_on=None, weight=None) -> dict`（staticmethod）  
+`DataSourceManager.validate_user_handler(*, key) -> dict`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** Userspace handler 脚手架与校验（实现在 `user_handlers`）。`key` 对 scaffold/write 为 handlers 相对目录；对 apply/validate 为 mapping 扁平名。不执行 renew。
 ### catalog / provider（跨模块辅助）
 
 - **状态：** `beta`
@@ -85,7 +112,7 @@ from core.modules.data_source import DataSourceManager
 
 mgr = DataSourceManager()
 mgr.list_renew_targets()
-mgr.renew(table_name="sys_stock_klines")
+mgr.renew(table_name="sys_data_stock_klines")
 mgr.renew(table_name="stock_klines", force=True)
 ```
 

@@ -1,9 +1,11 @@
 import request, { API_VERSION_PREFIX, HTTP_TIMEOUT_MS } from 'service/request';
 import { mapDataEnd } from 'service/dataEnd';
+import { formatCalendarDate } from 'service/format/formatDateTime';
 import { getUpdateModeIcon } from 'service/updateModeIcon';
 
+export { fetchPipelineStatus } from './runtimeApi';
+
 const API_TAGS_LIST = `${API_VERSION_PREFIX}/tags/list`;
-const API_RUNTIME_PIPELINE = `${API_VERSION_PREFIX}/runtime/pipeline`;
 
 /** 列表展示名：优先 ``display_name``，否则 ``name``（tag_key）。 */
 export function getTagDisplayLabel(item) {
@@ -36,40 +38,19 @@ export function getTagUpdateModeLabel(mode) {
   return UPDATE_MODE_LABELS[key] || key;
 }
 
-/** ``update_mode`` 对应 ``NtqIcon`` name。 */
+/** ``update_mode`` 对应 ``Icon`` name。 */
 export function getTagUpdateModeIcon(mode) {
   return getUpdateModeIcon(mode);
 }
 
-/** 格式化 ``last_computed_as_of``（YYYYMMDD → YYYY-MM-DD）。 */
+/** 格式化 ``last_computed_as_of``（展示 ``YYYY-MM-DD``）。 */
 export function formatTagAsOfDate(value) {
-  const raw = String(value || '').trim();
-  if (!raw) return '—';
-  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
-  if (/^\d{8}$/.test(raw)) return `${raw.slice(0, 4)}-${raw.slice(4, 6)}-${raw.slice(6, 8)}`;
-  return raw;
+  return formatCalendarDate(value, { empty: '—' });
 }
 
 /** 计算状态展示文案。 */
 export function getTagComputeStatusLabel(item) {
   return String(item?.compute_status_label || '—').trim() || '—';
-}
-
-/**
- * T1-00：全局 pipeline 状态
- * @returns {Promise<{ busy: boolean, kind?: string|null, label?: string|null, resource_key?: string|null }>}
- */
-export async function fetchPipelineStatus() {
-  const json = await request.getJson(API_RUNTIME_PIPELINE);
-  const m = json?.message || {};
-  return {
-    busy: Boolean(m.busy),
-    kind: m.kind ?? null,
-    job_id: m.job_id ?? null,
-    resource_key: m.resource_key ?? null,
-    label: m.label ?? null,
-    domains: Array.isArray(m.domains) ? m.domains : [],
-  };
 }
 
 /**
@@ -91,6 +72,8 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
       name: item.name,
       display_name: getTagDisplayLabel(item),
       description: String(item.description || '').trim(),
+      category: String(item.category || '').trim(),
+      data_key: String(item.data_key || '').trim(),
       is_enabled: Boolean(item.is_enabled),
       tag_definitions: Array.isArray(item.tag_definitions) ? item.tag_definitions : [],
       last_computed_as_of: item.last_computed_as_of ?? null,
@@ -113,7 +96,19 @@ export async function fetchTagList({ page = 1, limit = 100 } = {}) {
 export async function startTagRun(tagKey) {
   const json = await request.postJson(`${apiTagPath(tagKey)}/run`, { body: {} });
   const m = json?.message || {};
+  if (m.queued) {
+    return {
+      queued: true,
+      job_id: String(m.job_id || '').trim(),
+      tag_key: m.tag_key || tagKey,
+      reason: String(m.reason || '已加入管道队列').trim(),
+    };
+  }
+  if (m.is_triggered === false) {
+    throw new Error(typeof m.reason === 'string' ? m.reason : '启动 Tag 计算失败');
+  }
   return {
+    queued: false,
     job_id: String(m.job_id || m.run_id || '').trim(),
     run_id: String(m.run_id || m.job_id || '').trim(),
     tag_key: m.tag_key || tagKey,

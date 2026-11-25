@@ -1,4 +1,4 @@
-"""Stock ST periods Loader — ``sys_stock_st_periods``。"""
+"""Stock ST periods Loader — ``sys_data_stock_st_periods``。"""
 
 from __future__ import annotations
 

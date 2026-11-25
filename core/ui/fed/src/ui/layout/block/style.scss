@@ -1,0 +1,66 @@
+// 块容器。内部堆叠用 gap；自身不额外制造与兄弟的 margin 距（由父级 gap 管）。
+.ntq-block {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  box-sizing: border-box;
+  margin: 0;
+}
+
+.ntq-block--pad-none { padding: var(--ntq-space-none); }
+.ntq-block--pad-xxs { padding: var(--ntq-space-xxs); }
+.ntq-block--pad-xs { padding: var(--ntq-space-xs); }
+.ntq-block--pad-sm { padding: var(--ntq-space-sm); }
+.ntq-block--pad-md { padding: var(--ntq-space-md); }
+.ntq-block--pad-lg { padding: var(--ntq-space-lg); }
+.ntq-block--pad-xl { padding: var(--ntq-space-xl); }
+
+.ntq-block--gap-none { gap: var(--ntq-space-none); }
+.ntq-block--gap-xxs { gap: var(--ntq-space-xxs); }
+.ntq-block--gap-xs { gap: var(--ntq-space-xs); }
+.ntq-block--gap-sm { gap: var(--ntq-space-sm); }
+.ntq-block--gap-md { gap: var(--ntq-stack); }
+.ntq-block--gap-lg { gap: var(--ntq-space-lg); }
+.ntq-block--gap-xl { gap: var(--ntq-space-xl); }
+
+.ntq-block--radius-none { border-radius: var(--ntq-radius-none); }
+.ntq-block--radius-sm { border-radius: var(--ntq-radius-sm); }
+.ntq-block--radius-md { border-radius: var(--ntq-radius-md); }
+.ntq-block--radius-lg { border-radius: var(--ntq-radius-lg); }
+.ntq-block--radius-pill { border-radius: var(--ntq-radius-pill); }
+
+// 1) 透光玻璃
+.ntq-block--surface-glass {
+  background: var(--ntq-surface-glass);
+}
+
+// 2) 毛玻璃
+.ntq-block--surface-frost {
+  background: var(--ntq-surface-frost);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
+}
+
+// 3) 渐变毛玻璃
+.ntq-block--surface-frost-strong {
+  background: var(--ntq-surface-frost-strong);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
+}
+
+.ntq-block--bordered {
+  border: 1px solid var(--ntq-white-12);
+}
+
+.ntq-block--bordered:not([class*='ntq-block--surface-']) {
+  background: var(--ntq-surface-glass);
+}
+
+// 贴顶：侧栏整栏（标题 + SideNav）常用
+.ntq-block--sticky {
+  position: sticky;
+  top: 0;
+  align-self: start;
+  max-height: 100vh;
+  overflow: auto;
+}

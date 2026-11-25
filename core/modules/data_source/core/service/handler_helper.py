@@ -4,7 +4,6 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 import logging
 
 from core.modules.data_source.core.enums import UpdateMode
-from core.infra.project_context import ProjectContext
 
 from core.modules.data_source.core.data_class.api_config import ApiConfig
 from core.modules.data_source.core.data_class.api_job import ApiJob
@@ -286,7 +285,7 @@ class DataSourceHandlerHelper:
         获取所有实体的“本次抓取起点”映射。
 
         语义：
-        - REFRESH:   不查 DB，所有实体统一从全局 default_start_date 开始；
+        - REFRESH:   不查 DB，所有实体从 default_start_date 起；
         - 其他模式:  一次性从 DB 查询原始 latest_date，再根据 renew_mode 计算起点。
         """
         # per-entity 的实体列表（例如 dependencies["entity_list"]）
@@ -296,7 +295,9 @@ class DataSourceHandlerHelper:
         if renew_mode == UpdateMode.REFRESH:
             if not entity_list:
                 return {}
-            default_start = ProjectContext.config.get_default_start_date()
+            from core.infra.project_context import ProjectContext
+
+            default_start = str(ProjectContext.config.get_default_start_date() or "").strip()
             return {str(entity_id): default_start for entity_id in entity_list}
 
         # 非 refresh：统一查一次 DB，拿到原始 last_update，再按模式转换为“起点”
@@ -329,11 +330,13 @@ class DataSourceHandlerHelper:
         """
         获取“单实体/全局”的本次抓取起点日期。
 
-        - REFRESH:   直接使用全局 default_start_date；
+        - REFRESH:   使用 default_start_date；
         - 其他模式:  从 DB 查询当前数据源的最新日期，再根据 renew_mode 计算本次起点。
         """
         if renew_mode == UpdateMode.REFRESH:
-            return ProjectContext.config.get_default_start_date()
+            from core.infra.project_context import ProjectContext
+
+            return str(ProjectContext.config.get_default_start_date() or "").strip()
 
         # 使用 compute_last_update_map 的全局分支（"_global"）获取原始 last_update
         raw_map = drh.compute_last_update_map(context)
@@ -374,8 +377,8 @@ class DataSourceHandlerHelper:
         # 简单往前查找：从target_date开始往前找，最多找max_days_back天
         # A股的周交易日：周一到周五通常是交易日，周日也可能是交易日（特殊情况下）
         current_date = datetime.strptime(target_date, "%Y%m%d")
-        for i in range(max_days_back):
-            check_date = current_date - timedelta(days=i)
+        for days_back in range(max_days_back):
+            check_date = current_date - timedelta(days=days_back)
             check_date_str = check_date.strftime("%Y%m%d")
             
             # 确保不超过latest_completed_trading_date

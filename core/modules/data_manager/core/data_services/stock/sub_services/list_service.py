@@ -1,16 +1,18 @@
 """
 股票列表服务（ListService）
 
-固定 API（筛选由 Tag 等上层负责）：
+固定 API：
 - load_single / load_meta：单股
 - load_all：全表
 - load_listed / load_delisted / load_suspended：按 list_status 快照
-- load(*, ...)：仅关键字参数；集合查询（回测窗口 / 时点 / 维度 / status）
-- load_by_*：维度查询糖方法（内部调用 load）
+- load(*, ...)：仅关键字参数；集合查询（回测窗口 / 时点 / 单维度 / status）
+- load_by_*：单维度查询糖方法（内部调用 load）
+- filter_ids：多维度 include/exclude（策略股票池快捷过滤）
+- load_filter_options：列出 filter 可用选项（供 CLI list stock.*）
 """
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Sequence, Union
+from typing import Any, Dict, Iterable, List, Mapping, Optional, Sequence, Set, Union
 import logging
 
 from ... import BaseDataService
@@ -21,6 +23,17 @@ logger = logging.getLogger(__name__)
 _LIST_STATUS_LISTED = "L"
 _LIST_STATUS_DELISTED = "D"
 _LIST_STATUS_SUSPENDED = "P"
+
+# 策略 settings.data.stock_list_filter 与本 API 共用的维度名
+FILTER_DIMENSIONS = frozenset(
+    {"area", "industry", "board", "market", "list_status"}
+)
+
+_LIST_STATUS_OPTIONS: List[Dict[str, str]] = [
+    {"value": _LIST_STATUS_LISTED, "label": "上市"},
+    {"value": _LIST_STATUS_DELISTED, "label": "退市"},
+    {"value": _LIST_STATUS_SUSPENDED, "label": "暂停上市"},
+]
 
 # Tushare 等源对「未退市」常写入 0 / 0.0，须视为无退市日（否则 PIT 会漏掉全体 L 股）
 _PIT_DELIST_EMPTY_SQL = (
@@ -39,15 +52,15 @@ class ListService(BaseDataService):
     def __init__(self, data_manager: Any):
         super().__init__(data_manager)
 
-        self._stock_list = data_manager.get_table("sys_stock_list")
-        self._boards = data_manager.get_table("sys_boards")
-        self._markets = data_manager.get_table("sys_markets")
-        self._areas = data_manager.get_table("sys_areas")
-        self._sw_industry = data_manager.get_table("sys_sw_industry")
-        self._sw_stock_industry = data_manager.get_table("sys_sw_stock_industry_map")
-        self._board_map = data_manager.get_table("sys_stock_board_map")
-        self._market_map = data_manager.get_table("sys_stock_market_map")
-        self._area_map = data_manager.get_table("sys_stock_area_map")
+        self._stock_list = data_manager.get_table("sys_data_stock_list")
+        self._boards = data_manager.get_table("sys_data_boards")
+        self._markets = data_manager.get_table("sys_data_markets")
+        self._areas = data_manager.get_table("sys_data_areas")
+        self._sw_industry = data_manager.get_table("sys_data_sw_industry")
+        self._sw_stock_industry = data_manager.get_table("sys_map_sw_stock_industry")
+        self._board_map = data_manager.get_table("sys_map_stock_board")
+        self._market_map = data_manager.get_table("sys_map_stock_market")
+        self._area_map = data_manager.get_table("sys_map_stock_area")
 
     @property
     def sw_industry_model(self):
@@ -227,6 +240,240 @@ class ListService(BaseDataService):
         order_by: str = "id",
     ) -> List[Dict[str, Any]]:
         return self.load(area=area, order_by=order_by)
+
+    def filter_ids(
+        self,
+        *,
+        include: Optional[Mapping[str, Sequence[Any]]] = None,
+        exclude: Optional[Mapping[str, Sequence[Any]]] = None,
+        universe: Optional[Sequence[str]] = None,
+        order_by: str = "id",
+    ) -> List[str]:
+        """按维度 include/exclude 过滤股票 id。
+
+        语义：
+        - 同维多值 = 并集（OR）
+        - 多维之间 = 交集（AND）
+        - 先 include，再 exclude
+        - 省略的块 / 空维度键不约束
+        - ``universe`` 非空时结果与之取交（保留 universe 顺序再按 order_by 排序）
+
+        维度：``area`` / ``industry`` / ``board`` / ``market`` / ``list_status``。
+        """
+        include_norm = self._normalize_filter_side(include, side="include")
+        exclude_norm = self._normalize_filter_side(exclude, side="exclude")
+
+        if universe is not None:
+            ids: Set[str] = {
+                str(sid).strip() for sid in universe if str(sid).strip()
+            }
+        else:
+            ids = {
+                str(row.get("id") or "").strip()
+                for row in self.load_all(order_by=order_by)
+                if str(row.get("id") or "").strip()
+            }
+
+        for dim, values in include_norm.items():
+            matched = self._ids_for_dimension(dim, values)
+            ids &= matched
+            if not ids:
+                return []
+
+        for dim, values in exclude_norm.items():
+            ids -= self._ids_for_dimension(dim, values)
+            if not ids:
+                return []
+
+        return self._sort_id_list(ids, order_by=order_by)
+
+    @classmethod
+    def _normalize_filter_side(
+        cls,
+        raw: Optional[Mapping[str, Sequence[Any]]],
+        *,
+        side: str,
+    ) -> Dict[str, List[Any]]:
+        if raw is None:
+            return {}
+        if not isinstance(raw, Mapping):
+            raise ValueError(f"stock list filter {side} 须为 dict")
+        out: Dict[str, List[Any]] = {}
+        for key, values in raw.items():
+            dim = str(key or "").strip()
+            if not dim:
+                continue
+            if dim not in FILTER_DIMENSIONS:
+                raise ValueError(
+                    f"stock list filter 未知维度 {dim!r}；"
+                    f"允许: {', '.join(sorted(FILTER_DIMENSIONS))}"
+                )
+            normalized = cls._normalize_filter_values(values, dim=dim, side=side)
+            if normalized:
+                out[dim] = normalized
+        return out
+
+    @staticmethod
+    def _normalize_filter_values(
+        values: Any,
+        *,
+        dim: str,
+        side: str,
+    ) -> List[Any]:
+        if values is None:
+            return []
+        if isinstance(values, (str, int)):
+            items: Iterable[Any] = (values,)
+        elif isinstance(values, Sequence):
+            items = values
+        else:
+            raise ValueError(
+                f"stock list filter {side}.{dim} 须为 list 或标量"
+            )
+        out: List[Any] = []
+        seen: Set[str] = set()
+        for item in items:
+            if item is None:
+                continue
+            if isinstance(item, int):
+                key = str(item)
+                if key in seen:
+                    continue
+                seen.add(key)
+                out.append(item)
+                continue
+            text = str(item).strip()
+            if not text or text in seen:
+                continue
+            seen.add(text)
+            out.append(text)
+        return out
+
+    def _ids_for_dimension(self, dim: str, values: Sequence[Any]) -> Set[str]:
+        if not values:
+            return set()
+        if dim == "list_status":
+            rows = self.load(list_status=[str(v) for v in values])
+            return {
+                str(row.get("id") or "").strip()
+                for row in rows
+                if str(row.get("id") or "").strip()
+            }
+        out: Set[str] = set()
+        for value in values:
+            if dim == "industry":
+                rows = self.load(industry=value)
+            elif dim == "board":
+                rows = self.load(board=value)
+            elif dim == "market":
+                rows = self.load(market=value)
+            elif dim == "area":
+                rows = self.load(area=value)
+            else:
+                raise ValueError(f"stock list filter 未知维度 {dim!r}")
+            for row in rows:
+                sid = str(row.get("id") or "").strip()
+                if sid:
+                    out.add(sid)
+        return out
+
+    @staticmethod
+    def _sort_id_list(ids: Set[str], *, order_by: str) -> List[str]:
+        items = list(ids)
+        if order_by and order_by != "id":
+            # 仅 id 集合时无法按其它列排；退回 id
+            logger.debug("filter_ids 仅返回 id，忽略 order_by=%s", order_by)
+        items.sort()
+        return items
+
+    def load_filter_options(
+        self,
+        dim: Optional[str] = None,
+        *,
+        alive_only: bool = True,
+    ) -> Dict[str, List[Dict[str, Any]]]:
+        """列出 ``stock_list_filter`` / ``filter_ids`` 可用选项。
+
+        返回 ``{dim: [{"value": ..., ...}, ...]}``。
+        ``value`` 可直接写入 settings；industry 另含 ``code``（指数代码），
+        market 另含 ``code``（若有）。
+
+        ``dim`` 省略时返回全部维度；``alive_only`` 仅对字典表（area/board/market）生效。
+        """
+        if dim is None:
+            dims = sorted(FILTER_DIMENSIONS)
+        else:
+            key = str(dim or "").strip()
+            if key not in FILTER_DIMENSIONS:
+                raise ValueError(
+                    f"未知 filter 维度 {key!r}；"
+                    f"允许: {', '.join(sorted(FILTER_DIMENSIONS))}"
+                )
+            dims = [key]
+
+        out: Dict[str, List[Dict[str, Any]]] = {}
+        for key in dims:
+            if key == "list_status":
+                out[key] = [dict(row) for row in _LIST_STATUS_OPTIONS]
+            elif key == "industry":
+                out[key] = self._load_industry_options()
+            else:
+                out[key] = self._load_dict_dimension_options(
+                    key, alive_only=alive_only
+                )
+        return out
+
+    def _load_industry_options(self) -> List[Dict[str, Any]]:
+        if not self._sw_industry:
+            return []
+        rows = self._sw_industry.load("level = %s", ("L1",)) or []
+        options: List[Dict[str, Any]] = []
+        for row in rows:
+            name = str(row.get("name") or "").strip()
+            code = str(row.get("id") or "").strip()
+            if not name and not code:
+                continue
+            item: Dict[str, Any] = {
+                # filter_ids 接受一级名称或指数代码；展示优先名称
+                "value": name or code,
+                "label": name or code,
+            }
+            if code:
+                item["code"] = code
+            options.append(item)
+        options.sort(key=lambda r: str(r.get("value") or ""))
+        return options
+
+    def _load_dict_dimension_options(
+        self,
+        dim: str,
+        *,
+        alive_only: bool,
+    ) -> List[Dict[str, Any]]:
+        model = {
+            "area": self._areas,
+            "board": self._boards,
+            "market": self._markets,
+        }.get(dim)
+        if not model:
+            return []
+        if alive_only:
+            rows = model.load("is_alive = %s", (1,)) or []
+        else:
+            rows = model.load("1=1") or []
+        options: List[Dict[str, Any]] = []
+        for row in rows:
+            value = str(row.get("value") or "").strip()
+            if not value:
+                continue
+            item: Dict[str, Any] = {"value": value, "label": value}
+            if dim == "market":
+                code = str(row.get("code") or "").strip()
+                if code:
+                    item["code"] = code
+            options.append(item)
+        options.sort(key=lambda r: str(r.get("value") or ""))
+        return options
 
     @staticmethod
     def normalize_survivorship(raw: Any) -> str:

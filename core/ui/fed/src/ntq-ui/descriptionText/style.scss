@@ -1,0 +1,26 @@
+.ntq-description {
+  margin: 0;
+  font-size: var(--ui-font-sm, 0.875rem);
+  line-height: 1.45;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}
+
+.ntq-description--clamp {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: var(--ntq-description-lines, 3);
+  overflow: hidden;
+  /* line-clamp 与 pre-line 冲突时优先保留显式换行可读性 */
+  white-space: pre-line;
+}
+
+.ntq-description__line {
+  margin: 0;
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+
+  & + & {
+    margin-top: 0.35rem;
+  }
+}

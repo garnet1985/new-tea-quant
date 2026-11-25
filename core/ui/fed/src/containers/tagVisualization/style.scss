@@ -1,32 +1,45 @@
 .tag-viz-dialog {
-  .MuiDialogTitle-root.tag-viz-dialog__title {
+  .ntq-dialog__title {
+    width: 100%;
+  }
+
+  .tag-viz-dialog__title {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 16px;
+    gap: var(--ui-space-md);
+    width: 100%;
   }
 
   .tag-viz-dialog__heading {
     display: flex;
     align-items: baseline;
-    gap: 12px;
+    gap: var(--ui-space-sm);
     min-width: 0;
   }
 
+  .tag-viz-dialog__title-text {
+    font-size: var(--ui-font-md);
+    font-weight: var(--ui-font-weight-bold);
+  }
+
+  .tag-viz-dialog__cell-primary {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .tag-viz-dialog__body {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-height: 420px;
+    min-height: 26.25rem; // 420px
   }
 
   .tag-viz-dialog__note {
-    display: block;
+    margin: 0;
   }
 
   .tag-viz-dialog__back.ntq-button--ghost {
     color: var(--ntq-cyan) !important;
-    border-color: rgba(34, 211, 238, 0.72) !important;
+    border: 1px solid rgba(34, 211, 238, 0.72) !important;
     background: rgba(34, 211, 238, 0.14) !important;
 
     .ntq-icon {
@@ -40,21 +53,30 @@
     }
   }
 
-  .tag-viz-dialog__legend,
+  .tag-viz-dialog__close.ntq-button {
+    color: var(--ntq-text-muted);
+
+    &:hover {
+      color: var(--ntq-text);
+      background: var(--ui-white-06, rgba(255, 255, 255, 0.06));
+    }
+  }
+
   .tag-viz-dialog__distribution {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px;
+    align-items: center;
+    gap: var(--ui-space-sm);
   }
 
   .tag-viz-dialog__chart {
-    min-height: 320px;
+    min-height: 20rem; // 320px
   }
 
   .tag-viz-dialog__grid {
-    height: 420px;
+    height: 26.25rem; // 420px
 
-    .MuiDataGrid-root {
+    .ntq-data-grid {
       height: 100%;
     }
   }
@@ -63,45 +85,39 @@
     cursor: pointer;
   }
 
-  .tag-viz-dialog__board {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-  }
-
   .tag-viz-dialog__board-meta {
     display: flex;
     align-items: baseline;
-    gap: 8px;
+    gap: var(--ui-space-sm);
     color: var(--ntq-text-muted);
-    font-size: 13px;
+    font-size: var(--ui-font-sm);
   }
 
   .tag-viz-dialog__board-total {
     color: var(--ntq-text);
-    font-size: 28px;
-    font-weight: 600;
+    font-size: 1.75rem;
+    font-weight: var(--ui-font-weight-medium);
     letter-spacing: -0.04em;
     font-variant-numeric: tabular-nums;
   }
 
   .tag-viz-dialog__share {
     display: flex;
-    gap: 4px;
-    height: 28px;
+    gap: var(--ui-space-xxs);
+    height: 1.75rem;
   }
 
   .tag-viz-dialog__share-seg {
     display: flex;
     align-items: center;
-    min-width: 28px;
-    padding: 0 8px;
-    border-radius: 7px;
+    min-width: 1.75rem;
+    padding: 0 var(--ui-space-sm);
+    border-radius: var(--ui-radius-sm);
     overflow: hidden;
     background: var(--tag-accent);
-    color: #061018;
-    font-size: 12px;
-    font-weight: 600;
+    color: var(--ui-ink, #060612);
+    font-size: var(--ui-font-xs);
+    font-weight: var(--ui-font-weight-medium);
     white-space: nowrap;
 
     span {
@@ -112,19 +128,19 @@
 
   .tag-viz-dialog__cards {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-    gap: 12px;
+    grid-template-columns: repeat(auto-fit, minmax(15rem, 1fr));
+    gap: var(--ui-space-sm);
   }
 
   .tag-viz-dialog__card {
     position: relative;
     overflow: hidden;
-    padding: 14px 14px 12px;
+    padding: var(--ui-space-md) var(--ui-space-md) var(--ui-space-sm);
     border: 1px solid color-mix(in srgb, var(--tag-accent) 42%, transparent);
-    border-radius: 14px;
+    border-radius: var(--ui-radius-lg);
     background:
       linear-gradient(165deg, color-mix(in srgb, var(--tag-accent) 18%, transparent), transparent 46%),
-      rgba(255, 255, 255, 0.03);
+      var(--ui-surface-glass);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
 
     &::before {
@@ -133,7 +149,7 @@
       top: 0;
       bottom: 0;
       left: 0;
-      width: 3px;
+      width: 0.1875rem;
       background: var(--tag-accent);
     }
   }
@@ -142,35 +158,35 @@
     display: flex;
     align-items: baseline;
     justify-content: space-between;
-    gap: 8px;
+    gap: var(--ui-space-sm);
   }
 
   .tag-viz-dialog__card-name {
     color: var(--ntq-text);
-    font-size: 15px;
-    font-weight: 600;
+    font-size: 0.9375rem;
+    font-weight: var(--ui-font-weight-medium);
   }
 
   .tag-viz-dialog__card-share {
     color: var(--tag-accent);
-    font-size: 12px;
+    font-size: var(--ui-font-xs);
     font-variant-numeric: tabular-nums;
   }
 
   .tag-viz-dialog__card-count {
-    margin: 6px 0 10px;
+    margin: var(--ui-space-xs) 0 var(--ui-space-sm);
     color: var(--ntq-text);
-    font-size: 32px;
-    font-weight: 700;
+    font-size: 2rem;
+    font-weight: var(--ui-font-weight-bold);
     letter-spacing: -0.05em;
     line-height: 1;
     font-variant-numeric: tabular-nums;
 
     span {
-      margin-left: 4px;
+      margin-left: var(--ui-space-xxs);
       color: var(--ntq-text-muted);
-      font-size: 13px;
-      font-weight: 500;
+      font-size: var(--ui-font-sm);
+      font-weight: var(--ui-font-weight-medium);
       letter-spacing: 0;
     }
   }
@@ -178,38 +194,30 @@
   .tag-viz-dialog__pills {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .tag-viz-dialog__pill {
-    padding: 1px 8px;
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--ntq-text-muted);
-    font-size: 12px;
-    line-height: 20px;
+    align-items: center;
+    gap: var(--ui-space-sm);
   }
 
   .tag-viz-dialog__samples,
   .tag-viz-dialog__unmapped {
-    margin: 10px 0 0;
+    margin: var(--ui-space-sm) 0 0;
     color: var(--ntq-text-muted);
-    font-size: 12px;
-    line-height: 1.5;
+    font-size: var(--ui-font-xs);
+    line-height: var(--ui-leading-normal);
   }
 
   .tag-viz-dialog__samples span {
-    margin-right: 8px;
+    margin-right: var(--ui-space-sm);
     color: var(--ntq-white-45);
   }
 
   .tag-viz-dialog__samples {
-    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-family: var(--ui-font-mono);
     word-break: break-all;
   }
 
   .tag-viz-dialog__scalar {
-    padding: 28px 8px;
+    padding: var(--ui-space-xl) var(--ui-space-sm);
   }
 
   .tag-viz-dialog__pre {
@@ -220,6 +228,6 @@
   }
 
   .tag-viz-dialog__section + .tag-viz-dialog__section {
-    margin-top: 8px;
+    margin-top: var(--ui-space-sm);
   }
 }

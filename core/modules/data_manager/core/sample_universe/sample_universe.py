@@ -24,16 +24,16 @@ _STOCK_ID_FIELDS: Tuple[str, ...] = ("id", "stock_id")
 
 # (table_name, id_column)
 _PER_STOCK_PRUNE_TABLES: Tuple[Tuple[str, str], ...] = (
-    ("sys_stock_klines", "id"),
-    ("sys_stock_indicators", "id"),
-    ("sys_adj_factor_events", "id"),
-    ("sys_corporate_finance", "id"),
-    ("sys_stock_st_periods", "stock_id"),
-    ("sys_stock_board_map", "stock_id"),
-    ("sys_stock_market_map", "stock_id"),
-    ("sys_sw_stock_industry_map", "stock_id"),
-    ("sys_stock_area_map", "stock_id"),
-    ("sys_stock_list", "id"),
+    ("sys_data_stock_klines", "id"),
+    ("sys_data_stock_indicators", "id"),
+    ("sys_data_adj_factor_events", "id"),
+    ("sys_data_corporate_finance", "id"),
+    ("sys_data_stock_st_periods", "stock_id"),
+    ("sys_map_stock_board", "stock_id"),
+    ("sys_map_stock_market", "stock_id"),
+    ("sys_map_sw_stock_industry", "stock_id"),
+    ("sys_map_stock_area", "stock_id"),
+    ("sys_data_stock_list", "id"),
 )
 
 
@@ -291,12 +291,12 @@ class SampleUniverse:
                 logger.exception("prune %s 失败", table)
 
         try:
-            sql = f"DELETE FROM sys_tag_value WHERE entity_id NOT IN ({placeholders})"
+            sql = f"DELETE FROM sys_data_tag_value WHERE entity_id NOT IN ({placeholders})"
             n = int(eng.execute_write(sql, params) or 0)
             if n:
                 deleted += n
-                logger.info("prune sys_tag_value: 删除 %s 行", n)
+                logger.info("prune sys_data_tag_value: 删除 %s 行", n)
         except Exception:
-            logger.exception("prune sys_tag_value 失败")
+            logger.exception("prune sys_data_tag_value 失败")
 
         return deleted

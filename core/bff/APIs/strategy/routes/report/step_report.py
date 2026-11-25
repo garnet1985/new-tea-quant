@@ -12,10 +12,6 @@ from typing import Any, Dict, List, Optional
 
 from core.modules.data_manager import DataManager
 from core.modules.strategy import Strategy
-from core.modules.strategy.core.services.artifacts import ArtifactStore, PriceFactorStore
-from core.modules.strategy.core.engines.shared.enum_result_contract import (
-    EnumResultsManager,
-)
 from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.helpers.report_hydrate import (
     attach_enum_opportunities_field,
@@ -163,33 +159,14 @@ class WorkbenchReports:
     def _load_stock_ref_from_dir(
         cls, step: str, output_dir: Path
     ) -> Optional[Dict[str, Any]]:
-        try:
-            kind = ArtifactStore.parse_kind(step)
-        except ValueError:
+        raw = Strategy.load_entity_list_ui(step, output_dir)
+        if raw is None:
             return None
-        store = ArtifactStore.for_kind(kind).at(output_dir)
-        entity_list = store.file("entity_list")
-        if not entity_list.is_file():
-            return None
-        try:
-            if step == "enum":
-                from core.modules.strategy.core.engines.enumerator.common.report_manager.entity_list_report import (
-                    EntityListReport,
-                )
-
-                raw = EntityListReport.load(output_dir).to_ui_dict()
-                return cls._filter_enum_stock_ref(output_dir, raw)
-            from core.modules.strategy.core.engines.price_factor.report_manager.entity_list_report import (
-                EntityListReport,
-            )
-
-            raw = EntityListReport.load(output_dir).to_ui_dict()
+        if step == "enum":
+            return cls._filter_enum_stock_ref(output_dir, raw)
+        if step == "price":
             return cls._filter_price_stock_ref(output_dir, raw)
-        except Exception as exc:
-            from core.bff.shared.client_log import log_degraded
-
-            log_degraded("report.step.entityList", exc, f"{step}:{output_dir}")
-            return None
+        return None
 
     @classmethod
     def _filter_enum_stock_ref(
@@ -197,7 +174,7 @@ class WorkbenchReports:
     ) -> Dict[str, Any]:
         valid: Dict[str, Any] = {}
         for sid, payload in raw.items():
-            if not cls._enum_entity_has_data(output_dir, str(sid)):
+            if not Strategy.enum_entity_has_data(output_dir, str(sid)):
                 continue
             valid[str(sid)] = dict(payload) if isinstance(payload, dict) else payload
         return valid
@@ -208,28 +185,14 @@ class WorkbenchReports:
     ) -> Dict[str, Any]:
         valid: Dict[str, Any] = {}
         for sid, payload in raw.items():
-            if not cls._price_entity_has_data(output_dir, str(sid)):
+            if not Strategy.price_entity_has_investments(output_dir, str(sid)):
                 continue
             valid[str(sid)] = dict(payload) if isinstance(payload, dict) else payload
         return valid
 
-    @classmethod
-    def _enum_entity_has_data(cls, output_dir: Path, entity_id: str) -> bool:
-        eid = str(entity_id or "").strip()
-        if not eid:
-            return False
-        return bool(EnumResultsManager.at(output_dir).results(eid))
-
-    @classmethod
-    def _price_entity_has_data(cls, output_dir: Path, entity_id: str) -> bool:
-        eid = str(entity_id or "").strip().replace("/", "_")
-        if not eid:
-            return False
-        return PriceFactorStore.at(output_dir).has_investments(eid)
-
     @staticmethod
     def _batch_load_stock_display_names(codes: List[str]) -> Dict[str, str]:
-        model = DataManager().get_table("sys_stock_list")
+        model = DataManager().get_table("sys_data_stock_list")
         if model is None or not codes:
             return {}
         out: Dict[str, str] = {}

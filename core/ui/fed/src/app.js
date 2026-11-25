@@ -4,7 +4,8 @@ import { ThemeProvider } from '@mui/material/styles';
 import { CssBaseline } from '@mui/material';
 import theme from './styles/theme';
 import SetupPage from './pages/setupPage';
-import SetupTracePage from './pages/setupPage/setupTracePage';
+import SetupLicensePage from './pages/setupPage/setupLicensePage';
+import LicenseGuard from 'containers/licenseGuard';
 import SetupGuard from 'containers/setupGuard';
 import FeedbackPromptGuard from 'containers/feedbackPrompt';
 import AppShell from 'containers/appShell';
@@ -15,8 +16,17 @@ import ScanPage from './pages/scanPage';
 import TagListPage from './pages/tagPage';
 import DataContractListPage from './pages/dataContractPage';
 import DataSourceListPage from './pages/dataSourcePage';
+import SeriesRelationListPage, {
+  SeriesRelationDetailPage,
+} from './pages/seriesRelationPage';
+import PostProcessPage from './pages/postProcessPage';
 import SettingsPage from './pages/settingsPage';
 import WhatWeWillTrackPage from './pages/whatWeWillTrackPage';
+import {
+  UiPrototypeCatalogShell,
+  UiPrototypeCategoryPage,
+  UiPrototypeIndexPage,
+} from './pages/uiPrototype';
 
 function App() {
   return (
@@ -24,11 +34,12 @@ function App() {
       <CssBaseline />
       <Router future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
         <Routes>
+          <Route path="/setup/license" element={<SetupLicensePage />} />
+          <Route element={<LicenseGuard />}>
           <Route
             path="/setup"
             element={<SetupPage />}
           />
-          <Route path="/setup/trace" element={<SetupTracePage />} />
           <Route path="/what-we-will-track" element={<WhatWeWillTrackPage />} />
           <Route
             element={(
@@ -76,6 +87,14 @@ function App() {
               path="/advanced/tags"
               element={<TagListPage />}
             />
+            <Route path="/advanced/series-relation">
+              <Route index element={<SeriesRelationListPage />} />
+              <Route path="*" element={<SeriesRelationDetailPage />} />
+            </Route>
+            <Route
+              path="/advanced/post-process"
+              element={<PostProcessPage />}
+            />
             <Route
               path="/advanced"
               element={<Navigate to="/advanced/tags" replace />}
@@ -85,8 +104,14 @@ function App() {
               element={<Navigate to="/advanced/tags" replace />}
             />
             <Route path="/settings/*" element={<SettingsPage />} />
+            {/* 隐形 UI 图鉴 — 不进导航；手输 /dev/ui */}
+            <Route path="/dev/ui" element={<UiPrototypeCatalogShell />}>
+              <Route index element={<UiPrototypeIndexPage />} />
+              <Route path=":categoryId" element={<UiPrototypeCategoryPage />} />
+            </Route>
           </Route>
           <Route path="*" element={<Navigate to="/welcome" replace />} />
+          </Route>
         </Routes>
       </Router>
     </ThemeProvider>

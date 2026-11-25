@@ -1,0 +1,107 @@
+// =============================================================================
+// Token 入口：通用 UI + NTQ 产品（两套 CSS 变量）
+// -----------------------------------------------------------------------------
+// - `_ui-tokens.scss`  → `--ui-*`   通用原语（可离 NTQ）
+// - `_ntq-tokens.scss` → `--ntq-*`  壳 / 品牌 / 视区
+// - 下方别名：旧代码里的 `--ntq-space-*` 等指向 `--ui-*`，迁移期兼容
+// - 设计尺度只用 CSS 变量；`@media` 断点写字面量并注释 sync 对应 `--…`
+// =============================================================================
+
+@use 'ui-tokens';
+@use 'ntq-tokens';
+
+:root,
+body {
+  // --- 兼容别名：历史 `--ntq-*` 设计尺度 → `--ui-*` ---
+  --ntq-white-98: var(--ui-white-98);
+  --ntq-white-75: var(--ui-white-75);
+  --ntq-white-45: var(--ui-white-45);
+  --ntq-white-42: var(--ui-white-42);
+  --ntq-white-12: var(--ui-white-12);
+  --ntq-white-06: var(--ui-white-06);
+  --ntq-white-03: var(--ui-white-03);
+
+  --ntq-text: var(--ui-text);
+  --ntq-text-muted: var(--ui-text-muted);
+
+  --ntq-space-none: var(--ui-space-none);
+  --ntq-space-xxs: var(--ui-space-xxs);
+  --ntq-space-xs: var(--ui-space-xs);
+  --ntq-space-sm: var(--ui-space-sm);
+  --ntq-space-md: var(--ui-space-md);
+  --ntq-space-lg: var(--ui-space-lg);
+  --ntq-space-xl: var(--ui-space-xl);
+
+  --ntq-font-xs: var(--ui-font-xs);
+  --ntq-font-sm: var(--ui-font-sm);
+  --ntq-font-normal: var(--ui-font-normal);
+  --ntq-font-md: var(--ui-font-md);
+  --ntq-font-lg: var(--ui-font-lg);
+  --ntq-font-xl: var(--ui-font-xl);
+  --ntq-font-mono: var(--ui-font-mono);
+  --ntq-font-weight-regular: var(--ui-font-weight-regular);
+  --ntq-font-weight-medium: var(--ui-font-weight-medium);
+  --ntq-font-weight-bold: var(--ui-font-weight-bold);
+  --ntq-leading-tight: var(--ui-leading-tight);
+  --ntq-leading-normal: var(--ui-leading-normal);
+  --ntq-leading-relaxed: var(--ui-leading-relaxed);
+
+  --ntq-stack: var(--ui-stack);
+  --ntq-heading-margin-top: var(--ui-heading-margin-top);
+  --ntq-heading-margin-top-lg: var(--ui-heading-margin-top-lg);
+  --ntq-heading-margin-bottom: var(--ui-heading-margin-bottom);
+  --ntq-heading-gap-boost: var(--ui-heading-gap-boost);
+  --ntq-heading-gap-boost-lg: var(--ui-heading-gap-boost-lg);
+  --ntq-heading-gap-none-mt: var(--ui-heading-gap-none-mt);
+  --ntq-heading-gap-none-mb: var(--ui-heading-gap-none-mb);
+  --ntq-heading-gap-md-mt: var(--ui-heading-gap-md-mt);
+  --ntq-heading-gap-md-mb: var(--ui-heading-gap-md-mb);
+  --ntq-heading-gap-lg-mt: var(--ui-heading-gap-lg-mt);
+  --ntq-heading-gap-lg-mb: var(--ui-heading-gap-lg-mb);
+  --ntq-heading-bar-width: var(--ui-heading-bar-width);
+  --ntq-heading-bar-width-h1: var(--ui-heading-bar-width-h1);
+  --ntq-heading-bar-pad-x: var(--ui-heading-bar-pad-x);
+  --ntq-heading-bar-pad-y: var(--ui-heading-bar-pad-y);
+
+  --ntq-radius-none: var(--ui-radius-none);
+  --ntq-radius-sm: var(--ui-radius-sm);
+  --ntq-radius-md: var(--ui-radius-md);
+  --ntq-radius-lg: var(--ui-radius-lg);
+  --ntq-radius-pill: var(--ui-radius-pill);
+
+  --ntq-input-solid-bg: var(--ui-input-solid-bg);
+  --ntq-input-solid-bg-hover: var(--ui-input-solid-bg-hover);
+  --ntq-input-solid-bg-disabled: var(--ui-input-solid-bg-disabled);
+
+  --ntq-blur-sm: var(--ui-blur-sm);
+  --ntq-blur-md: var(--ui-blur-md);
+
+  --ntq-surface-lift: var(--ui-surface-lift);
+  --ntq-surface-glass: var(--ui-surface-glass);
+  --ntq-surface-frost: var(--ui-surface-frost);
+  --ntq-surface-frost-strong: var(--ui-surface-frost-strong);
+  // 旧名 → 三档
+  --ntq-surface-soft: var(--ui-surface-soft);
+  --ntq-surface-panel: var(--ui-surface-panel);
+  --ntq-surface-gradient: var(--ui-surface-gradient);
+
+  --ntq-divider-color: var(--ui-divider-color);
+  --ntq-layout-sidebar-width: var(--ui-layout-sidebar-width);
+
+  --ntq-icon-sm: var(--ui-icon-sm);
+  --ntq-icon-md: var(--ui-icon-md);
+  --ntq-icon-lg: var(--ui-icon-lg);
+  --ntq-icon-xl: var(--ui-icon-xl);
+  --ntq-icon-xxl: var(--ui-icon-xxl);
+
+  --ntq-progress-height-sm: var(--ui-progress-height-sm);
+  --ntq-progress-height-md: var(--ui-progress-height-md);
+  --ntq-progress-ring-sm: var(--ui-progress-ring-sm);
+  --ntq-progress-ring-md: var(--ui-progress-ring-md);
+
+  --ntq-form-control-font-size: var(--ui-form-control-font-size);
+  --ntq-form-control-line-height: var(--ui-form-control-line-height);
+
+  --ntq-input-max-width: var(--ui-input-max-width);
+  --ntq-textarea-max-width: var(--ui-textarea-max-width);
+}

@@ -109,9 +109,9 @@ def save_database_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, 
     return {"database_type": dt, "database": db_name, "duckdb_domains": {}}, None
 
 
-def _get_as_of_latest_completed_trading_date() -> Optional[str]:
+def _get_assumed_latest_completed_trading_date() -> Optional[str]:
     data_config = ProjectContext.config.load_data_config()
-    return data_config.get("as_of_latest_completed_trading_date")
+    return data_config.get("assumed_latest_completed_trading_date")
 
 
 def normalize_yyyymmdd(value: Any, field: str, *, required: bool = False) -> Optional[str]:
@@ -129,22 +129,6 @@ def normalize_yyyymmdd(value: Any, field: str, *, required: bool = False) -> Opt
     return raw
 
 
-def normalize_sample_pool(value: Any) -> Optional[int]:
-    if value is None:
-        return None
-    if isinstance(value, bool):
-        return None
-    if isinstance(value, str) and not value.strip():
-        return None
-    try:
-        n = int(value)
-    except (TypeError, ValueError):
-        raise ValueError("use_sample_stock_list 须为正整数或留空")
-    if n <= 0:
-        raise ValueError("use_sample_stock_list 须大于 0")
-    return n
-
-
 def normalize_positive_int(value: Any, field: str) -> int:
     if isinstance(value, bool):
         raise ValueError(f"{field} 须为正整数")
@@ -158,10 +142,7 @@ def normalize_positive_int(value: Any, field: str) -> int:
 
 
 def data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
-    sample = cfg.get("use_sample_stock_list")
-    sample_out: Optional[int] = None
-    if isinstance(sample, int) and sample > 0:
-        sample_out = sample
+    # use_sample_stock_list 是开发后门，不进入设置 API；只由 CLI/手改 data.json 控制。
     sim_max: Optional[int] = None
     try:
         sim_max = int(ProjectContext.config.get_simulation_results_max_stale_envs())
@@ -175,8 +156,7 @@ def data_settings_response(cfg: Dict[str, Any]) -> Dict[str, Any]:
             sim_max = None
     return {
         "default_start_date": str(cfg.get("default_start_date") or "").strip(),
-        "as_of_latest_completed_trading_date": _get_as_of_latest_completed_trading_date(),
-        "use_sample_stock_list": sample_out,
+        "assumed_latest_completed_trading_date": _get_assumed_latest_completed_trading_date(),
         "simulation_results_max_stale_envs": sim_max,
         "config_path": str(ProjectContext.path.get_user_config_root() / "data.json"),
     }
@@ -194,11 +174,10 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
             "default_start_date",
             required=True,
         )
-        as_of = normalize_yyyymmdd(
-            payload.get("as_of_latest_completed_trading_date"),
-            "as_of_latest_completed_trading_date",
+        assumed = normalize_yyyymmdd(
+            payload.get("assumed_latest_completed_trading_date"),
+            "assumed_latest_completed_trading_date",
         )
-        sample = normalize_sample_pool(payload.get("use_sample_stock_list"))
         sim_max = None
         if "simulation_results_max_stale_envs" in payload:
             sim_max = normalize_positive_int(
@@ -218,8 +197,8 @@ def save_data_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]
             existing = dict(loaded)
 
     existing["default_start_date"] = default_start
-    existing["as_of_latest_completed_trading_date"] = as_of
-    existing["use_sample_stock_list"] = sample
+    existing["assumed_latest_completed_trading_date"] = assumed
+    # 不读写 use_sample_stock_list：设置页保存不得写入/清空该开发配置。
     if sim_max is not None:
         retention = existing.get("retention")
         retention = dict(retention) if isinstance(retention, dict) else {}
@@ -242,6 +221,7 @@ def run_cache_clear(payload: Dict[str, Any]) -> Dict[str, Any]:
         clear_backtest_results=_flag("clear_backtest_results"),
         clear_scan_results=_flag("clear_scan_results"),
         clear_userspace_ntq=_flag("clear_userspace_ntq"),
+        clear_static_packages=_flag("clear_static_packages"),
     )
 
 
@@ -277,7 +257,7 @@ def save_trace_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any
 
 
 def get_membership_settings() -> Dict[str, Any]:
-    """通用凭证是否已装载。不返回明文。"""
+    """通用凭证是否已装载。不返回明文。官网根地址只在 userspace 配置里改。"""
     from core.infra.membership import Membership
 
     return Membership.status()
@@ -285,7 +265,7 @@ def get_membership_settings() -> Dict[str, Any]:
 
 def save_membership_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     """把官网通用凭证写入 userspace。"""
-    token = payload.get("token")
+    token = payload.get("token") if isinstance(payload, dict) else None
     if not isinstance(token, str) or not token.strip():
         return None, "请填入通用凭证"
     from core.infra.membership import Membership
@@ -293,6 +273,12 @@ def save_membership_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str
     err = Membership.save(token)
     if err:
         return None, err
+    try:
+        from core.infra.trace import Trace
+
+        Trace.track_member_bind(source="membership_save", force=True)
+    except Exception:
+        pass
     return Membership.status(), None
 
 
@@ -306,7 +292,7 @@ def clear_membership_settings() -> Dict[str, Any]:
 
 def get_feedback_settings() -> Dict[str, Any]:
     """Soft-prompt prefs (independent of Trace.consent)."""
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     prefs = Feedback.get_prefs()
     return {
@@ -324,7 +310,7 @@ def save_feedback_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, 
     if not isinstance(disabled, bool):
         return None, "prompts_disabled 须为布尔值"
 
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     source = str(payload.get("source") or "settings_ui").strip()[:32] or "settings_ui"
     ok_set = Feedback.set_prompts_disabled(disabled, source=source)
@@ -334,7 +320,7 @@ def save_feedback_settings(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, 
 
 
 def note_feedback_task_success(payload: Dict[str, Any]) -> Dict[str, Any]:
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     source = str((payload or {}).get("source") or "").strip()[:32]
     return Feedback.note_task_success(source=source)
@@ -345,7 +331,7 @@ def submit_feedback(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
     if rating not in {"up", "down"}:
         return None, "rating 须为 up 或 down"
 
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     text = str((payload or {}).get("text") or "")
     source = str((payload or {}).get("source") or "popup").strip()[:32] or "popup"
@@ -357,7 +343,7 @@ def submit_feedback(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], 
 
 def feedback_prompt_action(payload: Dict[str, Any]) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
     action = str((payload or {}).get("action") or "").strip().lower()
-    from core.infra.feedback import Feedback
+    from core.modules.ntq_external.feedback import Feedback
 
     if action == "snooze":
         Feedback.snooze_prompt()

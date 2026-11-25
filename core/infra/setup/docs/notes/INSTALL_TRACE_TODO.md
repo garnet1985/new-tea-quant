@@ -26,5 +26,5 @@
 
 ## 落点
 
-- `infra.setup`：`cli_runtime` / `ui_runtime` / `SetupDataInstaller` 在 raise 前把结构化原因交给 `SetupTrace`
+- `infra.setup`：`orchestrator` / `SetupDataInstaller` 在 raise 前把结构化原因交给 `SetupTrace`
 - `infra.trace`：确认 sanitize 允许这些 key；必要时加 `error_class` 白名单

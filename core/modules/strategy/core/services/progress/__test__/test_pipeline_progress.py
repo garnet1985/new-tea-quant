@@ -4,21 +4,23 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from core.modules.strategy.core.services.progress import (
-    PipelineProgress,
-    ProgressRecorder,
-)
+import pytest
+
+from core.modules.strategy.core.services.progress import PipelineProgress
 
 
-def _patch_recorder(tmp_path, monkeypatch):
-    def _build(channel, file_key):
-        return tmp_path / "progress" / channel / f"{file_key}.json"
+@pytest.fixture(autouse=True)
+def progress_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "progress"))
+    monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
+    from core.infra.progress.core import store
 
-    monkeypatch.setattr(ProgressRecorder, "build_path", staticmethod(_build))
+    store.reset()
+    yield tmp_path
+    store.reset()
 
 
-def test_seed_enter_tick_complete(tmp_path, monkeypatch):
-    _patch_recorder(tmp_path, monkeypatch)
+def test_seed_enter_tick_complete():
     PipelineProgress.seed("demo/x", "job1", pipeline_name="enum")
 
     with PipelineProgress.bind("demo/x", "job1") as prog:
@@ -47,9 +49,8 @@ def test_seed_enter_tick_complete(tmp_path, monkeypatch):
     assert names == ["load", "dispatch", "execute", "report"]
 
 
-def test_report_step_stays_open_until_complete(tmp_path, monkeypatch):
+def test_report_step_stays_open_until_complete():
     """归因并进 report：complete 之前当前步仍是 report，总进度未到 100。"""
-    _patch_recorder(tmp_path, monkeypatch)
     PipelineProgress.seed("demo/x", "job-report", pipeline_name="enum")
     with PipelineProgress.bind("demo/x", "job-report") as prog:
         prog.mark_running()
@@ -66,8 +67,7 @@ def test_report_step_stays_open_until_complete(tmp_path, monkeypatch):
         assert float(done["progress"]) == 100.0
 
 
-def test_fail_keeps_completed_steps(tmp_path, monkeypatch):
-    _patch_recorder(tmp_path, monkeypatch)
+def test_fail_keeps_completed_steps():
     PipelineProgress.seed("demo/x", "job2", pipeline_name="price")
     with PipelineProgress.bind("demo/x", "job2") as prog:
         prog.mark_running()
@@ -84,10 +84,11 @@ def test_fail_keeps_completed_steps(tmp_path, monkeypatch):
     assert doc["step"]["name"] == "execute"
 
 
-def test_stale_running_marked_failed(tmp_path, monkeypatch):
+def test_stale_running_marked_failed():
     import json
 
-    _patch_recorder(tmp_path, monkeypatch)
+    from core.modules.strategy.core.services.progress import ProgressRecorder
+
     PipelineProgress.seed("demo/x", "job3", pipeline_name="enum")
     with PipelineProgress.bind("demo/x", "job3") as prog:
         prog.mark_running()
@@ -106,18 +107,17 @@ def test_stale_running_marked_failed(tmp_path, monkeypatch):
     assert "超时" in doc["error"]
 
 
-def test_bound_facades_noop_without_bind(tmp_path, monkeypatch):
-    _patch_recorder(tmp_path, monkeypatch)
+def test_bound_facades_noop_without_bind():
     PipelineProgress.enter_step_bound("load")
     PipelineProgress.tick_execute_bound(1, 2)
     assert PipelineProgress.current() is None
 
 
-def test_attribute_pipeline_weights_and_labels(tmp_path, monkeypatch):
-    """归因：准备 5% · 对照回测 85% · 报告 10%；嵌套 enum 不抢进度。"""
+def test_attribute_pipeline_uses_shared_steps():
+    """归因跳过调度；权重 load5 / execute85 / report5（合计 95 归一）。"""
     from core.modules.strategy.core.services.progress import ATTRIBUTE_PIPELINE
+    from core.infra.progress import Progress
 
-    _patch_recorder(tmp_path, monkeypatch)
     PipelineProgress.seed(
         "demo/x",
         "job-attr",
@@ -129,12 +129,19 @@ def test_attribute_pipeline_weights_and_labels(tmp_path, monkeypatch):
         prog.enter_step("load")
         assert prog.to_dict()["step"]["description"] == "准备任务"
         prog.complete_step("load")
-        assert float(prog.to_dict()["progress"]) == 5.0
+        # 5/95
+        assert float(prog.to_dict()["progress"]) == 5.26
 
         prog.enter_step("execute")
         prog.tick_execute(1, 4)
-        # 5% + 85% * 0.25 = 26.25
-        assert float(prog.to_dict()["progress"]) == 26.25
+        # (5 + 85*0.25) / 95
+        assert float(prog.to_dict()["progress"]) == 27.63
+
+        shared = Progress.read("pipeline-demo-x-job-attr")
+        assert shared["job"] == "attribute"
+        assert shared["ratio"] == 0.2763
+        assert shared["steps"][1]["done"] == 1
+        assert shared["steps"][1]["total"] == 4
         assert prog.to_dict()["step"]["counters"] == {"done": 1, "total": 4}
         assert prog.to_dict()["step"]["description"] == "对照回测"
 
@@ -145,21 +152,30 @@ def test_attribute_pipeline_weights_and_labels(tmp_path, monkeypatch):
         prog.complete_step("execute")
         prog.enter_step("report")
         assert prog.to_dict()["step"]["description"] == "归因与报告"
-        assert float(prog.to_dict()["progress"]) == 90.0
+        # (5+85)/95
+        assert float(prog.to_dict()["progress"]) == 94.74
         prog.complete_step("report")
         assert float(prog.to_dict()["progress"]) == 100.0
 
 
-def test_rolling_tick_keeps_window_step_label(tmp_path, monkeypatch):
+def test_rolling_tick_keeps_window_step_label():
     """滚动对照一次只前进一个窗口步骤，说明文字留给界面。"""
     from core.modules.strategy.core.services.progress import ROLLING_PIPELINE
+    from core.infra.progress import Progress
 
-    _patch_recorder(tmp_path, monkeypatch)
     PipelineProgress.seed("demo/x", "job-roll", pipeline_name=ROLLING_PIPELINE)
     with PipelineProgress.bind("demo/x", "job-roll") as prog:
         prog.mark_running()
         prog.tick_execute(1, 6, description="20240101-20241231 枚举")
         assert prog.to_dict()["step"]["description"] == "20240101-20241231 枚举"
         assert prog.to_dict()["step"]["counters"] == {"done": 1, "total": 6}
+        held = float(prog.to_dict()["step"]["progress"])
+        prog.tick_execute(0, 3, description="下一窗")
+        assert float(prog.to_dict()["step"]["progress"]) == held
+        assert prog.to_dict()["step"]["counters"] == {"done": 0, "total": 3}
+
+        shared = Progress.read("pipeline-demo-x-job-roll")
+        assert shared["steps"][0]["done"] == 0
+        assert shared["steps"][0]["total"] == 3
         assert PipelineProgress.drives_pipeline("enum") is False
         assert PipelineProgress.drives_pipeline(ROLLING_PIPELINE) is True

@@ -137,6 +137,5 @@ N       = clamp(N_ideal, 0, N_max)
 
 ## 相关文档
 
-- [DESIGN.md](./DESIGN.md)  
 - [ARCHITECTURE.md](./ARCHITECTURE.md)  
 - [API.md](../API.md)  

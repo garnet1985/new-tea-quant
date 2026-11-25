@@ -30,7 +30,8 @@ changelog:
 _API = """\
 # X API
 
-**版本：** `{ver}`
+**模块：** `{name}` · **版本：** `{ver}`
+
 **最低支持核心版本：** `{core}`
 
 body
@@ -75,10 +76,16 @@ def _write_mod(tmp: Path, *, name: str = "modules.demo", changelog_ver: str = "0
     (root / "module_info.yaml").write_text(
         _INFO.format(name=name, changelog_ver=changelog_ver), encoding="utf-8"
     )
-    (root / "API.md").write_text(_API.format(ver="0.2.0", core=">=0.4.5"), encoding="utf-8")
+    (root / "API.md").write_text(
+        _API.format(name=name, ver="0.2.0", core=">=0.4.5"), encoding="utf-8"
+    )
     cases = root / "__test__"
     cases.mkdir()
     (cases / "TEST_CASES.md").write_text(_CASES, encoding="utf-8")
+    (root / "glossary.yaml").write_text(
+        "# Demo\n# Version: 0.2.0\n# Compatible-Core: >=0.4.5\n\nterms: {}\n",
+        encoding="utf-8",
+    )
     return root / "module_info.yaml"
 
 
@@ -92,12 +99,33 @@ def test_validate_rejects_legacy_cover_field(tmp_path: Path) -> None:
 def test_validate_rejects_api_core_compat_drift(tmp_path: Path) -> None:
     info = _write_mod(tmp_path)
     api = info.parent / "API.md"
-    api.write_text(_API.format(ver="0.2.0", core=">=0.4.4"), encoding="utf-8")
+    api.write_text(
+        _API.format(name="modules.demo", ver="0.2.0", core=">=0.4.4"),
+        encoding="utf-8",
+    )
     (info.parent / "__test__" / "TEST_CASES.md").write_text(
-        "**版本：** `0.2.0`\n", encoding="utf-8"
+        "**模块：** `modules.demo` · **版本：** `0.2.0`\n\n"
+        "**最低支持核心版本：** `>=0.4.5`\n",
+        encoding="utf-8",
     )
     issues = validate_module_doc_versions(info_paths=[info])
     assert any("最低支持核心版本" in x for x in issues)
+
+
+def test_validate_rejects_missing_module_name(tmp_path: Path) -> None:
+    info = _write_mod(tmp_path)
+    api = info.parent / "API.md"
+    api.write_text(
+        "# X\n\n**版本：** `0.2.0`\n\n**最低支持核心版本：** `>=0.4.5`\n",
+        encoding="utf-8",
+    )
+    (info.parent / "__test__" / "TEST_CASES.md").write_text(
+        "**模块：** `modules.demo` · **版本：** `0.2.0`\n\n"
+        "**最低支持核心版本：** `>=0.4.5`\n",
+        encoding="utf-8",
+    )
+    issues = validate_module_doc_versions(info_paths=[info])
+    assert any("缺少 **模块：**" in x for x in issues)
 
 
 def test_sync_rewrites_cover_alias_and_number(tmp_path: Path) -> None:
@@ -106,9 +134,10 @@ def test_sync_rewrites_cover_alias_and_number(tmp_path: Path) -> None:
     assert any(p.endswith("TEST_CASES.md") for p in changed)
     text = (info.parent / "__test__" / "TEST_CASES.md").read_text(encoding="utf-8")
     assert "**覆盖版本：**" not in text
-    assert "**版本：** `0.2.0`" in text
+    assert "**模块：** `modules.demo` · **版本：** `0.2.0`" in text
+    assert "**最低支持核心版本：** `>=0.4.5`" in text
     issues = validate_module_doc_versions(info_paths=[info])
-    assert issues == []
+    assert issues == [], "\n".join(issues)
 
 
 def test_changelog_head_must_match_version(tmp_path: Path) -> None:

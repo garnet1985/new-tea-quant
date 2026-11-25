@@ -3,7 +3,7 @@
 安装流程步骤：初始化 userspace 目录。
 
 行为：
-- 从 initialization/userspace 自动读取唯一 zip 包（没有或有多个都报错）
+- 从 core/infra/setup/core/steps/init_userspace/assets 自动读取唯一 zip 包（没有或有多个都报错）
 - 解压到目标目录（默认 <repo>/userspace，或沿用已有 .ntq/userspace-path.json）
 - 写入 .ntq/userspace-path.json 供 ProjectContext 读取
 """
@@ -25,13 +25,13 @@ _REPO_ROOT = next(
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from core.infra.setup.core.env import NewTeaQuantSetup
+from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
 from core.infra.project_context.core.path_manager import PathManager
 
-INIT_USERSPACE_DIR = _REPO_ROOT / "initialization" / "userspace"
+INIT_USERSPACE_DIR = NewTeaQuantSetup.init_userspace_dir
 STATE_FILE = _REPO_ROOT / ".ntq" / "userspace-path.json"
 
 
@@ -41,7 +41,7 @@ def _resolve_zip() -> Path:
         raise FileNotFoundError(f"未找到 userspace zip，请放置到: {INIT_USERSPACE_DIR}")
     if len(zip_files) > 1:
         names = ", ".join(p.name for p in zip_files)
-        raise RuntimeError(f"initialization/userspace 下检测到多个 zip，请只保留一个: {names}")
+        raise RuntimeError(f"core/infra/setup/core/steps/init_userspace/assets 下检测到多个 zip，请只保留一个: {names}")
     return zip_files[0]
 
 
@@ -58,6 +58,25 @@ def _is_userspace_structure_ready(target: Path) -> bool:
     # 最小完整性检查：后续 db_connection 必须依赖该文件。
     required = target / "system" / "config" / "database" / "common.json"
     return required.is_file()
+
+
+def _is_hollow_userspace(target: Path) -> bool:
+    """
+    目录已存在但还不是可用 userspace。
+
+    安装开始时 trace 可能先写入 ``userspace/.ntq/``，此时目录非空却没有
+    ``system/config/database/common.json``；应视为可覆盖的空壳，而不是冲突。
+    """
+    if not target.is_dir() or _is_userspace_structure_ready(target):
+        return False
+    for child in target.iterdir():
+        name = child.name
+        if name in (".ntq", ".DS_Store"):
+            continue
+        if name.startswith("._"):
+            continue
+        return False
+    return True
 
 
 def _extract_zip(zip_path: Path, target: Path) -> None:
@@ -116,20 +135,21 @@ def main() -> int:
     except (ValueError, PermissionError, OSError) as exc:
         raise RuntimeError(f"userspace 路径非法或无权限: {exc}") from exc
     if target.exists():
-        if conflict_policy == "skip":
-            if not _is_userspace_structure_ready(target):
-                raise RuntimeError(
-                    "目标路径已存在，但不是可用的 userspace 结构（缺少 system/config/database/common.json）。"
-                    f"请改用“覆盖”或清理后重试: {target}"
-                )
+        if conflict_policy == "skip" and _is_userspace_structure_ready(target):
             NewTeaQuantSetup.print_check_item("warn", f"目标路径已存在，按策略跳过解压: {target}")
             _write_userspace_state(target)
             NewTeaQuantSetup.print_check_ok(f"userspace 初始化完成（跳过覆盖）: {target}")
             NewTeaQuantSetup.print_check_info(f"userspace 路径状态已写入: {STATE_FILE}")
             return 0
-        if conflict_policy == "overwrite":
-            NewTeaQuantSetup.print_check_item("warn", f"目标路径已存在，按策略覆盖: {target}")
+        if conflict_policy == "overwrite" or _is_hollow_userspace(target):
+            reason = "按策略覆盖" if conflict_policy == "overwrite" else "仅有临时 .ntq，清理后重新初始化"
+            NewTeaQuantSetup.print_check_item("warn", f"目标路径已存在，{reason}: {target}")
             shutil.rmtree(target)
+        else:
+            raise RuntimeError(
+                "目标路径已存在，但不是可用的 userspace 结构（缺少 system/config/database/common.json）。"
+                f"请改用“覆盖”或清理后重试: {target}"
+            )
 
     _extract_zip(zip_path, target)
     _ensure_default_database_config(target)

@@ -1,7 +1,7 @@
 # Simulation versioning
 
 **状态：** 现行规格（2026-09-03）  
-**编号决策：** [DESIGN.md](./DESIGN.md) 文末（D15–D40）
+**编号决策：** [DECISIONS.md](./DECISIONS.md)（D15–D40）
 
 一次完整回测 = 一个 version（enum / price / portfolio 共享该号）。日常编辑 SOT 是 `settings.py`；没有「发布策略」、没有工作台 DB 与磁盘双轨。
 
@@ -149,4 +149,4 @@
 | 文件 | 角色 |
 |------|------|
 | 本文 | **现行叙事 SOT** |
-| [DESIGN.md](./DESIGN.md) | 编号决策（D15–D40） |
+| [DECISIONS.md](./DECISIONS.md) | 编号决策（D15–D40） |

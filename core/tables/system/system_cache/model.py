@@ -1,5 +1,5 @@
 """
-sys_cache 表 Model
+sys_cache_kv 表 Model
 
 系统缓存：支持 text / json 两种存储形式；写入时维护 created_at、last_updated。
 """
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 
 
 class CacheSystemModel(DbBaseModel):
-    """系统缓存表 Model（表名 sys_cache）"""
+    """系统缓存表 Model（表名 sys_cache_kv）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

@@ -1,5 +1,5 @@
 """
-A 股交易日历（sys_trade_calendar）。
+A 股交易日历（sys_data_trade_calendar）。
 
 全量自然日：每个 cal_date 一行，is_open 表示是否交易（0 休市 / 1 交易）。
 沪深 A 股共用上交所日历，默认 market=SSE（与 Tushare trade_cal 一致）。
@@ -9,7 +9,8 @@ A 股交易日历（sys_trade_calendar）。
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "system_trade_calendar",
-    "name": "sys_trade_calendar",
+    "kind": "data",
+    "name": "sys_data_trade_calendar",
     "primaryKey": ["market", "cal_date"],
     "fields": [
         {

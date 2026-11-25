@@ -1,0 +1,69 @@
+.ntq-column {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+}
+
+.ntq-column > * {
+  min-width: 0;
+}
+
+// --- variant：描述性分栏（改比例请改这里或覆盖对应变量） ---
+.ntq-column--halves {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ntq-column--thirds {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.ntq-column--quarters {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ntq-column--asideMain {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+
+.ntq-column--mainAside {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+
+.ntq-column--sidebar {
+  grid-template-columns: var(--ui-layout-sidebar-width) minmax(0, 1fr);
+}
+
+.ntq-column--sidebarEnd {
+  grid-template-columns: minmax(0, 1fr) var(--ui-layout-sidebar-width);
+}
+
+.ntq-column--gap-none { gap: var(--ui-space-none); }
+.ntq-column--gap-xxs { gap: var(--ui-space-xxs); }
+.ntq-column--gap-xs { gap: var(--ui-space-xs); }
+.ntq-column--gap-sm { gap: var(--ui-space-sm); }
+.ntq-column--gap-md { gap: var(--ui-space-md); }
+.ntq-column--gap-lg { gap: var(--ui-space-lg); }
+.ntq-column--gap-xl { gap: var(--ui-space-xl); }
+
+.ntq-column--align-stretch { align-items: stretch; }
+.ntq-column--align-start { align-items: start; }
+.ntq-column--align-center { align-items: center; }
+.ntq-column--align-end { align-items: end; }
+
+// 列间竖线（常与 gap="none" 搭配，如侧栏 | 主区）
+.ntq-column--divider-line > * + * {
+  border-left: 1px solid var(--ui-divider-color);
+}
+
+// sync: --ui-layout-stack-below（@media 不能可靠使用 CSS 变量）
+@media (max-width: 800px) {
+  .ntq-column:not(.ntq-column--no-stack) {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .ntq-column:not(.ntq-column--no-stack).ntq-column--divider-line > * + * {
+    border-left: none;
+    border-top: 1px solid var(--ui-divider-color);
+  }
+}

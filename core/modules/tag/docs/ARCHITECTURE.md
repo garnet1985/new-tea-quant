@@ -1,8 +1,10 @@
 # Tag — 架构
 
-**版本：** `0.4.0`
+**模块：** `modules.tag` · **版本：** `0.4.2`
 
-`modules.tag` 将 userspace 场景编排为标签计算：Discovery → settings 校验 → metadata ensure → 按 **`data.base` 路由** → flush。对外仅暴露 **`Tag`**。
+**最低支持核心版本：** `>=0.5.0`
+
+`modules.tag` 将 userspace 场景编排为标签计算：Discovery → settings 校验 → metadata ensure → 按 **`data.base` 路由** → flush。对外仅暴露 **`Tag`**。`execute` 同步；UI/agent 异步壳外置。
 
 ---
 
@@ -10,13 +12,13 @@
 
 **负责**
 
-- 场景发现、校验与 Facade 执行入口
+- 场景发现、校验与 Facade 执行入口（含同步 `execute`）
 - per_entity（经 BacktestEngine）/ global / non_time_series（主进程推进器）
-- 标签落库与计算进度水位
+- 标签落库与计算进度水位；进度落盘 IO（`get/seed/fail_run_progress`）
 
 **不负责**
 
-- UI catalog/run（在 BFF）
+- UI catalog/run 与异步编排（线程 / lease / 入队在 BFF；agent 自管同类壳）
 - 不另起平行于 BE 的调度框架（per_entity 硬约束见 notes）
 
 ---
@@ -59,7 +61,7 @@ flowchart TB
 
 ---
 
-## 执行流（摘要）
+## 数据流（若有）
 
 ```text
 Tag.execute
@@ -70,11 +72,11 @@ Tag.execute
   → global / non_time_series: 主进程推进器 → flush
 ```
 
-硬约束见 [DESIGN.md](./DESIGN.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
+硬约束见 [DECISIONS.md](./DECISIONS.md) 与 [notes/BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)。
 
 ---
 
-## 依赖
+## 依赖（结论）
 
 见 `module_info.yaml`。数据读写依赖 `data_manager`；**per_entity** 调度依赖 `backtest_engine`。
 
@@ -82,7 +84,8 @@ Tag.execute
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
-- [DESIGN.md](./DESIGN.md)
 - [BOUNDARY_NOTES.md](./notes/BOUNDARY_NOTES.md)
+- [决策](./DECISIONS.md)

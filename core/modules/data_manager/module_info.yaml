@@ -1,8 +1,11 @@
 name: modules.data_manager
-version: "0.2.2"
+version: "0.2.3"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据管理模块：提供统一的数据访问门面，支持对不同数据源的访问和查询。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "数据管理模块 (Data Manager)"
+site_display_title: "统一的数据分发层 - Data Manager 模块"
 dependencies:
   - infra.db
   - infra.project_context
@@ -10,9 +13,14 @@ dependencies:
   - infra.utils
   - infra.cmd_layout
 changelog:
+  - version: "0.2.3"
+    changes:
+      - ListService.filter_ids：多维度 include/exclude 股票池过滤（策略 data.stock_list_filter）
+      - ListService.load_filter_options：列出 stock_list_filter 可用选项（CLI list stock.*）
+      - DataManager.list_tables：已注册逻辑表名列表（CLI list tables）
   - version: "0.2.2"
     changes:
-      - 股票行业读取改为申万一级（sys_sw_industry / sys_sw_stock_industry_map）
+      - 股票行业读取改为申万一级（sys_data_sw_industry / sys_map_sw_stock_industry）
   - version: "0.2.1"
     changes:
       - 股票 K 线 load/load_batch 一律给出前复权顶层，以及 raw、hfq、adj_factor

@@ -60,6 +60,22 @@ core/infra/db/core/engines/
 
 ## 3. 层次职责
 
+```mermaid
+flowchart TB
+  Caller[DbBaseModel / 业务] --> Mgr[DatabaseManager]
+  Mgr --> Factory[EngineFactory]
+  Factory --> Duck[duckdb Engine]
+  Factory --> My[mysql Engine]
+  Factory --> Pg[pgsql Engine]
+  Duck --> DParts[connector / sql_adapter / schema_parser / table_operator / write_pipeline]
+  My --> SParts[connector / sql_adapter / schema_parser / table_operator]
+  Pg --> SParts
+  My --> Shared[shared/server_*]
+  Pg --> Shared
+```
+
+同一时刻只挂载一个 engine；Manager 只转发，方言与连接在各 backend 包内。
+
 ### 3.1 DatabaseManager（外层）
 
 | 负责 | 不负责 |
@@ -148,7 +164,7 @@ Engine / connector 优先使用 `meta.require_mysql()` 等，不再散落 `confi
 
 ## 7. 与 DuckDB 存储域的关系
 
-DuckDB 三存储域（data / tag / strategy）的**产品决策**见 [决策 6](../docs/DESIGN.md) 与 [storage-domains.md](../docs/storage-domains.md)。
+DuckDB 三存储域（data / tag / strategy）的**产品决策**见 [决策 6](../docs/DECISIONS.md) 与 [storage-domains.md](../docs/storage-domains.md)。
 
 在 engines 架构下：
 
@@ -278,12 +294,12 @@ Engine 只需实现白名单对应能力；表作者遵守契约即可保证三�
 
 ### 10.2 DuckDB 同 storage_domain（同 `.duckdb` 文件）
 
-- 单域内多表 **JOIN**（如 `sys_stock_klines` ⋈ `sys_adj_factor_events`）：**支持**。
+- 单域内多表 **JOIN**（如 `sys_data_stock_klines` ⋈ `sys_data_adj_factor_events`）：**支持**。
 - 与 MySQL 语义相同，走该域 connector。
 
 ### 10.3 DuckDB 跨 storage_domain（跨 `.duckdb` 文件）— 读
 
-- 技术上可通过 **ATTACH** + 表名 qualify（如 `data.main.sys_stock_list`）执行 **只读** JOIN。
+- 技术上可通过 **ATTACH** + 表名 qualify（如 `data.main.sys_data_stock_list`）执行 **只读** JOIN。
 - 因表名 **全局唯一**，engine 可实现 **QueryPlanner**：扫描 SQL 中注册表名 → 映射 domain → ATTACH → qualify → 执行。
 - **实现优先级：** 随 engines 迁移逐步落地；extension 作者可写不含 domain 前缀的 SQL，由 duckdb engine 负责路由（详见 [storage-domains.md §4.3](../docs/storage-domains.md)）。
 - 复杂 SQL 无法安全解析时：**fail fast**，提示拆查询或改用 Service。
@@ -308,6 +324,6 @@ Engine 只需实现白名单对应能力；表作者遵守契约即可保证三�
 
 ## 11. 相关文档
 
-- [../docs/DESIGN.md](../docs/DESIGN.md) — 决策 7–11
+- [../docs/DECISIONS.md](../docs/DECISIONS.md) — 决策 7–11
 - [../docs/storage-domains.md](../docs/storage-domains.md) — DuckDB 存储域、§4.2 并发与 WAL
 - [../docs/ARCHITECTURE.md](../docs/ARCHITECTURE.md) — DatabaseManager + Engine 当前架构

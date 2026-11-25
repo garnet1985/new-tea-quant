@@ -1,4 +1,4 @@
-"""枚举层战役归因：找机会 + 纸面目标，不含资金/仓位旋钮。"""
+"""机会盘点层战役归因：找机会 + 纸面目标，不含资金/仓位旋钮。"""
 from __future__ import annotations
 
 from .base import AttributeBase

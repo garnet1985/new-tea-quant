@@ -1,8 +1,8 @@
-"""Scanner 横截面预筛：有 ``on_calendar_asof`` 时先选股再扫。
+"""Scanner 横截面预筛：有 ``on_calendar_slice`` 时先选股再扫。
 
 本文件:
-- ScannerCalendarAsof: 主进程调用 asof，收窄 ``stock_ids``（top_n / 价格区间等）
-  边界: 负责 asof 预筛；不负责 BE job / has_opportunity
+- ScannerCalendarAsof: 主进程调用切片钩子，收窄 ``stock_ids``
+  边界: 负责预筛；不负责 BE job / is_opportunity
 """
 from __future__ import annotations
 
@@ -10,12 +10,11 @@ import logging
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Sequence
 
-from core.modules.strategy.core.engines.shared.data_class import CalendarAsOfResult
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
 from core.modules.strategy.core.helpers.calendar import CalendarOpenDateHelper
-from core.modules.strategy.core.hooks.hook_params import StrategyContext
+from core.modules.strategy.core.hooks.hook_params import CalendarSlice, open_context
 from core.modules.strategy.core.hooks.runtime import StrategyHookRuntime
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
@@ -27,7 +26,7 @@ _DATA_KEY_DAILY = "stock.kline.daily"
 
 
 class ScannerCalendarAsof:
-    """横截面策略扫描前：用 ``on_calendar_asof`` 替换全市场 ``stock_ids``。"""
+    """横截面策略扫描前：用 ``on_calendar_slice`` 替换全市场 ``stock_ids``。"""
 
     @classmethod
     def filter_stock_ids(
@@ -48,7 +47,7 @@ class ScannerCalendarAsof:
         if hook_runtime is None:
             logger.warning("scanner calendar asof 跳过：hooks 加载失败 %s", err)
             return ids
-        if not hook_runtime.is_overridden("on_calendar_asof"):
+        if not hook_runtime.is_overridden("on_calendar_slice"):
             return ids
 
         open_dates = cls._load_open_dates(data_manager, day)
@@ -74,76 +73,33 @@ class ScannerCalendarAsof:
             or getattr(strategy_info, "unique_relative_path", "")
             or ""
         ).strip()
-        base_ctx = StrategyContext.assemble(
+        ctx = open_context(
             strategy_key=strategy_key,
             settings=settings,
-            stock_list=ids,
+            sample_list=ids,
         )
-
-        needs_by_entity = True
-        try:
-            needs_probe = StrategyContext.fill(
-                base_ctx,
-                now=day,
-                by_entity={},
-                calendar=calendar,
-            )
-            needs_by_entity = bool(
-                hook_runtime.call("calendar_asof_needs_by_entity", needs_probe)
-            )
-        except Exception as exc:
-            logger.error("calendar_asof_needs_by_entity 失败: %s", exc, exc_info=True)
-
-        by_entity: Dict[str, Dict[str, Any]] = {}
-        if needs_by_entity:
-            by_entity = cls._load_by_entity(
+        base_key = str(getattr(settings.data, "base_data_key", None) or _DATA_KEY_DAILY).strip()
+        calendar_slice = CalendarSlice(
+            flags=calendar,
+            base_data_key=base_key or _DATA_KEY_DAILY,
+            loader=lambda: cls._load_by_entity(
                 data_manager,
                 settings=settings,
                 stock_ids=ids,
                 scan_date=day,
-            )
-
+            ),
+        )
         try:
-            asof_ctx = StrategyContext.fill(
-                base_ctx,
-                now=day,
-                by_entity=by_entity,
-                calendar=calendar,
-            )
-            result = hook_runtime.call("on_calendar_asof", asof_ctx)
+            result = hook_runtime.call("on_calendar_slice", ctx, calendar_slice)
         except Exception as exc:
-            logger.error("scanner on_calendar_asof 失败: %s", exc, exc_info=True)
+            logger.error("scanner on_calendar_slice 失败: %s", exc, exc_info=True)
             return ids
 
-        if not isinstance(result, CalendarAsOfResult):
-            logger.error(
-                "scanner on_calendar_asof 返回类型异常: %s",
-                type(result).__name__,
-            )
-            return ids
-
-        # 声明不需要市况却返回了 stocks → 组包后再调一次（对齐 enum）
-        if (not needs_by_entity) and result.stocks:
-            by_entity = cls._load_by_entity(
-                data_manager,
-                settings=settings,
-                stock_ids=ids,
-                scan_date=day,
-            )
-            try:
-                asof_ctx = StrategyContext.fill(
-                    base_ctx,
-                    now=day,
-                    by_entity=by_entity,
-                    calendar=calendar,
-                )
-                result = hook_runtime.call("on_calendar_asof", asof_ctx)
-            except Exception as exc:
-                logger.error("scanner on_calendar_asof 重试失败: %s", exc, exc_info=True)
-                return ids
-
+        allowed = set(ids)
         selected = [
-            str(sid).strip() for sid in (result.stocks or []) if str(sid).strip()
+            str(sid).strip()
+            for sid in (result or [])
+            if str(sid).strip() in allowed
         ]
         logger.info(
             "scanner calendar asof: date=%s period=%s universe=%d -> selected=%d",
@@ -200,7 +156,6 @@ class ScannerCalendarAsof:
             is_period_end = CalendarOpenDateHelper.is_last_open_of_year(as_of, all_open)
         return {
             "as_of_date": as_of,
-            "session_state": {},
             "open_date_index": open_date_index,
             "is_period_start": is_period_start,
             "is_period_end": is_period_end,

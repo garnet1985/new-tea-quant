@@ -441,7 +441,7 @@ module_name/
 │   └── test_yyy.py
 ├── docs/                  # 文档（推荐；清单见 docs/module-doc-standard.md）
 │   ├── ARCHITECTURE.md
-│   ├── DESIGN.md
+│   ├── DECISIONS.md
 │   └── CONCEPTS.md
 ├── sub_module_1/          # 子模块
 │   ├── __init__.py
@@ -519,7 +519,7 @@ class CalendarService:
 
     def __init__(self, data_manager: DataManager):
         super().__init__(data_manager)
-        self._trade_calendar = data_manager.get_table("sys_trade_calendar")
+        self._trade_calendar = data_manager.get_table("sys_data_trade_calendar")
 
     def get_latest_completed_trading_date(self) -> str:
         """返回最新已完成交易日（YYYYMMDD）。"""
@@ -1275,7 +1275,7 @@ class BacktestEngine:
 
 ### 9.3 模块文档
 
-**核心模块（`core/modules/*`）：** 清单与放置以 [`docs/module-doc-standard.md`](docs/module-doc-standard.md) 为准。根目录 `README.md` / `API.md` / `glossary.yaml`，设计选型写在 `docs/DESIGN.md`，不再单独维护 `DECISIONS.md` 或 `api.yaml`。
+**核心模块（`core/modules/*`）：** 清单与放置以 [`docs/module-doc-standard.md`](docs/module-doc-standard.md) 为准。根目录 `README.md` / `API.md` / `glossary.yaml`，设计目标、方案思路与选型决策写在 `docs/DECISIONS.md`，不再单独维护 `DESIGN.md` 或 `api.yaml`。
 
 ---
 
@@ -1619,7 +1619,7 @@ def find_file(filename: str) -> Path:
 
 **9. 清理并合并文档**
 
-按 [`docs/module-doc-standard.md`](docs/module-doc-standard.md)。决策写进 `docs/DESIGN.md`，不单独维护 `DECISIONS.md`。和现行规则冲突的过程稿删掉。`docs/notes/` 只放还没做的设计，不作为对外契约。`README.md` 用文字，不放代码块。
+按 [`docs/module-doc-standard.md`](docs/module-doc-standard.md)。设计与决策写进 `docs/DECISIONS.md`，不单独维护 `DESIGN.md`。和现行规则冲突的过程稿删掉。`docs/notes/` 只放还没做的设计，不作为对外契约。`README.md` 用文字，不放代码块。
 
 ### 13.3 检查
 
@@ -1631,4 +1631,4 @@ def find_file(filename: str) -> Path:
 - [ ] 同一行为没有各写一份；形状不同的平行实现有一句不合并的理由
 - [ ] utils / project_context 已覆盖的功能没有在模块里再写一份
 - [ ] 同一概念只有一个名字，没有留下别名
-- [ ] 文档符合模块文档规范，决策在 `DESIGN.md`
+- [ ] 文档符合模块文档规范，设计与决策在 `DECISIONS.md`

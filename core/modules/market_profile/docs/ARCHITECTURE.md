@@ -1,6 +1,8 @@
 # Market Profile — 架构
 
-**版本：** `0.2.0`
+**模块：** `modules.market_profile` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 `modules.market_profile` 提供多市场制度规则（涨跌幅、整手、T+N 交收等）。对外仅暴露 **`MarketRulesProxy`**；规则实例为 **`MarketBaseRules`** 子类。
 
@@ -56,6 +58,7 @@ flowchart LR
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
 - [glossary.yaml](../glossary.yaml)
-- [DESIGN.md](DESIGN.md)
+- [决策](./DECISIONS.md)

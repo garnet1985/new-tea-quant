@@ -69,7 +69,7 @@ COMPILATION_REQUIRED_PACKAGES = {
     "curl-cffi": "akshare 传递依赖；须用预编译 wheel",
 }
 
-# 与 core/infra/setup/core/steps/resolve_deps、ui_runtime、updater 的 pip --only-binary 列表对齐
+# 与 core/infra/setup/core/steps/resolve_deps、orchestrator、updater 的 pip --only-binary 列表对齐
 ONLY_BINARY_INSTALL = {
     "numpy",
     "pandas",

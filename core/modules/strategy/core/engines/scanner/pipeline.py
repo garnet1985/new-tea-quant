@@ -13,6 +13,7 @@ from dataclasses import fields as dc_fields
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple
 
+from core.modules.post_process import PostProcess
 from core.modules.backtest_engine import BacktestEngine
 from core.modules.data_manager import DataManager
 from core.modules.strategy.core.engines.scanner.executor import ScannerJobExecutor
@@ -20,22 +21,165 @@ from core.modules.strategy.core.engines.scanner.helpers import (
     ScanDateResolver,
     ScannerCalendarAsof,
 )
+from core.modules.strategy.core.engines.scanner.helpers.price_history_enrichment import (
+    enrich_post_process_ui_history,
+)
 from core.modules.strategy.core.engines.scanner.job_builder import ScannerJobBuilder
 from core.modules.strategy.core.engines.scanner.report_manager import ReportManager
 from core.modules.strategy.core.engines.shared.services.strategy_settings.strategy_settings import (
     StrategySettings,
 )
 from core.modules.strategy.core.services.artifacts.store import ArtifactStore
+from core.modules.strategy.core.services.artifacts.version_meta import VersionMetaStore
 from core.modules.strategy.core.services.discovery import DiscoveryService
 from core.modules.strategy.core.services.discovery.data.discovered_strategy import (
     EnabledStrategyInfo,
 )
+from core.modules.strategy.core.services.fingerprint import FingerprintCalculator
 
 logger = logging.getLogger(__name__)
 
 
 class ScannerPipeline:
     """扫描领域编排入口。"""
+
+    @classmethod
+    def scan_fingerprint(
+        cls,
+        strategy_info: EnabledStrategyInfo,
+        settings: StrategySettings,
+    ) -> str:
+        """扫描结果身份：执行设置 + 环境（含 hooks），不含选股宇宙。
+
+        用于判断落盘摘要是否仍对应当前策略；宇宙变化不强制作废当日缓存。
+        """
+        try:
+            execute_fp = FingerprintCalculator.to_execute_fingerprint(
+                settings,
+                entity_ids=None,
+            )
+            env_fp = FingerprintCalculator.to_env_fingerprint(strategy_info)
+            return FingerprintCalculator._to_fingerprint_hash(
+                {"execute": execute_fp, "env": env_fp}
+            )
+        except Exception:
+            logger.debug("scan_fingerprint failed", exc_info=True)
+            return ""
+
+    @classmethod
+    def latest_workbench_version(cls, strategy_folder: Any) -> int:
+        """磁盘上最新主号工作台版本（无则为 0）。"""
+        try:
+            root = ArtifactStore.simulations_root(strategy_folder)
+            vids = VersionMetaStore.list_version_ids(root)
+            return max((int(v) for v in vids), default=0)
+        except Exception:
+            logger.debug("latest_workbench_version failed", exc_info=True)
+            return 0
+
+    @staticmethod
+    def _settings_stale(summary_payload: Dict[str, Any], current_fp: str) -> bool:
+        stored = str(summary_payload.get("scan_fingerprint") or "").strip()
+        cur = str(current_fp or "").strip()
+        if not stored or not cur:
+            return False
+        return stored != cur
+
+    @staticmethod
+    def _version_stale(summary_payload: Dict[str, Any], current_version: int) -> bool:
+        """工作台已有更新主号 → 扫描结果视为过时（环境/产物可能已变）。"""
+        try:
+            stored = int(summary_payload.get("workbench_version") or 0)
+        except (TypeError, ValueError):
+            stored = 0
+        try:
+            cur = int(current_version or 0)
+        except (TypeError, ValueError):
+            cur = 0
+        return cur > 0 and stored < cur
+
+    @classmethod
+    def _scan_result_stale(
+        cls,
+        summary_payload: Dict[str, Any],
+        *,
+        current_fp: str,
+        current_version: int,
+    ) -> Tuple[bool, bool]:
+        """返回 ``(settings_stale, version_stale)``。"""
+        return (
+            cls._settings_stale(summary_payload, current_fp),
+            cls._version_stale(summary_payload, current_version),
+        )
+
+    @staticmethod
+    def _read_workbench_version(payload: Optional[Dict[str, Any]]) -> int:
+        if not isinstance(payload, dict):
+            return 0
+        try:
+            return max(0, int(payload.get("workbench_version") or 0))
+        except (TypeError, ValueError):
+            return 0
+
+    @classmethod
+    def _strategy_version_label(cls, payload: Optional[Dict[str, Any]]) -> str:
+        """落盘摘要上的 ``strategy_version``（缺省由 workbench_version 推导）。"""
+        if not isinstance(payload, dict):
+            return ""
+        raw = str(payload.get("strategy_version") or "").strip()
+        if raw:
+            return raw
+        wb = cls._read_workbench_version(payload)
+        return f"v{wb}" if wb > 0 else ""
+
+    @classmethod
+    def _attach_scan_identity(
+        cls,
+        report: Dict[str, Any],
+        summary_payload: Dict[str, Any],
+        *,
+        fallback_strategy_key: str = "",
+    ) -> Dict[str, Any]:
+        """把扫描时的策略身份 / 版本写进 readiness / UI 报告。"""
+        key = str(
+            summary_payload.get("strategy_key") or fallback_strategy_key or ""
+        ).strip()
+        if key:
+            report["strategy_key"] = key
+        wb = cls._read_workbench_version(summary_payload)
+        if wb > 0:
+            report["workbench_version"] = wb
+        ver = cls._strategy_version_label(summary_payload)
+        if ver:
+            report["strategy_version"] = ver
+        fp = str(summary_payload.get("scan_fingerprint") or "").strip()
+        if fp:
+            report["scan_fingerprint"] = fp
+        return report
+
+    @classmethod
+    def _readiness_payload(
+        cls,
+        *,
+        primary_action: str,
+        can_scan: bool,
+        block_reason: str = "",
+        settings_stale: bool = False,
+        version_stale: bool = False,
+        current_workbench_version: int = 0,
+        report: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        out: Dict[str, Any] = {
+            "primary_action": primary_action,
+            "can_scan": bool(can_scan),
+            "block_reason": str(block_reason or ""),
+            "settings_stale": bool(settings_stale),
+            "version_stale": bool(version_stale),
+            "current_workbench_version": max(0, int(current_workbench_version or 0)),
+        }
+        if report is not None:
+            out["report"] = report
+        return out
 
     @classmethod
     def scan(
@@ -63,7 +207,7 @@ class ScannerPipeline:
 
         kline_latest = ScanDateResolver.load_kline_latest_date(dm)
         if not kline_latest:
-            logger.error("无法解析 K 线最新日期（sys_stock_klines 可能为空）")
+            logger.error("无法解析 K 线最新日期（sys_data_stock_klines 可能为空）")
             return {}
 
         results: Dict[str, Any] = {}
@@ -167,6 +311,8 @@ class ScannerPipeline:
         return {
             "data_end": data_end,
             "demo_scan_cutoff_date": demo_scan_cutoff_date or None,
+            # 工作区后处理开关由 PostProcess prefs 持有（run 时检查）；此处只读给扫描页
+            "enable_post_process": PostProcess.is_run_enabled(),
         }
 
     @classmethod
@@ -190,15 +336,19 @@ class ScannerPipeline:
 
         name = str(key_or_id or "").strip()
         if not name:
-            return {"primary_action": "run", "can_scan": False, "block_reason": "strategy_name 无效"}
+            return cls._readiness_payload(
+                primary_action="run",
+                can_scan=False,
+                block_reason="strategy_name 无效",
+            )
         try:
             info, err = cls.resolve_one(name)
             if err or info is None:
-                return {
-                    "primary_action": "run",
-                    "can_scan": False,
-                    "block_reason": err or "策略不存在或无法加载",
-                }
+                return cls._readiness_payload(
+                    primary_action="run",
+                    can_scan=False,
+                    block_reason=err or "策略不存在或无法加载",
+                )
 
             folder = cls.strategy_folder(info)
             data_mgr = DataManager(is_verbose=False)
@@ -206,44 +356,76 @@ class ScannerPipeline:
             settings.apply_defaults()
             use_strict = cls.apply_scan_mode(settings, demo=bool(demo))
 
+            current_fp = cls.scan_fingerprint(info, settings)
+            current_wb_ver = cls.latest_workbench_version(folder)
+
             block = cls.block_reason(demo=bool(demo), data_manager=data_mgr)
             if block:
                 kline_latest = ScanDateResolver.load_kline_latest_date(data_mgr)
                 report = None
                 primary = "run"
+                settings_stale = False
+                version_stale = False
                 if kline_latest:
                     store = ArtifactStore.scan_at(folder, kline_latest)
                     summary_payload = store.read_summary()
                     if isinstance(summary_payload, dict):
                         opportunities = ReportManager.load_opportunities(store)
                         total_opps = int(summary_payload.get("total_opportunities") or 0)
-                        report = {
-                            "date": str(summary_payload.get("date") or kline_latest),
-                            "total_opportunities": total_opps,
-                            "total_stocks": int(summary_payload.get("total_stocks") or 0),
-                            "summary": summary_payload.get("summary")
-                            if isinstance(summary_payload.get("summary"), dict)
-                            else {
+                        report = cls._attach_scan_identity(
+                            {
+                                "date": str(summary_payload.get("date") or kline_latest),
                                 "total_opportunities": total_opps,
-                                "total_stocks": 0,
-                                "stocks_with_opportunities": [],
+                                "total_stocks": int(
+                                    summary_payload.get("total_stocks") or 0
+                                ),
+                                "summary": summary_payload.get("summary")
+                                if isinstance(summary_payload.get("summary"), dict)
+                                else {
+                                    "total_opportunities": total_opps,
+                                    "total_stocks": 0,
+                                    "stocks_with_opportunities": [],
+                                },
+                                "opportunities": ScanProgress.opportunity_rows(
+                                    opportunities
+                                ),
                             },
-                            "opportunities": ScanProgress.opportunity_rows(opportunities),
-                        }
+                            summary_payload,
+                            fallback_strategy_key=name,
+                        )
+                        if isinstance(summary_payload.get("post_process"), dict):
+                            report["post_process"] = enrich_post_process_ui_history(
+                                dict(summary_payload["post_process"]),
+                                fallback_strategy_name=str(
+                                    report.get("strategy_key") or name or ""
+                                ),
+                            )
                         primary = "rerun"
-                return {
-                    "primary_action": primary,
-                    "can_scan": False,
-                    "block_reason": block,
-                    **({"report": report} if report else {}),
-                }
+                        settings_stale, version_stale = cls._scan_result_stale(
+                            summary_payload,
+                            current_fp=current_fp,
+                            current_version=current_wb_ver,
+                        )
+                return cls._readiness_payload(
+                    primary_action=primary,
+                    can_scan=False,
+                    block_reason=block,
+                    settings_stale=settings_stale,
+                    version_stale=version_stale,
+                    current_workbench_version=current_wb_ver,
+                    report=report,
+                )
 
             resolver = ScanDateResolver(data_mgr)
             scan_date, stock_ids = resolver.resolve_scan_date(use_strict=use_strict)
             store = ArtifactStore.scan_at(folder, scan_date)
             summary_payload = store.read_summary()
             if not isinstance(summary_payload, dict):
-                return {"primary_action": "run", "can_scan": True, "block_reason": ""}
+                return cls._readiness_payload(
+                    primary_action="run",
+                    can_scan=True,
+                    current_workbench_version=current_wb_ver,
+                )
 
             opportunities = ReportManager.load_opportunities(store)
             total_from_summary = summary_payload.get("total_opportunities")
@@ -274,26 +456,44 @@ class ScannerPipeline:
                 )
             except (TypeError, ValueError):
                 total_stocks_n = len(stock_ids)
-            report: Dict[str, Any] = {
-                "date": str(summary_payload.get("date") or scan_date),
-                "total_opportunities": total_opps,
-                "total_stocks": total_stocks_n,
-                "summary": summary,
-                "opportunities": ScanProgress.opportunity_rows(opportunities),
-            }
-            return {
-                "primary_action": "rerun",
-                "can_scan": True,
-                "block_reason": "",
-                "report": report,
-            }
+            report = cls._attach_scan_identity(
+                {
+                    "date": str(summary_payload.get("date") or scan_date),
+                    "total_opportunities": total_opps,
+                    "total_stocks": total_stocks_n,
+                    "summary": summary,
+                    "opportunities": ScanProgress.opportunity_rows(opportunities),
+                },
+                summary_payload,
+                fallback_strategy_key=name,
+            )
+            if isinstance(summary_payload.get("post_process"), dict):
+                report["post_process"] = enrich_post_process_ui_history(
+                    dict(summary_payload["post_process"]),
+                    fallback_strategy_name=str(
+                        report.get("strategy_key") or name or ""
+                    ),
+                )
+            settings_stale, version_stale = cls._scan_result_stale(
+                summary_payload,
+                current_fp=current_fp,
+                current_version=current_wb_ver,
+            )
+            return cls._readiness_payload(
+                primary_action="rerun",
+                can_scan=True,
+                settings_stale=settings_stale,
+                version_stale=version_stale,
+                current_workbench_version=current_wb_ver,
+                report=report,
+            )
         except Exception:
             logger.debug("scanner readiness failed strategy=%s", name, exc_info=True)
-            return {
-                "primary_action": "run",
-                "can_scan": False,
-                "block_reason": "读取扫描就绪状态失败",
-            }
+            return cls._readiness_payload(
+                primary_action="run",
+                can_scan=False,
+                block_reason="读取扫描就绪状态失败",
+            )
 
     @classmethod
     def run(
@@ -302,6 +502,7 @@ class ScannerPipeline:
         settings: StrategySettings,
         *,
         force: bool = False,
+        run_post_process: bool = True,
         on_progress: Optional[Callable[[Dict[str, Any]], None]] = None,
         data_manager: Any = None,
     ) -> Dict[str, Any]:
@@ -322,9 +523,22 @@ class ScannerPipeline:
         scan_max = ProjectContext.config.get_scan_results_max_versions()
         ArtifactStore.prune_scan(strategy_folder, max_versions=scan_max)
         store = ArtifactStore.scan_at(strategy_folder, scan_date)
+        current_fp = cls.scan_fingerprint(strategy_info, settings)
+        current_wb_ver = cls.latest_workbench_version(strategy_folder)
         use_cache = (not force) and store.has_summary()
+        if use_cache:
+            existing = store.read_summary()
+            if isinstance(existing, dict):
+                settings_stale, version_stale = cls._scan_result_stale(
+                    existing,
+                    current_fp=current_fp,
+                    current_version=current_wb_ver,
+                )
+                if settings_stale or version_stale:
+                    # 设置/环境变了，或工作台已有更新版本 → 作废当日缓存
+                    use_cache = False
 
-        # 横截面策略：先 asof 选股再扫，避免 has_opportunity 对全宇宙放行
+        # 横截面策略：先切片选股再扫，避免 is_opportunity 对全宇宙放行
         if not use_cache:
             stock_ids = ScannerCalendarAsof.filter_stock_ids(
                 strategy_info=strategy_info,
@@ -340,7 +554,9 @@ class ScannerPipeline:
             scan_date=scan_date,
             stock_ids=stock_ids,
             date_meta=date_meta,
-            adapter_names=list(settings.scanner.adapter_names or []),
+            goal=PostProcess.goal_summary_from_settings(settings.goal.goal),
+            scan_fingerprint=current_fp,
+            workbench_version=current_wb_ver,
             max_cache_days=scan_max,
             skip_save=use_cache,
         )
@@ -351,7 +567,6 @@ class ScannerPipeline:
                 try:
                     on_progress(
                         {
-                            "progress_pct": 99,
                             "total_jobs": 1,
                             "completed_jobs": 1,
                             "failed_jobs": 0,
@@ -372,7 +587,7 @@ class ScannerPipeline:
             )
             report.collect(run_result)
 
-        return report.finalize(present=True)
+        return report.finalize(present=True, run_post_process=bool(run_post_process))
 
     @classmethod
     def _run_backtest(
@@ -409,7 +624,6 @@ class ScannerPipeline:
             try:
                 on_progress(
                     {
-                        "progress_pct": 100,
                         "total_jobs": int(getattr(run_result, "total_jobs", 0) or 0),
                         "completed_jobs": int(
                             getattr(run_result, "completed_jobs", 0) or 0

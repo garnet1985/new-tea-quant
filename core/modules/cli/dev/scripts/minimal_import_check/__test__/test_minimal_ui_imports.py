@@ -27,6 +27,7 @@ def test_ensure_venv_skips_pip_upgrade_and_uses_index_flags(
 
     monkeypatch.setattr(mic, "BFF_REQUIREMENTS", req)
     monkeypatch.setattr(mic, "_venv_pip_version", lambda _python: "26.0.1")
+    monkeypatch.setattr(mic, "_venv_python_version", lambda _python: (3, 11))
     monkeypatch.setattr(mic.Utils.pkg, "announce", staticmethod(lambda: None))
 
     calls: list[tuple] = []

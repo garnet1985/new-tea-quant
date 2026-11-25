@@ -64,11 +64,15 @@ class UserParser:
         UserParser._p_strategy_rolling(sub)
         UserParser._p_strategy_delete_version(sub)
         UserParser._p_renew(sub)
+        UserParser._p_list(sub)
         UserParser._p_export_adj_factor(sub)
         UserParser._p_tag(sub)
+        UserParser._p_series_relation(sub)
+        UserParser._p_agent(sub)
         UserParser._p_export_strategy(sub)
         UserParser._p_import_strategy(sub)
         UserParser._p_import_data(sub)
+        UserParser._p_auth(sub)
         UserParser._p_update(sub)
         UserParser._p_version(sub)
 
@@ -94,7 +98,7 @@ class UserParser:
             sub,
             "strategy_enumerate",
             aliases=UserCommands.aliases_for("strategy_enumerate"),
-            help="枚举投资机会",
+            help="机会盘点（历史命中扫描）",
         )
         UserParser._add_strategy_target(p)
         p.add_argument("--stocks", type=int, default=None, help="测试股票数量")
@@ -178,7 +182,7 @@ class UserParser:
             sub,
             "strategy_simulate",
             aliases=UserCommands.aliases_for("strategy_simulate"),
-            help="一次跑完枚举、价格和资金回测",
+            help="一次跑完机会盘点、价格和资金回测",
         )
         UserParser._add_strategy_target(p)
 
@@ -188,7 +192,7 @@ class UserParser:
             sub,
             "strategy_attribute_enumerate",
             aliases=UserCommands.aliases_for("strategy_attribute_enumerate"),
-            help="枚举层归因（读 attribution.py；须先 se）",
+            help="机会盘点层归因（读 attribution.py；须先 se）",
         )
         UserParser._add_strategy_target(p)
 
@@ -218,7 +222,7 @@ class UserParser:
             sub,
             "strategy_rolling",
             aliases=UserCommands.aliases_for("strategy_rolling"),
-            help="滚动对照（读 rolling.py；须先完成枚举、价格和资金回测）",
+            help="滚动对照（读 rolling.py；须先完成机会盘点、价格和资金回测）",
         )
         UserParser._add_strategy_target(p)
 
@@ -242,6 +246,26 @@ class UserParser:
         UserParser._add_strategy_version_spec(p)
 
     @staticmethod
+    def _p_list(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "list",
+            aliases=UserCommands.aliases_for("list"),
+            help="列出可用选项（catalog：stock.area / stock.industry / …）",
+        )
+        p.add_argument(
+            "resource",
+            nargs="?",
+            default=None,
+            help="如 stock.area；省略则打印可用 resource",
+        )
+        p.add_argument(
+            "--json",
+            action="store_true",
+            help="JSON 输出",
+        )
+
+    @staticmethod
     def _p_renew(sub: argparse._SubParsersAction) -> None:
         p = UserParser._cmd(sub, "renew", aliases=UserCommands.aliases_for("renew"), help="更新 data source")
         p.add_argument(
@@ -250,6 +274,16 @@ class UserParser:
             default=None,
             metavar="SOURCE",
             help="表名或 key；省略=全部；list 列出目标",
+        )
+        p.add_argument(
+            "--json",
+            action="store_true",
+            help="与 list 合用，输出任务栏 JSON",
+        )
+        p.add_argument(
+            "--clear-logs",
+            action="store_true",
+            help="删除已结束的运行状态目录，留下正在跑的那一次",
         )
 
     @staticmethod
@@ -290,6 +324,116 @@ class UserParser:
         )
 
     @staticmethod
+    def _p_series_relation(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "series_relation",
+            aliases=UserCommands.aliases_for("series_relation"),
+            help="多序列并置比较（``srel``；配置在 extensions/series_relation）",
+        )
+        p.add_argument(
+            "key",
+            nargs="?",
+            default=None,
+            metavar="KEY",
+            help="meta.key 或相对路径；与 --list 互斥",
+        )
+        p.add_argument(
+            "--list",
+            action="store_true",
+            help="列出已发现的场景并退出",
+        )
+
+    @staticmethod
+    def _p_agent(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "agent",
+            aliases=UserCommands.aliases_for("agent"),
+            help="NTQ 助理（对话 / 偏好 / 设置；``a``）",
+        )
+        p.add_argument(
+            "message",
+            nargs="?",
+            default=None,
+            metavar="MESSAGE",
+            help="发给助理的一句话（与下方管理开关互斥）",
+        )
+        p.add_argument(
+            "--provider",
+            dest="agent_provider",
+            type=str,
+            default=None,
+            metavar="ID",
+            help="本轮 Provider（ntq 或已配置的自备 id）；省略用设置页默认",
+        )
+        p.add_argument(
+            "--session",
+            dest="agent_session",
+            type=str,
+            default=None,
+            metavar="ID",
+            help="会话名（默认 default）",
+        )
+        exclusive = p.add_mutually_exclusive_group()
+        exclusive.add_argument(
+            "--tools",
+            dest="agent_tools",
+            action="store_true",
+            help="列出已登记工具",
+        )
+        exclusive.add_argument(
+            "--clear",
+            dest="agent_clear",
+            action="store_true",
+            help="清空本机会话（不删跨会话偏好）",
+        )
+        exclusive.add_argument(
+            "--prefs",
+            dest="agent_prefs",
+            action="store_true",
+            help="列出跨会话偏好",
+        )
+        exclusive.add_argument(
+            "--remember",
+            dest="agent_remember",
+            type=str,
+            default=None,
+            metavar="RULE",
+            help="追加一条跨会话偏好",
+        )
+        exclusive.add_argument(
+            "--forget",
+            dest="agent_forget",
+            type=str,
+            default=None,
+            metavar="RULE",
+            help="删除一条跨会话偏好",
+        )
+        exclusive.add_argument(
+            "--settings",
+            dest="agent_settings",
+            action="store_true",
+            help="显示 Agent 产品设置",
+        )
+        exclusive.add_argument(
+            "--set-provider",
+            dest="agent_set_provider",
+            type=str,
+            default=None,
+            metavar="ID",
+            help="写入默认 Provider",
+        )
+        exclusive.add_argument(
+            "--set-context",
+            dest="agent_set_context",
+            type=str,
+            default=None,
+            metavar="TEXT",
+            help="写入补充说明（空字符串清空）",
+        )
+
+    @staticmethod
     def _p_export_strategy(sub: argparse._SubParsersAction) -> None:
         p = UserParser._cmd(
             sub,
@@ -318,7 +462,25 @@ class UserParser:
             sub,
             "import_data",
             aliases=UserCommands.aliases_for("import_data"),
-            help="导入 initialization/data 下唯一 zip 数据包（-f 强制全量重导）",
+            help="导入演示数据包（userspace/.ntq/packages/demo；无则官网下载；-f 重新下载并重导；成功后保留本地包）",
+        )
+
+    @staticmethod
+    def _p_auth(sub: argparse._SubParsersAction) -> None:
+        p = UserParser._cmd(
+            sub,
+            "auth",
+            help="交互设置官网会员凭证（密码式输入，不回显；写入 membership_token.txt）",
+        )
+        p.add_argument(
+            "--clear",
+            action="store_true",
+            help="清除本地凭证",
+        )
+        p.add_argument(
+            "--status",
+            action="store_true",
+            help="只查看是否已配置（不打印明文）",
         )
 
     @staticmethod

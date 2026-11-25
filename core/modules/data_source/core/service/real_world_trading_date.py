@@ -8,7 +8,7 @@ from __future__ import annotations
 from core.infra.cmd_layout import i
 
 import logging
-from typing import Optional, Tuple
+from typing import Optional, Sequence, Tuple
 
 from core.infra.utils import Utils
 from core.modules.data_source.core.service.provider_helper import DataSourceProviderHelper
@@ -18,18 +18,13 @@ logger = logging.getLogger(__name__)
 
 def fetch_real_world_latest_completed_trading_date() -> Optional[Tuple[str, str]]:
     """
-    新浪 → 东财；成功返回 ``(YYYYMMDD, provider)``，全部失败返回 ``None``。
+    用 AKShare 的腾讯指数日线探测。成功返回 ``(YYYYMMDD, provider)``，失败返回 ``None``。
 
     不含周末猜测兜底（由 CalendarService 负责）。
     """
-    latest = _try_fetch("新浪财经", _fetch_from_sina)
+    latest = _try_fetch("腾讯财经", _fetch_from_akshare)
     if latest:
-        return latest, "sina"
-
-    latest = _try_fetch("东方财富", _fetch_from_eastmoney)
-    if latest:
-        return latest, "eastmoney"
-
+        return latest, "akshare"
     return None
 
 
@@ -45,64 +40,45 @@ def _try_fetch(provider_name: str, fetch_func) -> Optional[str]:
     return None
 
 
-def _fetch_from_eastmoney() -> Optional[str]:
+def _fetch_from_akshare() -> Optional[str]:
     try:
-        provider = DataSourceProviderHelper.get_provider("eastmoney")
+        provider = DataSourceProviderHelper.get_provider("akshare")
         if not provider:
-            raise ValueError("EastMoney Provider 未找到")
-
-        result = provider.get_qfq_kline(secid="1.000001", limit=2)
-        if not result or "data" not in result:
-            raise ValueError("东方财富API返回数据格式错误")
-
-        klines = result.get("data", {}).get("klines", [])
-        if not klines or len(klines) < 1:
+            raise ValueError("AKShare Provider 未找到")
+        today = Utils.date.today()
+        start = Utils.date.add_days(today, -20)
+        frame = provider.get_qfq_kline(
+            symbol="sh000001",
+            start_date=start,
+            end_date=today,
+            adjust="",
+        )
+        dates = _dates_from_frame(frame)
+        if not dates:
             raise ValueError("未获取到K线数据")
-
-        return _extract_latest_date_from_klines(klines, is_eastmoney=True)
+        return _latest_completed(dates)
     except Exception as e:
-        logger.error(i('error') + " 从东方财富API获取最新交易日失败: %s", e)
+        logger.error(i('error') + " 从腾讯财经获取最新交易日失败: %s", e)
         raise
 
 
-def _fetch_from_sina() -> Optional[str]:
-    try:
-        provider = DataSourceProviderHelper.get_provider("sina")
-        if not provider:
-            raise ValueError("Sina Provider 未找到")
-
-        result = provider.get_daily_kline(symbol="sh000001", datalen=2)
-        if not result or "data" not in result:
-            raise ValueError("新浪财经API返回数据格式错误")
-
-        klines = result.get("data", [])
-        if not klines or len(klines) < 1:
-            raise ValueError("未获取到K线数据")
-
-        return _extract_latest_date_from_klines(klines, is_eastmoney=False)
-    except Exception as e:
-        logger.error(i('error') + " 从新浪财经API获取最新交易日失败: %s", e)
-        raise
+def _dates_from_frame(frame) -> list:
+    if frame is None:
+        return []
+    column = frame["date"] if hasattr(frame, "__getitem__") else None
+    if column is None:
+        return []
+    dates = []
+    for value in list(column):
+        text = str(value)[:10]
+        if text and text != "NaT":
+            dates.append(Utils.date.normalize_str(text))
+    return dates
 
 
-def _extract_latest_date_from_klines(klines: list, is_eastmoney: bool) -> str:
-    last_two = klines[-2:] if len(klines) >= 2 else [klines[-1]]
+def _latest_completed(dates: Sequence[str]) -> str:
     today = Utils.date.today()
-
-    last_kline = last_two[-1]
-    if is_eastmoney:
-        last_date_str = last_kline.split(",")[0]
-    else:
-        last_date_str = last_kline[0]
-
-    last_date = Utils.date.normalize_str(last_date_str)
-
-    if last_date == today and len(last_two) >= 2:
-        second_last_kline = last_two[-2]
-        if is_eastmoney:
-            second_last_date_str = second_last_kline.split(",")[0]
-        else:
-            second_last_date_str = second_last_kline[0]
-        return Utils.date.normalize_str(second_last_date_str)
-
-    return last_date
+    last = dates[-1]
+    if last == today and len(dates) >= 2:
+        return dates[-2]
+    return last

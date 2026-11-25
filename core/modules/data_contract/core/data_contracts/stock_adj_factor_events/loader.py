@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class StockAdjFactorEventsLoader(BaseDataContractLoader):
-    """按股票加载 sys_adj_factor_events（事件序列）。"""
+    """按股票加载 sys_data_adj_factor_events（事件序列）。"""
 
     def load(self, params: Mapping[str, Any]) -> Any:
         dm = DataManager()

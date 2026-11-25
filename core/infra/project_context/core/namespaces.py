@@ -64,6 +64,13 @@ class PathNamespace:
         return PathManager.get_userspace_root()
 
     @staticmethod
+    def bind_userspace_package(root: Optional[Union[str, Path]] = None) -> Path:
+        """确保 ``import userspace…`` 指向当前（或指定）userspace 根。"""
+        from .path_manager import PathManager
+        target = None if root is None else Path(root)
+        return PathManager.bind_userspace_package(target)
+
+    @staticmethod
     def resolve_userspace_target(raw: Optional[Union[str, Path]] = None) -> Path:
         """安装 / precheck：规范化并校验可写性"""
         from .path_manager import PathManager
@@ -106,6 +113,12 @@ class PathNamespace:
         return PathManager.get_user_config_root()
 
     @staticmethod
+    def get_user_prefs_root() -> Path:
+        """获取用户偏好目录（同意 / 反馈开关 / UI helper 等，非 default_config 合并项）"""
+        from .path_manager import PathManager
+        return PathManager.get_user_prefs_root()
+
+    @staticmethod
     def get_system_db_directory() -> Path:
         """获取系统数据库目录"""
         from .path_manager import PathManager
@@ -136,6 +149,24 @@ class PathNamespace:
         return PathManager.get_userspace_tmp_directory()
 
     @staticmethod
+    def get_packages_root() -> Path:
+        """静态数据包根目录：userspace/.ntq/packages/"""
+        from .path_manager import PathManager
+        return PathManager.get_packages_root()
+
+    @staticmethod
+    def get_data_package_directory(kind: str = "demo") -> Path:
+        """按类型返回数据包目录：packages/{demo|member|full}/"""
+        from .path_manager import PathManager
+        return PathManager.get_data_package_directory(kind)
+
+    @staticmethod
+    def get_install_demo_package_directory() -> Path:
+        """演示安装包目录（packages/demo/；导出 / 下载共用）"""
+        from .path_manager import PathManager
+        return PathManager.get_install_demo_package_directory()
+
+    @staticmethod
     def get_strategies_root() -> Path:
         """获取策略根目录"""
         from .path_manager import PathManager
@@ -146,6 +177,30 @@ class PathNamespace:
         """获取 Tag 根目录"""
         from .path_manager import PathManager
         return PathManager.get_tags_root()
+
+    @staticmethod
+    def get_series_relation_root() -> Path:
+        """序列关系扩展根：userspace/extensions/series_relation/"""
+        from .path_manager import PathManager
+        return PathManager.get_series_relation_root()
+
+    @staticmethod
+    def get_series_relation_directory(key_or_rel: str) -> Path:
+        """指定序列关系场景目录。"""
+        from .path_manager import PathManager
+        return PathManager.get_series_relation_directory(key_or_rel)
+
+    @staticmethod
+    def get_series_relation_settings_path(key_or_rel: str) -> Path:
+        """场景 settings.py。"""
+        from .path_manager import PathManager
+        return PathManager.get_series_relation_settings_path(key_or_rel)
+
+    @staticmethod
+    def get_series_relation_results_directory(key_or_rel: str) -> Path:
+        """场景 results/ 目录。"""
+        from .path_manager import PathManager
+        return PathManager.get_series_relation_results_directory(key_or_rel)
 
     @staticmethod
     def get_data_source_root() -> Path:
@@ -206,34 +261,82 @@ class PathNamespace:
     # ========== 扩展路径 API ==========
 
     @staticmethod
+    def is_safe_extension_id(name: str) -> bool:
+        """userspace 扩展目录/文件名是否安全。"""
+        from .path_manager import PathManager
+        return PathManager.is_safe_extension_id(name)
+
+    @staticmethod
     def get_extensions_tables_directory() -> Path:
         """获取扩展表目录"""
         from .path_manager import PathManager
         return PathManager.get_extensions_tables_directory()
 
     @staticmethod
+    def get_post_process_extensions_directory() -> Path:
+        """后续处理扩展根：userspace/extensions/post_process/"""
+        from .path_manager import PathManager
+        return PathManager.get_post_process_extensions_directory()
+
+    @staticmethod
     def get_adapters_directory() -> Path:
-        """获取 adapters 目录"""
+        """后续处理适配器：userspace/extensions/post_process/adapters/"""
         from .path_manager import PathManager
         return PathManager.get_adapters_directory()
 
     @staticmethod
-    def get_assistant_root() -> Path:
-        """获取 Assistant 根目录：userspace/extensions/assistant/"""
+    def get_post_processors_directory() -> Path:
+        """后续处理声明：userspace/extensions/post_process/post_processors/"""
         from .path_manager import PathManager
-        return PathManager.get_assistant_root()
+        return PathManager.get_post_processors_directory()
 
     @staticmethod
-    def get_assistant_providers_directory() -> Path:
-        """获取 Assistant providers 根目录"""
+    def get_llm_providers_directory() -> Path:
+        """大模型供应商：userspace/extensions/llm_providers/"""
         from .path_manager import PathManager
-        return PathManager.get_assistant_providers_directory()
+        return PathManager.get_llm_providers_directory()
 
     @staticmethod
-    def get_assistant_provider_directory(provider_id: str) -> Path:
-        """获取指定 Assistant provider 目录"""
+    def get_llm_provider_directory(provider_id: str) -> Path:
         from .path_manager import PathManager
-        return PathManager.get_assistant_provider_directory(provider_id)
+        return PathManager.get_llm_provider_directory(provider_id)
+
+    @staticmethod
+    def get_ai_root() -> Path:
+        """兼容旧名 → llm_providers。"""
+        from .path_manager import PathManager
+        return PathManager.get_ai_root()
+
+    @staticmethod
+    def get_ai_providers_directory() -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_ai_providers_directory()
+
+    @staticmethod
+    def get_ai_provider_directory(provider_id: str) -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_ai_provider_directory(provider_id)
+
+    @staticmethod
+    def get_agent_extensions_directory() -> Path:
+        """Agent 用户扩展：userspace/extensions/agent/"""
+        from .path_manager import PathManager
+        return PathManager.get_agent_extensions_directory()
+
+    @staticmethod
+    def get_agent_tools_directory() -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_agent_tools_directory()
+
+    @staticmethod
+    def get_agent_templates_directory() -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_agent_templates_directory()
+
+    @staticmethod
+    def get_agent_prompts_directory() -> Path:
+        from .path_manager import PathManager
+        return PathManager.get_agent_prompts_directory()
 
     @staticmethod
     def get_data_source_handler_directory(handler_name: str) -> Path:
@@ -367,23 +470,14 @@ class ConfigNamespace:
     """配置管理命名空间"""
 
     @staticmethod
-    def get_as_of_latest_completed_trading_date() -> Optional[str]:
-        """
-        data.json ``as_of_latest_completed_trading_date``（全系统 as-of 权威）。
-
-        配置后 ``CalendarService.get_latest_completed_trading_date`` 直接返回该值。
-        """
+    def get_assumed_latest_completed_trading_date() -> Optional[str]:
+        """扫描/回测假定最新已完成交易日；不裁 renew 截止。见 docs/DATA_JSON.md。"""
         from .config_manager import ConfigManager
-        return ConfigManager.get_as_of_latest_completed_trading_date()
+        return ConfigManager.get_assumed_latest_completed_trading_date()
 
     @staticmethod
     def get_default_start_date() -> str:
-        """
-        获取默认开始日期
-
-        Returns:
-            默认开始日期字符串（格式：YYYYMMDD）
-        """
+        """全局历史地板（空表 renew、回测默认 start 等）。见 docs/DATA_JSON.md。"""
         from .config_manager import ConfigManager
         return ConfigManager.get_default_start_date()
 

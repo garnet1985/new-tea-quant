@@ -1,0 +1,704 @@
+// 输入控件共享：Field 布局 + 控件宽度约定
+
+.ntq-field {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: var(--ntq-space-sm); // label / 控件 / error 之间留空，避免贴边
+  margin: 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.ntq-field--inline {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--ntq-space-md);
+}
+
+.ntq-field--none {
+  // 无标签时仍保留控件与 hint/error 间距
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-field__label-row {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xs);
+  min-width: 0;
+  margin: 0;
+}
+
+.ntq-field--inline .ntq-field__label-row {
+  flex: 0 0 auto;
+  max-width: 40%;
+}
+
+.ntq-field__label {
+  font-size: var(--ntq-font-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ntq-text);
+}
+
+.ntq-field__control {
+  flex: 1 1 auto;
+  min-width: 0;
+  width: 100%;
+}
+
+.ntq-field__hint,
+.ntq-field__error {
+  margin: 0;
+  font-size: var(--ntq-font-xs);
+  line-height: 1.4;
+}
+
+.ntq-field__hint {
+  color: var(--ntq-text-muted);
+}
+
+.ntq-field__error {
+  color: var(--ntq-error);
+}
+
+.ntq-field--inline .ntq-field__meta {
+  // hint/error 仍在控件列下方：结构上放在 control 外时由 Field 处理
+  width: 100%;
+}
+
+.ntq-checkbox {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xxs);
+  margin: 0;
+  min-width: 0;
+
+  .MuiCheckbox-root {
+    padding: var(--ntq-space-xxs);
+  }
+}
+
+.ntq-checkbox__label {
+  font-size: var(--ntq-font-sm);
+  line-height: 1.35;
+  color: var(--ntq-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ntq-checkbox.is-disabled .ntq-checkbox__label {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ntq-radio-group {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ntq-space-xs);
+  margin: 0;
+}
+
+.ntq-radio-group--row {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-radio-group__option {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  margin: 0 !important;
+
+  .MuiRadio-root {
+    padding: var(--ntq-space-xxs);
+  }
+
+  .MuiFormControlLabel-label {
+    margin-left: var(--ntq-space-xxs);
+  }
+}
+
+.ntq-radio-group__label {
+  font-size: var(--ntq-font-sm);
+  line-height: 1.35;
+  color: var(--ntq-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ntq-radio-group.is-disabled .ntq-radio-group__label,
+.ntq-radio-group__option.is-disabled .ntq-radio-group__label {
+  cursor: default;
+  opacity: 0.55;
+}
+
+// --- button：扫描页式大卡片 ---
+.ntq-radio-group--button {
+  &.ntq-radio-group--row {
+    flex-wrap: nowrap;
+    gap: var(--ntq-space-sm);
+  }
+}
+
+.ntq-radio-group__option--button {
+  align-items: flex-start;
+  flex: 1 1 0;
+  min-width: 0;
+  max-width: 17.5rem;
+  padding: var(--ntq-space-sm) 0.875rem;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 0.625rem;
+  background: transparent;
+  transition: var(--ui-transition-colors);
+  box-sizing: border-box;
+
+  .MuiFormControlLabel-label {
+    margin-left: 0.25rem;
+  }
+
+  &:hover {
+    border-color: rgba(255, 255, 255, 0.28);
+    background: var(--ntq-white-03);
+  }
+
+  &.is-active {
+    border-color: color-mix(in srgb, var(--ntq-cyan) 55%, transparent);
+    background: color-mix(in srgb, var(--ntq-cyan) 8%, transparent);
+  }
+
+  &.is-disabled {
+    opacity: 0.65;
+  }
+}
+
+.ntq-radio-group--button:not(.ntq-radio-group--row) .ntq-radio-group__option--button {
+  max-width: none;
+  width: 100%;
+}
+
+.ntq-radio-group__card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  min-width: 0;
+  margin-top: 0.0625rem;
+}
+
+.ntq-radio-group__card-title {
+  font-size: var(--ntq-font-sm);
+  font-weight: 700;
+  line-height: 1.35;
+  color: var(--ntq-text);
+}
+
+.ntq-radio-group__card-desc {
+  font-size: var(--ntq-font-sm);
+  line-height: 1.45;
+  color: var(--ntq-text-muted);
+
+  strong {
+    color: var(--ntq-text);
+    font-weight: 600;
+  }
+}
+
+@media (max-width: 56.1875rem) {
+  .ntq-radio-group--button.ntq-radio-group--row {
+    flex-direction: column;
+    flex-wrap: wrap;
+  }
+
+  .ntq-radio-group--button.ntq-radio-group--row .ntq-radio-group__option--button {
+    max-width: none;
+  }
+}
+
+.ntq-text-field,
+.ntq-text-area,
+.ntq-select,
+.ntq-search-select,
+.ntq-search-field,
+.ntq-autocomplete,
+.ntq-date,
+.ntq-field.ntq-input--capped,
+.ntq-field.ntq-input--capped-area {
+  width: 100%;
+}
+
+.ntq-switch {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: var(--ntq-space-md);
+  min-width: 0;
+  width: fit-content;
+  max-width: 100%;
+}
+
+.ntq-switch--control-only {
+  justify-content: flex-start;
+  max-width: none;
+}
+
+.ntq-switch__text {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xs);
+  min-width: 0;
+}
+
+.ntq-switch__label {
+  font-size: var(--ntq-font-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ntq-text);
+  cursor: pointer;
+  user-select: none;
+}
+
+.ntq-switch.is-disabled .ntq-switch__label {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ntq-date-range {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; // 整段左对齐，不要撑满后左右拉开
+  gap: var(--ntq-space-sm);
+  min-width: 0;
+  width: 100%;
+}
+
+// 侧标签单独一行；“–”只和输入框同一行，避免有/无标签时上下漂移
+.ntq-date-range__labels {
+  display: inline-flex;
+  align-items: end;
+  gap: var(--ntq-space-sm);
+}
+
+.ntq-date-range__side-label {
+  box-sizing: border-box;
+  width: var(--ui-input-max-width);
+  max-width: 100%;
+  font-size: var(--ntq-font-sm);
+  font-weight: 500;
+  line-height: 1.35;
+  color: var(--ntq-text);
+}
+
+.ntq-date-range__side-gap {
+  flex: 0 0 auto;
+  width: 1rem;
+}
+
+.ntq-date-range__controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--ntq-space-sm);
+  min-width: 0;
+
+  // 覆盖 .ntq-date { width:100% }，避免被拉成「左右两端」
+  .ntq-date,
+  .ntq-field.ntq-input--capped {
+    flex: 0 0 auto;
+    width: var(--ui-input-max-width);
+    max-width: 100%;
+  }
+
+  .ntq-field.ntq-input--fluid,
+  .ntq-date.ntq-input--fluid {
+    width: auto;
+    min-width: 12rem;
+  }
+}
+
+.ntq-date-range__sep {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 1rem;
+  height: 2.5rem; // 固定对齐 small 输入 40px，不随 error 文案变高
+  margin: 0;
+  padding: 0;
+  line-height: 1;
+  user-select: none;
+}
+
+// 隐藏 UA 黑色日历指示器，改用右侧自绘浅色 icon（.ntq-date__picker-btn）
+.ntq-date {
+  .MuiOutlinedInput-root {
+    padding-right: 0.5rem;
+  }
+
+  input.ntq-date__input[type='date'] {
+    color-scheme: dark;
+  }
+
+  input.ntq-date__input[type='date']::-webkit-calendar-picker-indicator {
+    position: absolute;
+    right: 0;
+    width: 0 !important;
+    height: 0 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+  }
+}
+
+.ntq-date__adornment {
+  margin-left: 0;
+}
+
+.ntq-date__picker-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: var(--ntq-space-xxs);
+  border: 0;
+  border-radius: var(--ntq-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+  transition: var(--ui-transition-colors);
+
+  &:hover:not(:disabled) {
+    background: var(--ntq-white-06);
+  }
+
+  &:disabled {
+    cursor: default;
+    opacity: 0.45;
+  }
+}
+
+// TextArea：外层 wrapper 无 padding；textarea 自己留四边距
+.ntq-text-area .MuiOutlinedInput-root.MuiOutlinedInput-multiline {
+  padding: 0 !important;
+}
+
+.ntq-text-area .MuiInputBase-inputMultiline {
+  padding: 0.5rem 0.75rem !important;
+}
+
+// 表单控件默认最大宽度；maxWidth={false} 时用 --fluid 去掉
+.ntq-input--capped {
+  max-width: var(--ui-input-max-width); // 320px
+}
+
+.ntq-input--capped-area {
+  max-width: var(--ui-textarea-max-width); // 400px
+}
+
+// SearchField 工具栏默认更宽（约 360px，对齐旧 views）
+.ntq-input--search {
+  max-width: 22.5rem; // 360px
+}
+
+.ntq-input--fluid {
+  max-width: none;
+}
+
+.ntq-search-field--fluid {
+  flex: 1 1 auto;
+  min-width: 12.5rem; // 200px
+  max-width: 26.25rem; // 420px
+}
+
+// 收紧前缀图标占位：MUI 默认 root 左 pad + adornment margin + input 左 pad 叠太厚
+.ntq-search-field {
+  .MuiOutlinedInput-root {
+    padding-left: 0.625rem; // 10px
+  }
+
+  .MuiInputAdornment-root.MuiInputAdornment-positionStart {
+    margin-right: var(--ntq-space-xs); // 4px，贴文字
+  }
+
+  .MuiOutlinedInput-input {
+    padding-left: 0 !important;
+  }
+
+  .MuiInputAdornment-root.MuiInputAdornment-positionEnd {
+    margin-left: var(--ntq-space-xxs);
+  }
+}
+
+.ntq-search-field__icon {
+  margin: 0;
+  max-height: none;
+}
+
+.ntq-search-field__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: var(--ntq-space-xxs);
+  border: 0;
+  border-radius: var(--ntq-radius-sm);
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  line-height: 0;
+
+  &:hover {
+    background: var(--ntq-white-06);
+  }
+}
+
+.ntq-autocomplete__paper.MuiPaper-root {
+  background-color: #12121f !important;
+  background-image: none !important;
+  opacity: 1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.55);
+  color: var(--ntq-text);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ntq-autocomplete__listbox {
+  font-size: var(--ntq-form-control-font-size);
+  line-height: var(--ntq-form-control-line-height);
+}
+
+.ntq-select__placeholder {
+  color: var(--ntq-text-muted);
+  opacity: 0.85;
+}
+
+// Select / SearchSelect 菜单：不模糊/不压暗整页，仅用不透明面板盖住下层
+.ntq-menu-backdrop.MuiBackdrop-root {
+  background-color: transparent !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 0 !important;
+}
+
+.ntq-select__paper.MuiPaper-root,
+.ntq-search-select__paper.MuiPaper-root {
+  background-color: #12121f !important;
+  background-image: none !important;
+  opacity: 1 !important;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 0.75rem 2rem rgba(0, 0, 0, 0.55);
+  color: var(--ntq-text);
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.ntq-search-select {
+  position: relative;
+  display: inline-flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.ntq-search-select--fluid {
+  width: 100%;
+}
+
+.ntq-search-select__trigger {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ntq-space-sm);
+  width: 100%;
+  min-height: 2.5rem; // 40px，对齐 small 输入
+  margin: 0;
+  padding: 0 0.75rem;
+  border: 1px solid var(--ntq-white-12);
+  border-radius: 5px;
+  background: var(--ntq-input-solid-bg, #12121f);
+  color: var(--ntq-text);
+  font: inherit;
+  font-size: var(--ntq-form-control-font-size);
+  line-height: var(--ntq-form-control-line-height);
+  text-align: left;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: var(--ui-transition-colors);
+
+  &:hover:not(:disabled) {
+    border-color: rgba(255, 255, 255, 0.18);
+    background: var(--ntq-input-solid-bg-hover, #161625);
+  }
+
+  &:disabled {
+    background: var(--ntq-input-solid-bg-disabled, #0e0e18);
+  }
+
+  &:focus-visible {
+    outline: none;
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+}
+
+.ntq-search-select.is-open .ntq-search-select__trigger,
+.ntq-search-select__trigger:focus-visible {
+  border-color: color-mix(in srgb, var(--ntq-cyan) 70%, transparent);
+}
+
+.ntq-search-select.is-error .ntq-search-select__trigger {
+  border-color: color-mix(in srgb, var(--ntq-error) 70%, transparent);
+}
+
+.ntq-search-select.is-disabled .ntq-search-select__trigger,
+.ntq-search-select__trigger:disabled {
+  cursor: default;
+  opacity: 0.55;
+}
+
+.ntq-search-select__value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ntq-search-select__value--placeholder {
+  color: var(--ntq-text-muted);
+}
+
+.ntq-search-select__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xxs);
+  flex-shrink: 0;
+}
+
+.ntq-search-select__clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--ntq-space-xxs);
+  border-radius: var(--ntq-radius-sm);
+  line-height: 0;
+  transition: var(--ui-transition-colors);
+
+  &:hover {
+    background: var(--ntq-white-06);
+  }
+}
+
+.ntq-search-select__panel {
+  display: flex;
+  flex-direction: column;
+  max-height: 20rem;
+  min-width: 0;
+}
+
+.ntq-search-select__search {
+  flex: 0 0 auto;
+  padding: var(--ntq-space-sm);
+  border-bottom: 1px solid var(--ntq-white-12);
+
+  .MuiInputAdornment-root {
+    margin-right: var(--ntq-space-xxs);
+  }
+}
+
+.ntq-search-select__list {
+  flex: 1 1 auto;
+  margin: 0;
+  padding: var(--ntq-space-xs) 0;
+  list-style: none;
+  overflow: auto;
+  max-height: 16rem;
+}
+
+.ntq-search-select__option {
+  font-size: var(--ntq-form-control-font-size) !important;
+}
+
+.ntq-search-select__empty {
+  margin: 0;
+  padding: var(--ntq-space-sm) var(--ntq-space-md);
+  font-size: var(--ntq-font-sm);
+}
+
+// ---------------------------------------------------------------------------
+// chrome：solid 默认实底；glass 半透明；radius-none 直角
+// ---------------------------------------------------------------------------
+
+.ntq-input--surface-solid.MuiOutlinedInput-root,
+.ntq-input--surface-solid .MuiOutlinedInput-root {
+  background: var(--ntq-input-solid-bg, #12121f);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+
+  &:hover:not(.Mui-disabled):not(:disabled) {
+    background: var(--ntq-input-solid-bg-hover, #161625);
+  }
+
+  &.Mui-disabled {
+    background: var(--ntq-input-solid-bg-disabled, rgba(255, 255, 255, 0.08));
+  }
+}
+
+/*
+ * glass 输入：边画在 root 上（与 .ntq-button--glass 同一套描边），
+ * 关掉 fieldset notchedOutline，避免和 Button 看起来「不是一个透明度」。
+ */
+.ntq-input--surface-glass.MuiOutlinedInput-root,
+.ntq-input--surface-glass .MuiOutlinedInput-root {
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ui-white-12, var(--ntq-white-12));
+
+  .MuiOutlinedInput-notchedOutline {
+    border: none !important;
+  }
+
+  &:hover:not(.Mui-disabled):not(:disabled) {
+    background: var(--ntq-white-03);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  &.Mui-focused {
+    border-color: rgba(255, 255, 255, 0.28);
+  }
+
+  &.Mui-disabled {
+    background: rgba(255, 255, 255, 0.1);
+    border-color: rgba(255, 255, 255, 0.14);
+    opacity: 1;
+  }
+}
+
+.ntq-search-select__trigger.ntq-input--surface-glass {
+  background: var(--ntq-white-03);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--ui-white-12, var(--ntq-white-12));
+
+  &:hover:not(:disabled) {
+    background: var(--ntq-white-03);
+    border-color: rgba(255, 255, 255, 0.18);
+  }
+
+  &:disabled {
+    background: var(--ntq-white-03);
+  }
+}
+
+.ntq-input--radius-none.MuiOutlinedInput-root,
+.ntq-input--radius-none .MuiOutlinedInput-root,
+.ntq-search-select__trigger.ntq-input--radius-none {
+  border-radius: 0 !important;
+}

@@ -1,11 +1,37 @@
-# Data Manager
+# Data Manager（`modules.data_manager`）
 
-**模块：** `modules.data_manager` · **版本：** `0.2.2`
+**模块：** `modules.data_manager` · **版本：** `0.2.3`
 
-进程内统一数据访问门面。持有 `DatabaseManager`，发现 `core/tables` 与 `userspace/extensions/tables`，装配 `DataService`。
+**最低支持核心版本：** `>=0.5.0`
 
-公开入口是 `DataManager`。`BaseTableNames` 从 `contracts` 导入。领域服务经 `DataManager` 的属性访问，例如 `stock`、`calendar`。最短示例见 [QUICKSTART.md](./QUICKSTART.md)，调用面见 [API.md](./API.md)。
+## 简介
 
-依赖：`infra.db`、`infra.project_context`、`infra.discovery`、`infra.utils`、`infra.cmd_layout`。
+本地数据访问的统一入口。上层模块不直接连数据库，都从这里拿——交易日历、股票列表、K 线、行业映射、指数、宏观数据。底层用什么引擎（DuckDB / PostgreSQL / MySQL）对上层透明。
 
-测试见 [`__test__/TEST_CASES.md`](__test__/TEST_CASES.md)。架构见 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)，设计见 [docs/DESIGN.md](docs/DESIGN.md)，名词见 [glossary.yaml](glossary.yaml)。
+## 适用场景
+
+- 策略跑回测前拿某只股票的 K 线
+- 标签计算需要全股票列表或行业映射表
+- 不同环境想用不同数据库，改一处配置就行
+
+## 模块依赖
+
+- `infra.cmd_layout`：终端展示
+- `infra.db`：底层数据库操作
+- `infra.discovery`：自动发现数据服务实现
+- `infra.project_context`：路径与配置
+- `infra.utils`：通用工具
+
+## 设计初衷
+
+- **要解决的问题：** 把底层数据访问集中到一处，上层不直接连数据库。
+- **明确不做：** 不抓取外部数据（那是 `data_source`）；不做数据格式转换（那是 `data_contract`）。
+
+## 相关文档
+
+- [用户指南](./docs/USER_GUIDE.md)
+- [公开 API](./API.md)
+- [术语表](./glossary.yaml)
+- [架构](./docs/ARCHITECTURE.md)
+- [快速开始](./QUICKSTART.md)
+- [决策](./docs/DECISIONS.md)

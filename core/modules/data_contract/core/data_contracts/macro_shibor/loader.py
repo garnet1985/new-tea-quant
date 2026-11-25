@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class MacroShiborLoader(BaseDataContractLoader):
-    """加载全局 sys_shibor（日度序列）。"""
+    """加载全局 sys_data_shibor（日度序列）。"""
 
     def load(
         self,

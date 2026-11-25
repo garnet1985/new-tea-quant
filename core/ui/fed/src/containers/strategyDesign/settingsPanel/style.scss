@@ -1,0 +1,44 @@
+.ntq-design-settings-panel {
+  width: 100%;
+  overflow: hidden;
+  border-radius: 0.3125rem;
+
+  /* 顶层 panel 拼成一个大圆角矩形 */
+  > .ntq-accordion--panel {
+    &:first-of-type {
+      border-radius: 0.3125rem 0.3125rem 0 0;
+    }
+
+    &:last-of-type {
+      border-radius: 0 0 0.3125rem 0.3125rem;
+    }
+
+    &:only-of-type {
+      border-radius: 0.3125rem;
+    }
+  }
+
+  .ntq-design-settings-panel__stack {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-xs);
+  }
+
+  .ntq-design-settings-core-wrap {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ui-space-sm);
+  }
+
+  .ntq-design-settings-core-hint {
+    flex: 0 0 auto;
+    min-height: 1.25rem;
+    margin: 0;
+    padding: 0 var(--ui-space-xxs);
+    line-height: 1.45;
+
+    p {
+      margin: 0;
+    }
+  }
+}

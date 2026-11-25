@@ -27,7 +27,7 @@ new-tea-quant/
 ├── ci/                     # CI 专用（如 smoke_fresh_install）；非产品 runtime
 ├── docs/                   # 仓库级文档（本目录）
 ├── core/
-│   ├── infra/              # 基础设施（DB、TaskGuard、trace、setup…）
+│   ├── infra/              # 基础设施（DB、job_pipeline、trace、setup…）
 │   ├── modules/            # 业务与能力扩展（数据、策略、回测、cli…）
 │   ├── bff/                # Flask BFF（HTTP 编排；托管 FED build）
 │   ├── ui/                 # 工作台前端（fed/：React）
@@ -36,11 +36,11 @@ new-tea-quant/
 ├── userspace/              # 用户数据与配置（gitignore 大部）
 │   ├── system/             # config / db / backup / updater 等
 │   ├── strategies/         # 用户策略包
-│   └── extensions/         # 用户扩展（tags / data_source / adapters…）
+│   └── extensions/         # 用户扩展（tags / data_source / post_process…）
 └── experiments/            # 实验与草稿（非产品路径）
 ```
 
-**运行时（通常不入库）：** `userspace/.ntq/`（如 TaskGuard 租约、trace 等）。
+**运行时（通常不入库）：** `userspace/.ntq/`（如 job_pipeline 运行态、trace 等）。
 
 ---
 
@@ -53,7 +53,7 @@ new-tea-quant/
 | 展示 | `core/ui/fed/` | 工作台 UI（React） |
 | 接入 | `core/bff/`、`cli.py`（实现见 `modules.cli`）、`launcher.py` | HTTP / CLI / 一键启动 |
 | 业务与能力 | `core/modules/` | 数据、标签、策略、回测、适配器、CLI… |
-| 基础设施 | `core/infra/` | DB、发现、TaskGuard、trace、updater、setup… |
+| 基础设施 | `core/infra/` | DB、发现、job_pipeline、trace、updater、setup… |
 | 用户落盘 | `userspace/` | 配置、库文件、策略与扩展源码 |
 
 **依赖方向（硬约束）：** 上层可依赖下层；**infra 不得依赖 modules**；modules 之间只经公开门面与 `module_info.yaml` 声明依赖。细则见根目录 [`CORE_MODULE_STANDARDS.md`](../CORE_MODULE_STANDARDS.md)。
@@ -66,14 +66,17 @@ new-tea-quant/
 
 | 包 | 一句话 |
 |----|--------|
+| [`ai`](../core/infra/ai/) | AI 供应商发现、API Key、裸补全（OpenAI 兼容） |
 | [`cmd_layout`](../core/infra/cmd_layout/) | 命令布局 / 帮助结构 |
 | [`db`](../core/infra/db/) | 数据库连接与访问约定 |
 | [`discovery`](../core/infra/discovery/) | 模块 / 命令发现 |
 | [`export_import`](../core/infra/export_import/) | 导出导入 |
 | [`machine_capacity`](../core/infra/machine_capacity/) | 机器能力探测（如并行度建议） |
+| [`membership`](../core/infra/membership/) | 官网会员凭证本地存取 |
+| [`progress`](../core/infra/progress/) | 统一进度文件（树形 `Progress` + 频道 `Progress.channel`） |
 | [`project_context`](../core/infra/project_context/) | 仓库根、userspace 路径等上下文 |
 | [`setup`](../core/infra/setup/) | 安装 / 首次配置（`install.py`） |
-| [`task_guard`](../core/infra/task_guard/) | 单活跃长任务租约（`TaskGuard` / `TaskLease`） |
+| [`job_pipeline`](../core/infra/job_pipeline/) | 长任务登记表、串行队列与互斥（`JobPipeline`） |
 | [`trace`](../core/infra/trace/) | 运行时 trace 上报客户端 |
 | [`updater`](../core/infra/updater/) | 更新流程 |
 | [`utils`](../core/infra/utils/) | 跨模块小工具 |
@@ -96,17 +99,20 @@ new-tea-quant/
 | [`analysis`](../core/modules/analysis/) | 回测后解释 inputs 与 outputs 的关系（骨架） | [README](../core/modules/analysis/README.md) |
 | [`backtest_engine`](../core/modules/backtest_engine/) | 回测时间轴与执行引擎 | [README](../core/modules/backtest_engine/README.md) |
 | [`market_profile`](../core/modules/market_profile/) | 市场画像相关 | [README](../core/modules/market_profile/README.md) |
-| [`adapter`](../core/modules/adapter/) | `Strategy.scan` 机会列表的后处理回调（userspace adapters） | [README](../core/modules/adapter/README.md) |
-| [`assistant`](../core/modules/assistant/) | AI 助理：发现 userspace 供应商配置，注入 NTQ 文档上下文，发送 OpenAI 兼容聊天 | [README](../core/modules/assistant/README.md) |
+| [`post_process`](../core/modules/post_process/) | `Strategy.scan` 机会协议规范化 + PostProcessor / Adapter | [README](../core/modules/post_process/README.md) |
+| [`agent`](../core/modules/agent/) | AI 助手：多轮对话、工具调度、写策略/读报告/跑扫描 | [README](../core/modules/agent/README.md) |
+| [`ntq_external`](../core/modules/ntq_external/) | 与官网的唯一对接（页面链接、会员通道、反馈；AI 会员补全走此通道） | [README](../core/modules/ntq_external/README.md) |
 
-策略扩展约定：`userspace/strategies/<name>/` + `StrategyHooks`；scan 后处理见 `userspace/extensions/adapters/`。细节以各模块 README 与 `docs/` 为准。
+**AI 三角（勿混）：** `infra.ai` = 本机供应商补全；`modules.agent` = 对话与工具编排；`modules.ntq_external` = 官网会员 AI 通道。无独立 `modules.assistant`。
+
+策略扩展约定：`userspace/strategies/<name>/` + `StrategyHooks`；scan 后处理见 `userspace/extensions/post_process/`。细节以各模块 README 与 `docs/` 为准。
 
 ---
 
 ## 6. 典型数据流（简图）
 
 两条线分开看：**行情怎么进库 / 怎么被用**，以及 **scan 结果怎么交给 adapter**。  
-（`modules.adapter` **不是**行情入口；它是 scan 产出的 callbacks。）
+（`modules.post_process` **不是**行情入口；它是 scan 产出的 callbacks。）
 
 **① 数据路径（落库 → 读取 → 计算）**
 
@@ -138,10 +144,10 @@ Strategy.scan（Scanner）
   Opportunity 列表 + context
         │
         ▼
-  Adapter（按 scanner.adapters 依次 process）
+  PostProcess.run_enabled_post_processors（全局 is_enabled）
         │
         ▼
-  console / webhook / 自定义 userspace adapter …
+  presenter / webhook / 自定义 userspace adapter …
 ```
 
 **③ 入口（同一套 Facade）**
@@ -153,7 +159,7 @@ CLI / BFF（工作台） / launcher
   modules.* 门面（DataSource、DataManager、Tag、Strategy、Adapter…）
 ```
 
-长任务（数据续期、标签跑批、策略跑批等）经 **`TaskGuard`** 互斥；HTTP 对外状态路径仍为 `GET /api/v1/runtime/pipeline`（实现已切到 TaskGuard，见 `task_guard` 文档）。
+长任务（数据续期、标签跑批、策略跑批等）经 **`JobPipeline`** 互斥与排队；HTTP 对外状态路径为 `GET /api/v1/runtime/pipeline`（见 `job_pipeline` 文档）。
 
 ---
 

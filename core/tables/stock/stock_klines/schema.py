@@ -7,7 +7,8 @@ data_stock_kline_daily 表结构定义（Python，变量名 schema）
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_stock_klines",
-    "name": "sys_stock_klines",
+    "kind": "data",
+    "name": "sys_data_stock_klines",
     "primaryKey": ["id", "term", "date"],
     "fields": [
         {
@@ -99,12 +100,8 @@ schema = {
         },
     ],
     "indexes": [
-        {"name": "idx_id_term_date", "fields": ["id", "term", "date"], "unique": True},
-        {"name": "idx_id_term", "fields": ["id", "term"]},
         {"name": "idx_date", "fields": ["date"]},
-        # 优化按日期排序查询：复合索引 (term, date) 可以加速按周期和日期排序的查询
         {"name": "idx_term_date", "fields": ["term", "date"]},
-        # 优化单股票按日期排序：复合索引 (id, date) 可以加速单股票按日期排序的查询
         {"name": "idx_id_date", "fields": ["id", "date"]},
     ],
 }

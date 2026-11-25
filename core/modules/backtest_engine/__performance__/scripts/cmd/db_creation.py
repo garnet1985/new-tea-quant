@@ -85,21 +85,21 @@ def _seed_tables(dm, *, meta: Dict[str, Any]) -> Dict[str, int]:
     )
 
     counts: Dict[str, int] = {}
-    stock_model = dm.get_table("sys_stock_list")
-    cal_model = dm.get_table("sys_trade_calendar")
-    kline_model = dm.get_table("sys_stock_klines")
+    stock_model = dm.get_table("sys_data_stock_list")
+    cal_model = dm.get_table("sys_data_trade_calendar")
+    kline_model = dm.get_table("sys_data_stock_klines")
     if stock_model is None or cal_model is None or kline_model is None:
         raise RuntimeError("required tables not registered")
 
-    counts["sys_stock_list"] = _insert(stock_model, stocks, label="sys_stock_list")
-    counts["sys_trade_calendar"] = _insert(
-        cal_model, calendar, label="sys_trade_calendar"
+    counts["sys_data_stock_list"] = _insert(stock_model, stocks, label="sys_data_stock_list")
+    counts["sys_data_trade_calendar"] = _insert(
+        cal_model, calendar, label="sys_data_trade_calendar"
     )
 
     expected = len(ids) * len(dates)
     step(
         "db_creation",
-        f"insert sys_stock_klines "
+        f"insert sys_data_stock_klines "
         f"({len(ids)} stocks × {len(dates)} days ≈ {expected:,} rows)",
     )
     prog = Progress("db_creation/klines", expected, unit="rows")
@@ -113,8 +113,8 @@ def _seed_tables(dm, *, meta: Dict[str, Any]) -> Dict[str, int]:
         n_kline += len(batch)
         prog.update(len(batch))
     prog.finish()
-    counts["sys_stock_klines"] = n_kline
-    counts["sys_stock_st_periods"] = 0  # skipped; empty table is fine
+    counts["sys_data_stock_klines"] = n_kline
+    counts["sys_data_stock_st_periods"] = 0  # skipped; empty table is fine
     return counts
 
 
@@ -172,7 +172,7 @@ def create_duckdb(
     desired["open_days"] = len(
         open_dates(str(desired["start_date"]), str(desired["end_date"]))
     )
-    desired["kline_rows"] = int(counts.get("sys_stock_klines") or 0)
+    desired["kline_rows"] = int(counts.get("sys_data_stock_klines") or 0)
     desired["generated_at"] = utc_now_iso()
 
     step("db_creation", "flush_writes…")
@@ -303,7 +303,7 @@ def create_mysql(
     desired["open_days"] = len(
         open_dates(str(desired["start_date"]), str(desired["end_date"]))
     )
-    desired["kline_rows"] = int(counts.get("sys_stock_klines") or 0)
+    desired["kline_rows"] = int(counts.get("sys_data_stock_klines") or 0)
     desired["generated_at"] = utc_now_iso()
 
     step("db_creation", "flush_writes…")
@@ -432,7 +432,7 @@ def create_postgresql(
     desired["open_days"] = len(
         open_dates(str(desired["start_date"]), str(desired["end_date"]))
     )
-    desired["kline_rows"] = int(counts.get("sys_stock_klines") or 0)
+    desired["kline_rows"] = int(counts.get("sys_data_stock_klines") or 0)
     desired["generated_at"] = utc_now_iso()
 
     step("db_creation", "flush_writes…")

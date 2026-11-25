@@ -2,8 +2,10 @@
 
 **模块：** `modules.analysis` · **版本：** `0.1.0`
 
+**最低支持核心版本：** `>=0.5.0`
+
 本文不给结论。只把三个还没想清的问题摊开，避免和 factor 研究、strategy 报告混在一起。  
-文字入口见 [README.md](../README.md)；词条见 [glossary.yaml](../glossary.yaml)；选型过程见 [DESIGN.md](./DESIGN.md)。
+文字入口见 [README.md](../README.md)；词条见 [glossary.yaml](../glossary.yaml)；选型过程见 [DECISIONS.md](./DECISIONS.md)。
 
 ---
 
@@ -28,7 +30,7 @@ strategy 的 report 回答「结果长什么样」。本模块要回答「这份
 
 | 候选层 | 直觉 | 现状 |
 |--------|------|------|
-| 旋钮 | settings 里的阈值、止盈止损、资金参数 | 枚举 run 的 settings 快照里可能有 |
+| 旋钮 | settings 里的阈值、止盈止损、资金参数 | 机会盘点 run 的 settings 快照里可能有 |
 | 数据声明 | `settings.data` 声明的 DATA_KEY / 指标 | 能还原「用了什么数据」，不是每笔的值 |
 | 决策现场值 | `has_opportunity` 当时看到的 RSI、PE 分位等 | 逻辑层经 `ctx.capture` 进入内存 `Opportunity.signal_snapshot`；声明层尚未自动冻；落盘格式未定 |
 | 执行与环境 | 成交价规则、股票池、回测区间 | `runtime_env` 一类元数据 |
@@ -67,7 +69,7 @@ NTQ 的模拟本身是三层，outputs 形状不同：
 
 - 解释是否必须跟这三层一一对应（三套归因）
 - 还是先只解释一层（例如价格层逐笔），组合层后补
-- 或者做跨层解释（枚举很强但组合很差时，问题在信号还是在资金约束）
+- 或者做跨层解释（机会盘点很强但组合很差时，问题在信号还是在资金约束）
 
 现有 overall report 已经按层写了。本模块若再按层切，要避免把同一套胜率数字再算一遍。
 
@@ -88,4 +90,3 @@ analysis 问的是「**这次策略 run** 的结果，和它用过的输入有�
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
 - [架构](./ARCHITECTURE.md)
-- [设计](./DESIGN.md)

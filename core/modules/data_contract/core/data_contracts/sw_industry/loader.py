@@ -8,7 +8,7 @@ from core.modules.data_manager import DataManager
 
 
 class SwIndustryLoader(BaseDataContractLoader):
-    """加载 sys_sw_industry 全部分类。"""
+    """加载 sys_data_sw_industry 全部分类。"""
 
     def load(self, params: Mapping[str, Any]) -> Any:
         return DataManager().sw.load_tree()

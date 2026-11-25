@@ -1,0 +1,28 @@
+.ntq-toast-host {
+  position: fixed;
+  z-index: 1400;
+  right: max(var(--ntq-space-md), env(safe-area-inset-right, 0px));
+  bottom: max(var(--ntq-space-md), env(safe-area-inset-bottom, 0px));
+  width: min(26.25rem, calc(100vw - 2rem));
+  pointer-events: none;
+}
+
+.ntq-toast-host__item {
+  pointer-events: auto;
+  background: var(--ntq-surface-frost);
+  backdrop-filter: blur(var(--ntq-blur-md));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-md));
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.35);
+  animation: ntq-toast-in 0.22s ease-out;
+}
+
+@keyframes ntq-toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(0.5rem);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

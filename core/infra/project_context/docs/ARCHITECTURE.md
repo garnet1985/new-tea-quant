@@ -1,26 +1,16 @@
 # Project Context 架构文档
 
-**版本：** `0.2.0`
+**模块：** `infra.project_context` · **版本：** `0.2.1`
 
----
+**最低支持核心版本：** `>=0.5.0`
 
-## 模块介绍
+## 职责与边界（结论）
 
 `infra.project_context` 提供 NTQ 的「我在哪、有哪些配置、配置怎么读与合并」的统一答案：项目根与语义目录、约定式配置发现、默认与用户配置合并。
-
 **核心设计：** Facade 模式。包根只导出 `ProjectContext`；类型与常量走 `contracts` 或 `ProjectContext.types`；`PathManager` / `ConfigManager` / `DiscoveryManager` 为内部实现。
-
----
-
-## 模块目标
-
 - 单一入口：`ProjectContext` + namespace（`path` / `config` / `meta` / `cache` / `discovery` / `types`）
 - 稳定路径构造，避免业务硬编码相对路径
 - 统一 `core/default_config` 与 `userspace/config` 的发现与合并语义
-
----
-
-## 模块职责与边界
 
 **职责（In scope）**
 
@@ -37,14 +27,14 @@
 
 ---
 
-## 依赖说明
+## 依赖（结论）
 
 - 无 YAML 级外部模块依赖；标准库为主
 - `ProjectContext.meta.core_info` 可选读取 `core.system`
 
 ---
 
-## 架构设计
+## 架构图
 
 ```text
 对外：
@@ -54,6 +44,19 @@
 
 内部（core/）：
   PathManager · ConfigManager · DiscoveryManager
+```
+
+```mermaid
+flowchart LR
+  Caller --> PC[ProjectContext]
+  PC --> Path[path]
+  PC --> Config[config]
+  PC --> Meta[meta]
+  PC --> Cache[cache]
+  PC --> Disc[discovery]
+  Path --> PathMgr[PathManager]
+  Config --> ConfigMgr[ConfigManager]
+  Disc --> DiscMgr[DiscoveryManager]
 ```
 
 配置发现：
@@ -76,8 +79,6 @@ NEW_TEA_QUANT_USERSPACE_ROOT
 已配置路径不要求 `exists()`；安装用 `resolve_userspace_target` 做可写校验。
 
 ---
-
-## 使用方式
 
 ```python
 from core.infra.project_context import ProjectContext
@@ -108,6 +109,8 @@ err = ProjectContext.types.OverridableConfigNotFoundError
 
 ## 相关文档
 
-- [详细设计](./DESIGN.md)
+- [用户指南](./USER_GUIDE.md)
 - [API](../API.md)
 - [契约测试](../__test__/test_api.py)
+- [术语表](../glossary.yaml)
+- [决策](./DECISIONS.md)

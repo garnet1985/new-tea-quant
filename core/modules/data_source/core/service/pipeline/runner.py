@@ -2,12 +2,10 @@
 from __future__ import annotations
 
 import logging
-import time
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 from core.modules.data_source.core.data_class.api_job import ApiJob
 from core.modules.data_source.core.data_class.api_job_bundle import ApiJobBundle
-from core.modules.data_source.core.data_class.config import DataSourceConfig
 from core.modules.data_source.core.service.api_job_executor import ApiJobExecutor
 from core.modules.data_source.core.service.executor.bundle_progress import (
     clear as clear_bundle_progress,
@@ -23,18 +21,23 @@ from core.modules.data_source.core.service.pipeline.job_pipeline import (
     RunProgress,
 )
 from core.modules.data_source.core.service.pipeline.save_buffer import DataSourceSaveBuffer
+from core.modules.data_source.core.service.pipeline.save_memory_budget import SaveMemoryBudget
 from core.modules.data_source.core.service.pipeline.save_utils import (
-    BundleSaveItem,
     checkpoint_after_batch_save,
     has_actual_data,
 )
 
 logger = logging.getLogger(__name__)
 
-BundleRow = Tuple[str, List[ApiJob], Any]
 
-PROGRESS_LOG_INTERVAL_SEC = 45
-PROGRESS_LOG_EVERY_N = 100
+def _note_bundle_error(context: Dict[str, Any], job_id: str, error: Any) -> None:
+    text = str(error or "").splitlines()[0][:300]
+    context["_bundle_error_count"] = int(context.get("_bundle_error_count") or 0) + 1
+    lines = context.setdefault("_bundle_errors", [])
+    if isinstance(lines, list) and len(lines) < 200:
+        lines.append(f"{job_id}: {text}")
+
+BundleRow = Tuple[str, List[ApiJob], Any]
 
 
 class DataSourcePipelineRunner:
@@ -45,12 +48,6 @@ class DataSourcePipelineRunner:
         context: Dict[str, Any],
         jobs: List[Union[ApiJobBundle, ApiJob]],
         *,
-        on_after_single_bundle_complete: Callable[
-            [Dict[str, Any], Any, Dict[str, Any]], Any
-        ],
-        on_after_batch_bundles_complete: Callable[
-            [Dict[str, Any], List[BundleSaveItem]], Any
-        ],
         enrich_result_for_batch: Callable[
             [Dict[str, Any], ApiJobBundle, Dict[str, Any]], Dict[str, Any]
         ],
@@ -59,12 +56,7 @@ class DataSourcePipelineRunner:
         if not bundles:
             return {}
 
-        config: DataSourceConfig = context.get("config")
-        if not config:
-            raise ValueError("config 必须配置 save_mode")
-
         data_source_key = str(context.get("data_source_key") or "data_source")
-        save_mode = config.get_save_mode()
         providers = context.get("providers") or {}
         api_executor = ApiJobExecutor(providers=providers)
 
@@ -78,45 +70,42 @@ class DataSourcePipelineRunner:
         }
         total_bundles = len(bundles)
         bundle_progress = install_bundle_progress(data_source_key, total_bundles)
+        budget = context.get("_save_budget")
+        if not isinstance(budget, SaveMemoryBudget):
+            budget = SaveMemoryBudget()
+        to_frames = context.get("_bundle_to_frames")
+        save_frames = context.get("_save_frames")
+        if not callable(to_frames) or not callable(save_frames):
+            raise ValueError("context 缺少 _bundle_to_frames / _save_frames")
         save_buffer = DataSourceSaveBuffer(
             context=context,
-            config=config,
-            save_mode=save_mode,
-            total_bundles=total_bundles,
-            on_single_bundle_complete=on_after_single_bundle_complete,
-            on_batch_bundles_complete=on_after_batch_bundles_complete,
+            budget=budget,
+            to_frames=to_frames,
+            save_frames=save_frames,
             bundle_progress=bundle_progress,
         )
+        context["buffer_persisted"] = True
 
-        progress_state = {"last_pct": -1, "last_log_at": time.time(), "last_done": 0}
         merged: Dict[str, Any] = {}
+        sync_progress = context.get("_progress")
 
-        def _log_progress(progress: RunProgress, *, force: bool = False) -> None:
-            finished = progress.finished
-            total = progress.total or total_bundles
-            pct = int(finished * 100 / total) if total else 100
-            now = time.time()
-            should = force or (
-                finished >= progress_state["last_done"] + PROGRESS_LOG_EVERY_N
-                or (
-                    now - progress_state["last_log_at"] >= PROGRESS_LOG_INTERVAL_SEC
-                    and finished > progress_state["last_done"]
-                )
-                or (finished >= total and finished > progress_state["last_done"])
-            )
-            if not should:
-                return
+        def _log_progress(progress: RunProgress) -> None:
             bundle_progress.completed = progress.ok
             bundle_progress.failed = progress.fail
-            line = bundle_progress.format_short()
-            print(line, flush=True)
-            logger.info("%s", line)
-            progress_state["last_done"] = finished
-            progress_state["last_log_at"] = now
-            progress_state["last_pct"] = pct
+            snap = bundle_progress.snapshot()
+            done = progress.finished
+            total = progress.total or total_bundles
+            if sync_progress is not None:
+                sync_progress.bundles(done, total, snap["saved_to_db"], snap["failed"])
+                return
+            print(
+                f"[{data_source_key}] 抓取 {done}/{total}，已写入 {snap['saved_to_db']} 行",
+                flush=True,
+            )
 
         def on_result(report: JobReport, progress: RunProgress) -> None:
             if not report.success:
+                _note_bundle_error(context, report.job_id, report.error)
                 print(
                     f"  Bundle 失败: {report.job_id} {report.error}",
                     flush=True,
@@ -142,8 +131,9 @@ class DataSourcePipelineRunner:
                     result = enriched
 
             if has_actual_data(result):
-                merged.update(result)
-                if save_buffer.saves_enabled and job_bundle is not None:
+                if context.get("retain_results"):
+                    merged.update(result)
+                if job_bundle is not None:
                     save_buffer.add(job_bundle, result)
 
             _log_progress(progress)
@@ -176,9 +166,10 @@ class DataSourcePipelineRunner:
         ]
 
         settings = JobPipelineSettings(
-            max_workers="auto",
+            max_workers=budget.cpu_cap,
             prefetch_ahead=2,
             continue_on_failure=True,
+            in_flight_limit=budget.current_in_flight,
         )
         run_name = f"ds:{data_source_key}"
 
@@ -204,17 +195,13 @@ class DataSourcePipelineRunner:
                 pass
             checkpoint_after_batch_save(context)
             snap = bundle_progress.snapshot()
+            end = (
+                f"[{data_source_key}] 抓取结束 {snap['done']}/{snap['total']}，"
+                f"已写入 {snap['saved_to_db']} 行"
+            )
             if snap["failed"]:
-                print(
-                    f"[{data_source_key}] 抓取结束 {snap['done']}/{snap['total']}"
-                    f"（{snap['pct']}%），失败 {snap['failed']}",
-                    flush=True,
-                )
-            else:
-                print(
-                    f"[{data_source_key}] 抓取结束 {snap['done']}/{snap['total']}（{snap['pct']}%）",
-                    flush=True,
-                )
+                end += f"，失败 {snap['failed']}"
+            print(end, flush=True)
             logger.info(
                 "[%s] 抓取结束 %s/%s（%s%%），失败 %s",
                 data_source_key,

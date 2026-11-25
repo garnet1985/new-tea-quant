@@ -34,8 +34,8 @@ class KlineService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model（表名由 DataManager 发现并注册）
-        self._stock_kline = data_manager.get_table("sys_stock_klines")
-        self._adj_factor_event = data_manager.get_table("sys_adj_factor_events")
+        self._stock_kline = data_manager.get_table("sys_data_stock_klines")
+        self._adj_factor_event = data_manager.get_table("sys_data_adj_factor_events")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db.contracts import DatabaseManager
@@ -140,12 +140,12 @@ class KlineService(BaseDataService):
             e.qfq_anchor as adj_qfq_anchor,
             e.raw_anchor as adj_raw_anchor,
             e.qfq_diff as adj_qfq_diff
-        FROM sys_stock_klines k
-        LEFT JOIN sys_adj_factor_events e ON (
+        FROM sys_data_stock_klines k
+        LEFT JOIN sys_data_adj_factor_events e ON (
             e.id = k.id 
             AND e.event_date = (
                 SELECT MAX(e2.event_date)
-                FROM sys_adj_factor_events e2
+                FROM sys_data_adj_factor_events e2
                 WHERE e2.id = k.id 
                 AND e2.event_date <= k.date
             )
@@ -738,8 +738,8 @@ class KlineService(BaseDataService):
             s.*,
             k.date as kline_date,
             k.open, k.high, k.low, k.close, k.volume, k.amount
-        FROM sys_stock_list s
-        LEFT JOIN sys_stock_klines k ON s.id = k.id AND k.term = %s
+        FROM sys_data_stock_list s
+        LEFT JOIN sys_data_stock_klines k ON s.id = k.id AND k.term = %s
         WHERE s.id = %s
         ORDER BY k.date DESC
         LIMIT 1
@@ -761,8 +761,8 @@ class KlineService(BaseDataService):
         SELECT 
             s.*,
             k.open, k.high, k.low, k.close, k.volume, k.amount
-        FROM sys_stock_list s
-        INNER JOIN sys_stock_klines k ON s.id = k.id
+        FROM sys_data_stock_list s
+        INNER JOIN sys_data_stock_klines k ON s.id = k.id
         WHERE k.date = %s
         ORDER BY s.id ASC
         """

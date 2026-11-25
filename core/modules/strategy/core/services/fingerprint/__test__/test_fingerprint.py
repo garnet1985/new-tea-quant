@@ -32,7 +32,7 @@ def _disk() -> dict:
             },
         },
         "data": {"base": {"data_key": "stock.kline.daily"}},
-        "scanner": {"adapters": ["console"]},
+        "scanner": {"max_cache_days": 10},
         "core": {"n": 1},
         "analysis": {"enabled": True},
         "enumerator": {"max_workers": 4},

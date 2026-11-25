@@ -185,9 +185,17 @@ def test_resolve_output_dir_accepts_enum_json(tmp_path, monkeypatch):
         '{"kind":"enum_results","entity_id":"000001.SZ","results":[]}\n',
         encoding="utf-8",
     )
+    from core.modules.strategy import Strategy
+
     monkeypatch.setattr(
-        "core.bff.APIs.strategy.routes.report.stock_detail.Strategy.resolve_simulation_output_dirs",
-        lambda *a, **k: [out_dir],
+        Strategy,
+        "resolve_simulation_output_dirs",
+        staticmethod(lambda *a, **k: [out_dir]),
+    )
+    monkeypatch.setattr(
+        Strategy,
+        "step_dir_has_entity",
+        staticmethod(lambda *a, **k: True),
     )
     resolved = WorkbenchStockDetail._resolve_output_dir(
         "demo/x", "enum", {"output_dir": str(out_dir)}, 9, entity_id="000001.SZ"

@@ -1,7 +1,7 @@
 """
 股票 ST / *ST 风险警示时段服务（StPeriodService）
 
-数据来自 sys_stock_st_periods（namechange 同步）。
+数据来自 sys_data_stock_st_periods（namechange 同步）。
 运行时建议：回测 run 内调用 load_overlapping 一次，按日判断走内存。
 """
 from __future__ import annotations
@@ -24,7 +24,7 @@ class StPeriodService(BaseDataService):
 
     def __init__(self, data_manager: Any):
         super().__init__(data_manager)
-        self._model = data_manager.get_table("sys_stock_st_periods")
+        self._model = data_manager.get_table("sys_data_stock_st_periods")
 
     def load_by_stock(self, stock_id: str) -> List[Dict[str, Any]]:
         """某股全部 ST 时段（通常很少）。"""

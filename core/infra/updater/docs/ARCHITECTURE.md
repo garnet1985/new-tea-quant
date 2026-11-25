@@ -1,16 +1,14 @@
 # Updater 架构文档
 
-**版本：** `0.1.0`
+**模块：** `infra.updater` · **版本：** `0.1.0`
 
-## 模块介绍
+**最低支持核心版本：** `>=0.5.0`
+
+## 架构图
 
 `infra.updater` 拥有应用升级：编排源码（`core/orchestrator/`）、数据迁移脚本注册表、post-upgrade 收尾。
-
 **运行时**必须在 `userspace/system/updater/`（由 `Updater.runtime.sync_orchestrator` 写入）。`core/` 在 `managed_scope` 内，升级镜像时会被覆盖，不能从 core 跑流水线。
-
 **不负责：** 首次安装、安装 wizard、`needs_install`（均在 `infra.setup`）。
-
-## 架构
 
 ```text
 Updater
@@ -18,6 +16,14 @@ Updater
   ├── post_upgrade  → core/post_upgrade/registry + runner
   ├── runtime       → core/orchestrator_sync.sync_orchestrator
   └── types         → contracts
+```
+
+```mermaid
+flowchart LR
+  Caller --> Updater
+  Updater --> DataScripts[data_scripts]
+  Updater --> PostUpgrade[post_upgrade]
+  Updater --> Runtime[runtime sync]
 ```
 
 ```text
@@ -40,5 +46,7 @@ core/infra/updater/
 
 ## 相关文档
 
-- [DESIGN.md](./DESIGN.md)
+- [用户指南](./USER_GUIDE.md)
 - [API.md](../API.md)
+- [术语表](../glossary.yaml)
+- [决策](./DECISIONS.md)

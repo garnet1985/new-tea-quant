@@ -1,14 +1,37 @@
 name: infra.setup
-version: "0.1.1"
+version: "0.2.0"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "安装域：venv/依赖/userspace/演示数据与 CLI·UI 安装编排。产物工厂与安装步骤均属本模块；CLI 只调用门面。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "安装模块 (Setup)"
+site_display_title: "安装的统一步骤编排 - Setup 模块"
 dependencies:
   - infra.cmd_layout
   - infra.project_context
   - infra.trace
   - infra.utils
+  - modules.ntq_external
 changelog:
+  - version: "0.2.0"
+    changes:
+      - 目录收口为 steps｜shared｜orchestrator；取消独立 core/scripts/
+      - userspace 模板从仓库根 initialization/ 迁入 steps/init_userspace/assets/
+      - CLI/UI/session 编排集中为 InstallOrchestrator
+      - 删除 pip_index re-export 空壳（改用 Utils.pkg）
+
+  - version: "0.1.3"
+    changes:
+      - devcli ex 改为预设模式：--demo / --member / --full；无参数只显示帮助
+      - 旧「忽略日期窗」参数更名为 --no-date-filter（--full 预设已隐含）
+
+  - version: "0.1.2"
+    changes:
+      - 导入演示数据时若本地无 zip，从官网公开接口下载（不再随仓发布 data_demo.zip）
+      - 演示包目录改为 userspace/.ntq/packages/install_demo（导出与下载共用；须先有 userspace）
+      - 导入成功后清理 zip / meta / 解压目录等临时文件
+      - 移除仓库根 initialization/data（演示包改走 userspace 与官网）
+
   - version: "0.1.1"
     changes:
       - install.py 支持 --userspace / --db 等参数（省略走默认，带了必须按参数执行，失败即停）
@@ -20,5 +43,5 @@ changelog:
     changes:
       - 标准化模块：公开门面 Setup（env / runtime / artifacts / meta / trace / types）
       - 约定 CLI 只调用 Setup，不拥有安装逻辑；安装步骤与产物工厂留在 setup/
-      - 迁入 core/infra/setup；产物 initialization/userspace / initialization/data 留在仓库根
+      - 迁入 core/infra/setup；产物 initialization/userspace / initialization/data 曾留在仓库根
       - 正式版本之前所有 API 标注 beta 状态

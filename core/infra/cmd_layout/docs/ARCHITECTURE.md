@@ -1,6 +1,8 @@
 # 命令行布局 — 架构
 
-**版本：** `0.2.0`
+**模块：** `infra.cmd_layout` · **版本：** `0.2.0`
+
+**最低支持核心版本：** `>=0.5.0`
 
 为终端报告提供纯文本排版片段：标题层级、分割线、表格、行内文本、图标、水平条形图。对外唯一入口为门面类 `CmdLayout`。词条见 [glossary.yaml](../glossary.yaml)。
 
@@ -48,8 +50,7 @@ core/infra/cmd_layout/
 │   └── __test__/
 ├── __test__/              # 公开 API（test_api.py）
 └── docs/
-    ├── ARCHITECTURE.md
-    └── DESIGN.md
+    └── ARCHITECTURE.md
 ```
 
 ---
@@ -100,8 +101,9 @@ flowchart LR
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [快速开始](../QUICKSTART.md)
+- [决策](./DECISIONS.md)

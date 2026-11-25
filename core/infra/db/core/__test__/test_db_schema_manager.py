@@ -31,12 +31,27 @@ class TestSchemaManager:
         assert manager.is_verbose is True
         assert manager.database_type == 'mysql'
     
+    def test_kind_must_match_table_name(self):
+        """kind 必填，且必须等于表名第二段。"""
+        manager = SchemaManager(is_verbose=False)
+        base = {
+            "storage_domain": "data",
+            "fields": [{"name": "id", "type": "varchar", "length": 8, "nullable": False}],
+        }
+        with pytest.raises(ValueError, match="缺少 kind"):
+            manager._validate_schema({**base, "name": "sys_data_demo"})
+        with pytest.raises(ValueError, match="不一致"):
+            manager._validate_schema({**base, "kind": "map", "name": "sys_data_demo"})
+        manager._validate_schema({**base, "kind": "data", "name": "sys_data_demo"})
+        manager._validate_schema({**base, "kind": "data", "name": "cust_data_demo"})
+
     def test_load_schema_from_file(self):
         """测试从文件加载 schema"""
         # 创建临时 schema 文件
         with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
             schema_data = {
-                'name': 'test_table',
+                'kind': 'data',
+                'name': 'sys_data_test_table',
                 'storage_domain': 'data',
                 'fields': [
                     {'name': 'id', 'type': 'VARCHAR', 'length': 50, 'primary_key': True},
@@ -90,7 +105,7 @@ class TestSchemaManager:
         """DuckDB 自增列使用 SEQUENCE + nextval，不用 SERIAL/BIGSERIAL。"""
         manager = SchemaManager(is_verbose=False, database_type="duckdb")
         schema = {
-            "name": "sys_areas",
+            "name": "sys_data_areas",
             "primaryKey": "id",
             "fields": [
                 {
@@ -104,11 +119,11 @@ class TestSchemaManager:
         }
         sql = manager.generate_create_table_sql(schema)
         assert "SERIAL" not in sql
-        assert "seq_sys_areas_id" in sql
-        assert "nextval('seq_sys_areas_id')" in sql
+        assert "seq_sys_data_areas_id" in sql
+        assert "nextval('seq_sys_data_areas_id')" in sql
 
         schema_big = {
-            "name": "sys_tag_definition",
+            "name": "sys_data_tag_definition",
             "primaryKey": "id",
             "fields": [
                 {
@@ -127,7 +142,7 @@ class TestSchemaManager:
         """DuckDB 日期/时间列用 VARCHAR 存 YYYYMMDD 与常见时间串。"""
         manager = SchemaManager(is_verbose=False, database_type="duckdb")
         schema = {
-            "name": "sys_stock_list",
+            "name": "sys_data_stock_list",
             "primaryKey": "id",
             "fields": [
                 {"name": "id", "type": "varchar", "length": 16, "nullable": False},

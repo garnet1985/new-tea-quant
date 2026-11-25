@@ -1,7 +1,9 @@
 # 测试用例 — `modules.tag`
 
-**模块：** `modules.tag`  
-**版本：** `0.4.0`  
+**模块：** `modules.tag` · **版本：** `0.4.2`
+
+**最低支持核心版本：** `>=0.5.0`
+
 ## Scope
 
 验证门面 `Tag` 与 `contracts` 公开面（对齐 `API.md`）。  

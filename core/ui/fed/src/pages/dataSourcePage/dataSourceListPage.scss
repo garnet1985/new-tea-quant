@@ -1,20 +1,110 @@
 .data-source-list-page {
-  .data-source-list-alert {
-    margin-bottom: 16px;
-  }
-
   .data-source-list-grid {
-    padding: 16px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.12);
+    padding: var(--ui-space-md);
+    background: var(--ui-surface-glass);
+    border: 1px solid var(--ui-divider-color, var(--ui-white-12));
+    border-radius: var(--ui-radius-md, 0.5rem);
   }
 
-  .data-source-list-grid-toolbar {
-    margin-bottom: 12px;
+  .data-source-list-cell-name {
+    font-weight: var(--ui-font-weight-bold);
+  }
+
+  .data-source-list-cell-mode {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ui-space-xs);
   }
 
   .data-source-list-update-btn-wrap {
     display: inline-flex;
     align-items: center;
+    line-height: 0;
   }
+
+  .data-source-list-progress {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .data-source-list-elapsed {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .data-source-list-live {
+    width: 100%;
+  }
+
+  .data-source-list-status-failed,
+  .data-source-list-auth-warn {
+    display: inline-flex;
+    max-width: 100%;
+  }
+
+  .data-source-list-grid-body {
+    .MuiDataGrid-row.data-source-list-row--running {
+      position: relative;
+      overflow: hidden;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        bottom: 0;
+        z-index: 0;
+        width: var(--data-source-run-pct, 0%);
+        pointer-events: none;
+        background: linear-gradient(
+          90deg,
+          rgba(34, 211, 238, 0.32) 0%,
+          rgba(34, 211, 238, 0.12) 100%
+        );
+        transition: width 0.35s ease-out;
+      }
+
+      .MuiDataGrid-cell {
+        position: relative;
+        z-index: 1;
+      }
+    }
+
+    .MuiDataGrid-row.data-source-list-row--running-indeterminate::before {
+      width: 38%;
+      background: linear-gradient(
+        90deg,
+        transparent 0%,
+        rgba(34, 211, 238, 0.28) 50%,
+        transparent 100%
+      );
+      animation: data-source-list-row-progress-slide 1.2s ease-in-out infinite;
+    }
+  }
+}
+
+@keyframes data-source-list-row-progress-slide {
+  0% {
+    transform: translateX(-120%);
+  }
+
+  100% {
+    transform: translateX(320%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .data-source-list-page .data-source-list-grid-body .MuiDataGrid-row.data-source-list-row--running-indeterminate::before {
+    animation: none;
+    opacity: 0.85;
+    transform: translateX(0);
+  }
+}
+
+.data-source-renew-tip {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-xxs);
+  max-width: 17.5rem;
+  font-size: var(--ui-font-xs);
+  line-height: var(--ui-leading-normal);
 }

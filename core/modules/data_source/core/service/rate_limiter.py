@@ -41,12 +41,21 @@ class RateLimiter:
         self.condition = threading.Condition(self.lock)
         self._timestamps: deque = deque()  # 最近 60 秒内的请求时间戳
         self._block_logged_recently = 0.0  # 上次打「达到限制」日志的时间
+        self._paused_until = 0.0  # 远端报频率超限后，整条接口停到这个时间
 
     def _prune_old(self, now: float) -> None:
         """移除 60 秒前的时间戳。"""
         cutoff = now - 60.0
         while self._timestamps and self._timestamps[0] <= cutoff:
             self._timestamps.popleft()
+
+    def pause(self, seconds: float) -> None:
+        """远端频率超限时，让这条接口的后续请求一起等到窗口过去。"""
+        with self.lock:
+            until = time.time() + max(0.0, seconds)
+            if until > self._paused_until:
+                self._paused_until = until
+            self.condition.notify_all()
 
     def acquire(self) -> None:
         """
@@ -57,6 +66,11 @@ class RateLimiter:
 
             with self.lock:
                 self._prune_old(now)
+
+                if now < self._paused_until:
+                    sleep_time = self._paused_until - now
+                    self.condition.wait(timeout=min(sleep_time, 5.0))
+                    continue
 
                 if len(self._timestamps) >= self.max_per_minute:
                     # 必须等待：最早的时间戳离开 60 秒窗口
@@ -144,6 +158,29 @@ def get_rate_limiter(
                 )
 
         return _RATE_LIMITERS[limiter_key]
+
+
+def note_remote_rate_limit(
+    provider_name: str,
+    api_name: str,
+    pause_seconds: float = 61.0,
+) -> bool:
+    """
+    远端拒绝后暂停已有的限流器，并为本线程占下一次额度。
+
+    限流器还不存在时返回 False，调用方自己等待。
+    """
+    keys = (f"{provider_name}:{api_name}", provider_name)
+    with _RATE_LIMITERS_LOCK:
+        limiter = next(
+            (_RATE_LIMITERS[key] for key in keys if key in _RATE_LIMITERS),
+            None,
+        )
+    if limiter is None:
+        return False
+    limiter.pause(pause_seconds)
+    limiter.acquire()
+    return True
 
 
 def collect_api_limits(

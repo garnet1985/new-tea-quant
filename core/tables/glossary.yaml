@@ -1,0 +1,99 @@
+# Tables 术语表
+# Version: 0.4.2
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# 本模块是表定义仓库（schema.py + model.py）；发现/注册/读写经 modules.data_manager + infra.db。
+
+terms:
+  tables:
+    definition: |
+      逻辑表定义总目录 core/tables：按领域子目录（stock / industry / macro / calendar /
+      index / tag / system）组织。每张表一个文件夹，内含 schema.py（结构）与 model.py（DbBaseModel）。
+      DataManager 启动时与 userspace/extensions/tables 一并递归发现并注册；本目录本身不是运行时 Facade。
+    in_code: "core/tables/<domain>/<table>/schema.py + model.py"
+    aliases:
+      - "表定义"
+    avoid:
+      - "把 core/tables 当成可 import 的业务 Facade"
+      - "在业务路径手写建表 SQL 绕过 schema"
+
+  schema.py:
+    definition: |
+      单表结构声明：Python 模块内变量 schema = { name, fields, primaryKey, storage_domain, … }。
+      发现器认这个文件名；Field 语义由 infra.db 转成各后端 DDL。改列必须改 schema（并走迁移），
+      不要只改 model 或只改库。
+    in_code: "各表目录 schema.py 中的 schema dict"
+    aliases:
+      - "schema"
+    avoid:
+      - "只改物理库不改 schema.py"
+
+  model.py:
+    definition: |
+      单表 ORM/访问模型：第一个 DbBaseModel 子类被 DataManager.register_table 载入缓存。
+      绑定默认 db 后经 DataManager.get_table(name) 使用。schema 管结构，model 管读写行为。
+    in_code: "各表目录 model.py；DbBaseModel 子类"
+    aliases:
+      - "Model"
+    avoid: []
+
+  storage_domain:
+    definition: |
+      表归属的 DuckDB 存储域标签（写在 schema 上）：data / tag / strategy 等。
+      决定落在哪个 .duckdb 文件；与 infra.db 的 StorageRegistry 同义。不要用目录路径猜归属。
+    in_code: "schema['storage_domain']"
+    aliases:
+      - "存储域"
+    avoid:
+      - "用目录路径猜测表归属"
+
+  domain folder:
+    definition: |
+      core/tables 下的领域分组目录（stock、industry、macro、calendar、index、tag、system）。
+      只为组织与浏览；真正路由存储的是 schema.storage_domain，不是文件夹名。
+    in_code: "core/tables/stock|tag|system|…"
+    aliases:
+      - "领域目录"
+    avoid:
+      - "以为文件夹名自动等于 storage_domain"
+
+  sys_ prefix:
+    definition: |
+      core/tables 内表名强制 sys_ 前缀（系统表），与 userspace 自定义表 cust_* 区分。
+      DataManager 发现 core 表时校验此前缀；不要在 core/tables 建无前缀或 cust_ 表。
+    in_code: "schema['name'] 如 sys_data_stock_klines"
+    aliases:
+      - "系统表"
+    avoid:
+      - "在 core/tables 使用 cust_* 或无前缀名"
+
+  cust_ tables:
+    definition: |
+      用户自定义表：只写在 userspace/extensions/tables，表名 cust_{kind}_*。
+      经 DataManager.ensure_user_table 等脚手架创建；禁止污染 core/tables 或冒充 sys_*。
+    in_code: "userspace/extensions/tables；DataManager 用户表 API"
+    aliases:
+      - "用户表"
+      - "extensions/tables"
+    avoid:
+      - "把 cust_ 表放进 core/tables"
+      - "用户表使用 sys_ 前缀"
+
+  update_key:
+    definition: |
+      schema 上常见字段：标识本表与哪条数据源 renew / 更新进度键对应（如 stock_stock_klines）。
+      供 data_source / renew 进度对齐，不是主键。
+    in_code: "schema['update_key']"
+    aliases: []
+    avoid:
+      - "把 update_key 当成 primaryKey"
+
+  kind:
+    definition: |
+      schema 上的表类别标签（如 data），辅助分类；与 storage_domain、name 前缀配合使用。
+      具体合法值以各表声明为准。
+    in_code: "schema['kind']"
+    aliases: []
+    avoid: []

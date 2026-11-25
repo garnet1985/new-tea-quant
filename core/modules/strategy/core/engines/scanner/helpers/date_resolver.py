@@ -13,6 +13,24 @@ from typing import Any, Dict, List, Optional, Tuple
 logger = logging.getLogger(__name__)
 
 
+def display_calendar_date(value: str) -> str:
+    """用户可见日历日：YYYYMMDD → YYYY-MM-DD；空则 —。"""
+    raw = str(value or "").strip()
+    if not raw:
+        return "—"
+    try:
+        from core.infra.utils import Utils
+
+        formatted = Utils.date.to_format(raw, Utils.date.FMT_YYYY_MM_DD)
+        if formatted:
+            return formatted
+    except Exception:
+        pass
+    if len(raw) == 8 and raw.isdigit():
+        return f"{raw[:4]}-{raw[4:6]}-{raw[6:]}"
+    return raw
+
+
 class ScanDateResolver:
     """解析 scan_date + universe（当日有日 K 的股票）。"""
 
@@ -45,15 +63,15 @@ class ScanDateResolver:
         cal_svc = getattr(getattr(data_manager, "service", None), "calendar", None)
         kline_latest = ScanDateResolver.load_kline_latest_date(data_manager)
 
-        configured_as_of = ""
+        assumed_latest = ""
         try:
             from core.infra.project_context import ProjectContext
 
-            configured_as_of = str(
-                ProjectContext.config.get_as_of_latest_completed_trading_date() or ""
+            assumed_latest = str(
+                ProjectContext.config.get_assumed_latest_completed_trading_date() or ""
             ).strip()
         except Exception:
-            configured_as_of = ""
+            assumed_latest = ""
 
         raw_anchor = ""
         source = ""
@@ -65,7 +83,7 @@ class ScanDateResolver:
                 use_strict=use_strict,
                 raw_anchor="",
                 kline_latest=kline_latest,
-                configured_as_of=configured_as_of,
+                assumed_latest=assumed_latest,
                 source="unavailable",
                 source_detail="calendar service 不可用，无法解析扫描日",
             )
@@ -81,7 +99,7 @@ class ScanDateResolver:
                 source = "real_world_latest_completed"
                 source_detail = (
                     "严格模式：取真实世界上一完整交易日"
-                    f"（get_real_world_latest_completed_trading_date → {raw_anchor or '空'}）"
+                    f"（→ {display_calendar_date(raw_anchor) if raw_anchor else '空'}）"
                 )
             else:
                 from core.modules.data_source import DataSourceManager
@@ -89,17 +107,18 @@ class ScanDateResolver:
                 raw_anchor = str(
                     DataSourceManager.resolve_freshness_end_date(data_manager) or ""
                 ).strip()
-                if configured_as_of:
-                    source = "data_json_as_of"
+                if assumed_latest:
+                    source = "data_json_assumed_latest"
                     source_detail = (
-                        "非严格模式：data.json 的 as_of_latest_completed_trading_date="
-                        f"{configured_as_of}，经交易日历对齐为 {raw_anchor or '空'}"
+                        "非严格模式：假定最新完结交易日="
+                        f"{display_calendar_date(assumed_latest)}，经交易日历对齐为 "
+                        f"{display_calendar_date(raw_anchor) if raw_anchor else '空'}"
                     )
                 else:
                     source = "freshness_latest_completed"
                     source_detail = (
-                        "非严格模式：未配置 data.json 截断，按 freshness/"
-                        f"最新完整交易日解析 → {raw_anchor or '空'}"
+                        "非严格模式：未配置假定最新完结交易日，按 freshness/"
+                        f"最新完整交易日解析 → {display_calendar_date(raw_anchor) if raw_anchor else '空'}"
                     )
         except Exception as exc:
             logger.debug("resolve_anchor_meta failed use_strict=%s: %s", use_strict, exc)
@@ -108,7 +127,7 @@ class ScanDateResolver:
                 use_strict=use_strict,
                 raw_anchor="",
                 kline_latest=kline_latest,
-                configured_as_of=configured_as_of,
+                assumed_latest=assumed_latest,
                 source="error",
                 source_detail=f"解析扫描锚点失败: {exc}",
             )
@@ -118,7 +137,7 @@ class ScanDateResolver:
             use_strict=use_strict,
             raw_anchor=raw_anchor,
             kline_latest=kline_latest,
-            configured_as_of=configured_as_of,
+            assumed_latest=assumed_latest,
             source=source,
             source_detail=source_detail,
         )
@@ -130,7 +149,7 @@ class ScanDateResolver:
         use_strict: bool,
         raw_anchor: str,
         kline_latest: str,
-        configured_as_of: str,
+        assumed_latest: str,
         source: str,
         source_detail: str,
     ) -> Dict[str, Any]:
@@ -148,7 +167,7 @@ class ScanDateResolver:
             day = kline_latest
             clamped = True
             source_detail = (
-                f"{source_detail}；锚点晚于库内 K 线最新日 {kline_latest}，已截断到该日"
+                f"{source_detail}；锚点晚于库内 K 线最新日 {display_calendar_date(kline_latest)}，已截断到该日"
             )
             source = f"{source}+kline_clamp"
 
@@ -160,7 +179,7 @@ class ScanDateResolver:
             "mode_label": "严格模式" if use_strict else "非严格模式",
             "raw_anchor": str(raw_anchor or "").strip(),
             "kline_latest": str(kline_latest or "").strip(),
-            "configured_as_of": str(configured_as_of or "").strip(),
+            "assumed_latest_completed_trading_date": str(assumed_latest or "").strip(),
             "clamped_to_kline": clamped,
             "source": source,
             "source_detail": source_detail,
@@ -202,14 +221,14 @@ class ScanDateResolver:
             )
         if raw != kline_latest:
             return (
-                f"严格模式：真实交易日 {raw} 的本地行情尚未就绪"
-                f"（库内 K 线最新仅至 {kline_latest}）。"
+                f"严格模式：真实交易日 {display_calendar_date(raw)} 的本地行情尚未就绪"
+                f"（库内 K 线最新仅至 {display_calendar_date(kline_latest)}）。"
                 "请先更新全部数据后再进行扫描，或改用「扫描演示」模式。"
             )
         ids = ScanDateResolver(data_manager).stocks_with_kline(raw)
         if not ids:
             return (
-                f"严格模式：交易日 {raw} 无可用股票 K 线。"
+                f"严格模式：交易日 {display_calendar_date(raw)} 无可用股票 K 线。"
                 "请先更新行情数据后再进行扫描。"
             )
         return ""
@@ -238,7 +257,7 @@ class ScanDateResolver:
         get_table = getattr(self.data_manager, "get_table", None)
         if not callable(get_table):
             return []
-        kline_model = get_table("sys_stock_klines")
+        kline_model = get_table("sys_data_stock_klines")
         if not kline_model:
             return []
         rows = kline_model.load_by_date(date)
@@ -250,4 +269,4 @@ class ScanDateResolver:
         return sorted(ids)
 
 
-__all__ = ["ScanDateResolver"]
+__all__ = ["ScanDateResolver", "display_calendar_date"]

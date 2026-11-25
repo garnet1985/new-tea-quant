@@ -9,7 +9,8 @@
 - [策略开发](../userspace/strategies/USER_GUIDE.md)
 - [数据源扩展](../userspace/extensions/data_source/USER_GUIDE.md)
 - [标签扩展](../userspace/extensions/tags/USER_GUIDE.md)
-- [适配器扩展](../userspace/extensions/adapters/USER_GUIDE.md)
+- [后续处理扩展](../userspace/extensions/post_process/README.md)
+- [PostProcess 模块](../core/modules/post_process/README.md)
 
 ## Docker
 
@@ -17,13 +18,21 @@
 
 ## CI
 
-- [ci/README.md](../ci/README.md) — Workflow 专用验收脚本（如冷启动冒烟）；与 `devcli` / `TaskGuard` 分开
+- [ci/README.md](../ci/README.md) — Workflow 专用验收脚本（如冷启动冒烟）；与 `devcli` / `JobPipeline` 分开
 
 ## UI / BFF
 
 - [`core/ui/`](../core/ui/README.md)：工作台前端（`fed/`：React）
 - [`core/bff/`](../core/bff/README.md)：Flask BFF（HTTP 编排；可托管 FED build）
 - 启动优先根目录 `python launcher.py`（见根 README）
+
+## 模块索引（`core/modules/`）
+
+- **核心引擎：** [strategy](../core/modules/strategy/README.md)、[backtest_engine](../core/modules/backtest_engine/README.md)、[cli](../core/modules/cli/README.md)
+- **数据：** [data_manager](../core/modules/data_manager/README.md)、[data_source](../core/modules/data_source/README.md)、[data_contract](../core/modules/data_contract/README.md)
+- **分析：** [analysis](../core/modules/analysis/README.md)、[indicator](../core/modules/indicator/README.md)、[market_profile](../core/modules/market_profile/README.md)、[series_relation](../core/modules/series_relation/README.md)、[tag](../core/modules/tag/README.md)
+- **Agent：** [agent](../core/modules/agent/README.md)
+- **外部与后处理：** [ntq_external](../core/modules/ntq_external/README.md)、[post_process](../core/modules/post_process/README.md)
 
 ## 维护者入口
 

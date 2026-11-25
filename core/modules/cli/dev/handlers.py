@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 import time
@@ -133,8 +134,10 @@ class DevHandlers:
             DevHandlers.kill_listeners_on_ports(ALL_UI_PORTS, ntq_only=False)
         cmd = [sys.executable, str(launcher), "-d", *args.forward]
         print("启动: " + " ".join(cmd), flush=True)
+        env = os.environ.copy()
+        env["NTQ_OPEN_BROWSER"] = "0"
         try:
-            return subprocess.run(cmd, cwd=str(DevHandlers._repo_root())).returncode
+            return subprocess.run(cmd, cwd=str(DevHandlers._repo_root()), env=env).returncode
         except KeyboardInterrupt:
             return 130
 
@@ -162,8 +165,13 @@ class DevHandlers:
     @staticmethod
     def cmd_data_export_init(args: argparse.Namespace) -> int:
         from core.infra.setup import Setup
+        from core.infra.setup.core.steps.import_data.export.demo_data_exporter import (
+            normalize_ex_argv,
+        )
 
-        return Setup.artifacts.export_demo_data(list(getattr(args, "forward", None) or []))
+        return Setup.artifacts.export_demo_data(
+            normalize_ex_argv(getattr(args, "forward", None) or [])
+        )
 
     @staticmethod
     def cmd_userspace_package(args: argparse.Namespace) -> int:
@@ -275,7 +283,7 @@ class DevHandlers:
                 skip_tests=args.skip_tests,
                 skip_ic=args.skip_ic,
                 skip_fed_build=args.skip_fed_build,
-                skip_py39=args.skip_py39,
+                skip_py311=args.skip_py311,
                 package_userspace=getattr(args, "package_userspace", False),
                 skip_dep_check=getattr(args, "skip_dep_check", False),
                 skip_icon_check=getattr(args, "skip_icon_check", False),

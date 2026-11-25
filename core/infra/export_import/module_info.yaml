@@ -3,6 +3,9 @@ version: 0.2.0
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "导入导出模块：打包，压缩等等对批量或者单个文件的操作模块，主要服务于文件导入导出功能。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "导入导出模块 (Export / Import)"
+site_display_title: "打包释放基础功能 - Export / Import 模块"
 dependencies: []
 changelog:
   - version: "0.2.0"

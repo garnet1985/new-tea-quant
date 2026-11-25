@@ -1,6 +1,7 @@
 # Setup API 文档
 
-**版本：** `0.1.1`  
+**模块：** `infra.setup` · **版本：** `0.2.0`
+
 **最低支持核心版本：** `>=0.5.0`
 
 > 须与 `module_info.yaml` 的 `version` / `compatible_core_versions` 一致。  
@@ -58,7 +59,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 不在 venv 中则创建 `venv/` 并用其解释器 `exec` 当前入口脚本
+- **描述：** 不在 venv 中则创建 `venv/` 并用其解释器 `exec` 当前入口脚本。项目 venv 低于 `core.system` 最低 Python 版本时退出
 
 #### ensure_venv_for_setup_step
 
@@ -67,7 +68,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** `core/infra/setup/core/steps/*/install.py` 直接执行时切到项目 venv
+- **描述：** `core/infra/setup/core/steps/*/install.py` 直接执行时切到项目 venv。版本过低时同样退出
 
 #### requirements_txt / ui_bff_requirements / ui_fed_root
 
@@ -104,22 +105,22 @@
 
 #### install_cli / ensure_cli_install
 
-`Setup.runtime.install_cli(*, force: bool = False, userspace=None, userspace_conflict=None, db=None, db_host=None, db_port=None, db_name=None, db_user=None, db_password=None, db_schema=None) -> None`  
+`Setup.runtime.install_cli(*, force: bool = False, userspace=None, userspace_conflict=None, db=None, db_host=None, db_port=None, db_name=None, db_user=None, db_password=None, db_schema=None, import_demo: bool = True, deps_only: bool = False) -> None`  
 `Setup.runtime.ensure_cli_install() -> int`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`（`userspace` / `db` 参数：`0.1.1`）
-- **描述：** 跑 CLI 安装步骤，不询问。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发，未就绪才装）。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
+- **描述：** 跑 CLI 安装步骤，不询问 userspace / 数据库。使用条款在 `install.py` 与 `cli.py` 入口询问，不在本方法内。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。默认从官网下载并导入演示包（覆盖同名表）；`import_demo=False`（`install.py --skip-demo-data`）跳过。`deps_only=True` 只跑系统检查和依赖安装。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发）：依赖指纹变化时只更新依赖；完整安装默认仍导入演示包。跳过演示数据时结束提示 `python cli.py id`。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
 
-#### import_init_data
+#### import_data_pack
 
-`Setup.runtime.import_init_data(*, force: bool = False) -> int`
+`Setup.runtime.import_data_pack(*, pack_kind="demo", force=False, remove_extract=True) -> int`
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.4.4`
-- **描述：** 导入 `initialization/data/` 下唯一 zip；`force` 全量重导；用户 CLI：`python cli.py id`
+- **引入版本：** `0.4.4`（`import_data_pack`：同轨扩展）
+- **描述：** 导入演示/会员等数据包（`SetupDataInstaller`）。目录为 `userspace/.ntq/packages/{demo|member|…}/`；无 zip 时按 kind 下载；`force` 重新下载并全量重导；BFF `ImportDataLauncher` / CLI `id` 只留壳，勿 deep-import installer
 
 #### install_ui / check_ui_prerequisites / launch_ui / set_ui_dev_mode
 
@@ -149,7 +150,7 @@
 
 ### artifacts
 
-**描述：** 安装产物工厂（写入 `initialization/userspace/`、`initialization/data/`）
+**描述：** 安装产物工厂（userspace zip；数据包导出到 `userspace/.ntq/packages/{demo|member|full}/`）
 
 #### package_userspace
 
@@ -158,7 +159,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 同步仓库 `userspace/` → `initialization/userspace/` 并可选写 zip；`0` 成功
+- **描述：** 同步仓库 `userspace/` → `core/infra/setup/core/steps/init_userspace/assets/` 并可选写 zip；`0` 成功
 
 #### export_demo_data
 
@@ -167,7 +168,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
-- **描述：** 导出演示数据包到 `initialization/data/`；`argv` 同 `python -m core.infra.setup.core.scripts.init_data`
+- **描述：** 导出安装/会员数据包到 `userspace/.ntq/packages/{demo|member|full}/`；`argv` 同 `python -m core.infra.setup.core.steps.import_data.export`（需 `--demo` / `--member` / `--full`；无参数只打印帮助）
 
 ---
 

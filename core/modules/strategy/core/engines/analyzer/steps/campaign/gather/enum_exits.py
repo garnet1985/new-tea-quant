@@ -1,4 +1,4 @@
-"""枚举层出场比率：轻扫 ``enum/entities/*.json`` 的 ``results[]``。"""
+"""机会盘点层出场比率：轻扫 ``enum/entities/*.json`` 的 ``results[]``。"""
 from __future__ import annotations
 
 from collections import Counter, defaultdict

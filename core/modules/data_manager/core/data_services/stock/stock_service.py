@@ -7,10 +7,10 @@
 3. 作为子服务的入口，提供子服务属性访问
 
 涉及的表：
-- sys_stock_list、sys_sw_industry、sys_sw_stock_industry_map、sys_stock_klines 等（由 DataManager 发现）
+- sys_data_stock_list、sys_data_sw_industry、sys_map_sw_stock_industry、sys_data_stock_klines 等（由 DataManager 发现）
 
 子服务：
-- list: 股票列表服务（load_single / load(period_*|as_of_date|…) / load_by_* / load_all）
+- list: 股票列表服务（load_single / load(period_*|as_of_date|…) / load_by_* / filter_ids / load_all）
 - st: ST/*ST 风险警示时段（is_on / load_overlapping）
 - query_status_by_ids: 批量某日状态（st / star_st / delisted）
 - kline: K线数据服务（data_mgr.stock.kline.load_qfq()）
@@ -22,12 +22,16 @@
 使用示例：
     # 单个股票信息
     stock_info = data_mgr.stock.load_info('000001.SZ')
-    
-    # 股票列表（通过 list 服务；板块筛选由 Tag 等上层负责）
+
+    # 股票列表（通过 list 服务）
     all_stocks = data_mgr.stock.list.load_all()
     one = data_mgr.stock.list.load_single("000001.SZ")
     window = data_mgr.stock.list.load(period_start="20150101", period_end="20241231")
-    
+    ids = data_mgr.stock.list.filter_ids(
+        include={"market": ["SSE"], "list_status": ["L"]},
+        exclude={"industry": ["银行"]},
+    )
+
     # 跨表查询
     stock_with_price = data_mgr.stock.load_with_latest_price('000001.SZ')
 """
@@ -72,7 +76,7 @@ class StockService(BaseDataService):
         self.moneyflow = StockMoneyflowService(data_manager)
         
         # 获取相关 Model（表名由 DataManager 发现并注册）
-        self._stock_list = data_manager.get_table("sys_stock_list")
+        self._stock_list = data_manager.get_table("sys_data_stock_list")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db.contracts import DatabaseManager
@@ -99,7 +103,7 @@ class StockService(BaseDataService):
     ) -> Dict[str, List[str]]:
         """批量查询某日股票状态标签（``st`` / ``star_st`` / ``delisted``）。
 
-        - ST/*ST：``sys_stock_st_periods`` 区间命中
+        - ST/*ST：``sys_data_stock_st_periods`` 区间命中
         - 退市：``delist_date`` 已生效（``date >= delist_date``）；与风控强平同口径
         - 返回每个 id 的标签列表（可为空）；未知 id 也占位为 ``[]``
         """
@@ -145,7 +149,7 @@ class StockService(BaseDataService):
         """
         获取股票基本信息和最新价格（使用 JOIN 优化）
         
-        跨表：sys_stock_list + sys_sw_stock_industry_map + sys_sw_industry + sys_stock_klines
+        跨表：sys_data_stock_list + sys_map_sw_stock_industry + sys_data_sw_industry + sys_data_stock_klines
         
         Args:
             stock_id: 股票ID
@@ -172,7 +176,7 @@ class StockService(BaseDataService):
                 ...
             }
         """
-        # K 线 OHLCV 在 sys_stock_klines；市值/PE 等在 sys_stock_indicators（同日关联）
+        # K 线 OHLCV 在 sys_data_stock_klines；市值/PE 等在 sys_data_stock_indicators（同日关联）
         sql = """
         SELECT
             s.id, s.name, s.list_status, s.list_date, s.delist_date, s.last_update,
@@ -182,19 +186,19 @@ class StockService(BaseDataService):
             k.open, k.high, k.low, k.close, k.volume, k.amount,
             di.turnover_rate,
             di.total_market_value, di.pe, di.pb, di.total_share, di.float_share
-        FROM sys_stock_list s
-        LEFT JOIN sys_sw_stock_industry_map map ON s.id = map.stock_id
-        LEFT JOIN sys_sw_industry ind ON map.l1_code = ind.id AND ind.level = 'L1'
-        LEFT JOIN sys_stock_klines k ON (
+        FROM sys_data_stock_list s
+        LEFT JOIN sys_map_sw_stock_industry map ON s.id = map.stock_id
+        LEFT JOIN sys_data_sw_industry ind ON map.l1_code = ind.id AND ind.level = 'L1'
+        LEFT JOIN sys_data_stock_klines k ON (
             s.id = k.id
             AND k.term = 'daily'
             AND k.date = (
                 SELECT MAX(k2.date)
-                FROM sys_stock_klines k2
+                FROM sys_data_stock_klines k2
                 WHERE k2.id = s.id AND k2.term = 'daily'
             )
         )
-        LEFT JOIN sys_stock_indicators di ON (
+        LEFT JOIN sys_data_stock_indicators di ON (
             di.id = s.id AND di.date = k.date
         )
         WHERE s.id = %s

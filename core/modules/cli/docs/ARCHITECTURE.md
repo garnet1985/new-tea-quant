@@ -1,6 +1,8 @@
 # CLI — 架构
 
-**版本：** `0.4.2`
+**模块：** `modules.cli` · **版本：** `0.4.5`
+
+**最低支持核心版本：** `>=0.5.0`
 
 双入口命令行门面（Facade：对外统一入口类 `Cli`）：用户侧与开发侧分入口，共享命令行参数（argv）脚手架；业务处理函数留在各自包内，不对外导出。词条见 [glossary.yaml](../glossary.yaml)。
 
@@ -14,14 +16,14 @@
 - 仓库根入口脚本 `cli.py` / `devcli.py` 分发到门面类
 - user / dev 各自的短别名与命令注册表
 - 用户侧虚拟环境 / 安装的启动前检查（bootstrap）
-- 从模板新建策略 / Tag（`user/scripts/create_from_template`，`cli.py -n`）
+- 从模板新建策略 / Tag（`cli.py -n` → 薄封装 `Strategy`/`Tag.scaffold_from_template`）
 - 临时文件清理（`dev/scripts/temp_cleanup`）
 
 **不负责**
 
 - 具体业务动作的实现（交给 `infra.setup`、`infra.updater`、各业务模块等）
 - 把 `user/`、`dev/`、`shared/` 作为跨模块公开 import 面（设置页清理走 `dev/scripts/temp_cleanup` 除外）
-- 合成单一 CLI 二进制（见 [DESIGN.md](./DESIGN.md)）
+- 合成单一 CLI 二进制（见 [DECISIONS.md](./DECISIONS.md)）
 
 ---
 
@@ -36,7 +38,7 @@ core/modules/cli/
 ├── glossary.yaml
 ├── module_info.yaml
 ├── user/                  # 用户 CLI 实现（非公开 import）
-│   ├── scripts/           # 用户命令实现（create_from_template 等）
+│   ├── scripts/           # 用户命令实现（薄壳；脚手架走 Strategy/Tag Facade）
 │   └── __test__/          # user abbrev / parser unit
 ├── dev/                   # 开发 CLI 实现（非公开 import）
 │   └── __test__/          # dev abbrev / parser unit
@@ -44,7 +46,7 @@ core/modules/cli/
 ├── __test__/              # 公开 API（test_api.py）
 └── docs/
     ├── ARCHITECTURE.md
-    └── DESIGN.md
+    └── DECISIONS.md
 ```
 
 仓库根：`cli.py` → `Cli.user`；`devcli.py` → `Cli.dev`。
@@ -90,7 +92,7 @@ argv
 ## 依赖（结论）
 
 - `infra.project_context`：项目根与路径
-- `infra.task_guard`：长任务互斥
+- `infra.job_pipeline`：长任务互斥与队列
 - `infra.setup`：安装
 - `infra.updater`：应用升级
 
@@ -98,8 +100,9 @@ argv
 
 ## 相关文档
 
+- [用户指南](./USER_GUIDE.md)
 - [README](../README.md)
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
-- [设计](./DESIGN.md)
 - [快速开始](../QUICKSTART.md)
+- [决策](./DECISIONS.md)

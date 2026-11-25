@@ -1,37 +1,40 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link as RouterLink, useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  Box,
-  Chip,
-  Link,
-  Paper,
-  Stack,
-  Typography,
-} from '@mui/material';
-import { DataGrid } from '@mui/x-data-grid';
-import { zhCN } from '@mui/x-data-grid/locales';
+  Button,
+  CategoryChipStrip,
+  CountBadge,
+  DataGrid,
+  HelpTooltip,
+  Icon,
+  ListToolbar,
+  Loading,
+  Message,
+  SearchField,
+  Section,
+  Switch,
+  Tag,
+} from 'ui';
+import { showToast } from 'ui/message/toast';
+import { PageLayout } from 'ntq-ui';
 import {
   downloadStrategyPackage,
   fetchStrategyList,
   getStrategyDesignPath,
   getStrategyDisplayLabel,
+  setStrategyEnabled,
 } from '../../api/strategyApi';
 import {
   groupStrategiesByCategory,
   readStrategyListCategoryQuery,
   STRATEGY_LIST_CATEGORY_PARAM,
 } from 'containers/strategyCategory';
-import PageLayout from '../../views/pageLayout';
-import SearchField from '../../views/searchField';
-import NtqButton from '../../views/ntqButton';
-import CountTab from '../../views/countTab';
-import CountBadge from '../../views/countBadge';
-import Message from '../../views/message';
-import { showToast } from 'containers/toast';
 import StrategyPackageImportDialog from '../../containers/strategyPackageImport';
-import { NTQ_DATA_GRID_LOADING_SLOTS } from '../../views/dataGridLoadingOverlay';
-import StrategyDescriptionText from '../../views/strategyDescriptionText';
-import { buildStrategyDesignNavState } from 'containers/strategyDesign';
+import StrategyDisclaimer from 'containers/strategyDisclaimer';
+import {
+  buildStrategyDesignNavState,
+  STRATEGY_DESIGN_DEFAULT_STEP,
+} from 'containers/strategyDesign';
 import './strategyListPage.scss';
 
 /**
@@ -42,13 +45,18 @@ import './strategyListPage.scss';
  * @param {string} [props.bannerTitle]
  * @param {string} [props.bannerDescription]
  */
-const STRATEGY_LIST_BANNER_TITLE = '选择一个策略';
+const STRATEGY_LIST_BANNER_TITLE = '所有策略';
 const STRATEGY_LIST_BANNER_DESCRIPTION =
-  '请从表格中选择一个策略；可按归类筛选或按名称搜索。进入后可调参数、分步回测并对比版本。';
+  '显示当前所有策略，可以在表格内选择一个进行参数调试与分步回测。';
+
+/** 列表进入固定机会盘点；不带 step 会恢复 session 里上次停留的步。 */
+function defaultEnterPath(name) {
+  return getStrategyDesignPath(name, STRATEGY_DESIGN_DEFAULT_STEP);
+}
 
 function StrategyListPage({
   listBasePath = '/strategy-design',
-  getEnterPath = getStrategyDesignPath,
+  getEnterPath = defaultEnterPath,
   navLabel = '制定策略',
   bannerTitle = STRATEGY_LIST_BANNER_TITLE,
   bannerDescription = STRATEGY_LIST_BANNER_DESCRIPTION,
@@ -62,6 +70,7 @@ function StrategyListPage({
   const [nameQuery, setNameQuery] = useState('');
   const [importOpen, setImportOpen] = useState(false);
   const [exportingName, setExportingName] = useState('');
+  const [togglingName, setTogglingName] = useState('');
 
   const categoryQuery = readStrategyListCategoryQuery(searchParams);
   const selectedChipRef = useRef(null);
@@ -91,6 +100,9 @@ function StrategyListPage({
       const label = String(r.display_name || '').toLowerCase();
       const desc = String(r.description || '').toLowerCase();
       const category = String(r.category || '').toLowerCase();
+      const keywords = (Array.isArray(r.keywords) ? r.keywords : [])
+        .map((k) => String(k || '').toLowerCase())
+        .join(' ');
       return (
         id.includes(q)
         || path.includes(q)
@@ -98,6 +110,7 @@ function StrategyListPage({
         || label.includes(q)
         || desc.includes(q)
         || category.includes(q)
+        || keywords.includes(q)
       );
     });
   }, [categoryFilteredRows, nameQuery]);
@@ -158,278 +171,316 @@ function StrategyListPage({
     try {
       await downloadStrategyPackage(strategyName, { scope: 'bundle' });
     } catch (e) {
-      showToast({ severity: 'error', content: e?.message || '导出失败' });
+      showToast({ status: 'error', content: e?.message || '导出失败' });
     } finally {
       setExportingName('');
     }
   }, [exportingName]);
 
+  const handleToggleEnabled = useCallback(async (row, nextEnabled) => {
+    const name = String(row?.name || '').trim();
+    if (!name || togglingName) return;
+    const prev = Boolean(row.is_enabled);
+    setTogglingName(name);
+    setRows((list) => list.map((r) => (
+      r.name === name ? { ...r, is_enabled: nextEnabled } : r
+    )));
+    try {
+      const res = await setStrategyEnabled(row.key || name, nextEnabled);
+      setRows((list) => list.map((r) => (
+        r.name === name ? { ...r, is_enabled: Boolean(res.is_enabled) } : r
+      )));
+    } catch (e) {
+      setRows((list) => list.map((r) => (
+        r.name === name ? { ...r, is_enabled: prev } : r
+      )));
+      showToast({ status: 'error', content: e?.message || '更新可用状态失败' });
+    } finally {
+      setTogglingName('');
+    }
+  }, [togglingName]);
+
   const enterNavState = useCallback((row) => buildStrategyDesignNavState(row), []);
 
-  const columns = [
+  const columns = useMemo(() => ([
     {
       field: 'display_name',
       headerName: '策略名',
-      minWidth: 160,
-      flex: 0.5,
+      minWidth: 220,
+      flex: 1.2,
       valueGetter: (params) => getStrategyDisplayLabel(params.row),
-      renderCell: (params) => (
-        <Link
-          component={RouterLink}
-          to={getEnterPath(params.row.name)}
-          state={enterNavState(params.row)}
-          underline="hover"
-          onClick={(e) => e.stopPropagation()}
-        >
-          {params.value || params.row.name}
-        </Link>
-      ),
-    },
-    {
-      field: 'is_enabled',
-      headerName: '状态',
-      width: 110,
-      renderCell: (params) => (params.value ? (
-        <Chip size="small" color="success" label="已启用" />
-      ) : (
-        <Chip size="small" color="default" label="已禁用" />
-      )),
+      renderCell: (params) => {
+        const label = params.value || params.row.name;
+        const description = String(params.row.description || '').trim();
+        return (
+          <div className="strategy-list-cell-name">
+            <RouterLink
+              to={getEnterPath(params.row.name)}
+              state={enterNavState(params.row)}
+              className="ntq-link strategy-list-name-link"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {label}
+            </RouterLink>
+            {description ? (
+              <span
+                className="strategy-list-cell-name__tip"
+                onClick={(e) => e.stopPropagation()}
+                onKeyDown={(e) => e.stopPropagation()}
+              >
+                <HelpTooltip
+                  title={description}
+                  shine
+                  ariaLabel={`${label} 简介`}
+                />
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       field: 'actions',
       headerName: '操作',
-      width: 180,
+      width: 220,
       sortable: false,
       filterable: false,
       renderCell: (params) => {
         const name = params.row.name;
         const exportId = params.row.key || name;
         const isExporting = exportingName === exportId;
+        const exportBusy = Boolean(exportingName);
         return (
-          <Stack direction="row" spacing={1} alignItems="center">
-            <Link
-              component={RouterLink}
+          <div
+            className="strategy-list-cell-actions"
+            data-ntq-help="strategy-list-enter"
+          >
+            <RouterLink
               to={getEnterPath(name)}
               state={enterNavState(params.row)}
-              underline="hover"
+              className="ntq-link strategy-list-enter"
               onClick={(e) => e.stopPropagation()}
             >
-              进入调试
-            </Link>
-            <Box component="span" sx={{ color: 'text.disabled', userSelect: 'none' }} aria-hidden>
-              |
-            </Box>
-            <Link
-              component="button"
+              进入制定
+              <Icon name="chevronRight" size="sm" />
+            </RouterLink>
+            <span className="strategy-list-actions-sep" aria-hidden>|</span>
+            <button
               type="button"
-              color="primary"
-              underline="hover"
-              disabled={Boolean(exportingName)}
+              className="ntq-link strategy-list-export"
+              disabled={exportBusy}
               onClick={(e) => {
                 e.stopPropagation();
                 handleExportStrategyPackage(exportId);
               }}
-              sx={{
-                border: 'none',
-                background: 'none',
-                padding: 0,
-                font: 'inherit',
-                cursor: exportingName ? 'default' : 'pointer',
-                opacity: exportingName && !isExporting ? 0.5 : 1,
-              }}
             >
               {isExporting ? '导出中…' : '导出'}
-            </Link>
-          </Stack>
+            </button>
+          </div>
         );
       },
     },
     {
-      field: 'description',
-      headerName: '描述',
-      minWidth: 240,
-      flex: 1.5,
+      field: 'is_enabled',
+      headerName: '可用',
+      width: 120,
       sortable: false,
-      renderCell: (params) => (
-        <StrategyDescriptionText
-          text={params.value}
-          variant="body2"
-          color="text.secondary"
-          empty="—"
-        />
-      ),
+      filterable: false,
+      renderCell: (params) => {
+        const enabled = Boolean(params.row.is_enabled);
+        return (
+          <div
+            className="strategy-list-cell-enabled"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => e.stopPropagation()}
+          >
+            <Switch
+              checked={enabled}
+              disabled={Boolean(togglingName)}
+              label={enabled ? '可用' : '不可用'}
+              aria-label={enabled ? '设为不可用' : '设为可用'}
+              onChange={(e) => {
+                handleToggleEnabled(params.row, e.target.checked);
+              }}
+            />
+          </div>
+        );
+      },
     },
-  ];
-
-  const gridSx = {
-    '& .MuiDataGrid-cell': {
-      py: 1.25,
-      alignItems: 'flex-start',
-      whiteSpace: 'normal',
-      lineHeight: 1.5,
+    {
+      field: 'keywords',
+      headerName: '关键词',
+      minWidth: 180,
+      flex: 1,
+      sortable: false,
+      renderCell: (params) => {
+        const keywords = (Array.isArray(params.value) ? params.value : [])
+          .map((k) => String(k || '').trim())
+          .filter(Boolean);
+        if (keywords.length === 0) {
+          return <span className="ntq-muted">—</span>;
+        }
+        return (
+          <div className="strategy-list-cell-keywords">
+            {keywords.map((word) => (
+              <Tag key={word} status="neutral" variant="outline" size="sm">
+                {word}
+              </Tag>
+            ))}
+          </div>
+        );
+      },
     },
-  };
+  ]), [
+    enterNavState,
+    exportingName,
+    getEnterPath,
+    handleExportStrategyPackage,
+    handleToggleEnabled,
+    togglingName,
+  ]);
 
   return (
     <PageLayout
       className="strategy-list-page"
       breadcrumbsItems={[{ label: navLabel, to: listBasePath }]}
-      breadcrumbsCurrent="选择一个策略"
+      breadcrumbsCurrent="所有策略"
       bannerTitle={bannerTitle}
       bannerDescription={bannerDescription}
       loading={!pageReady}
       loadingMessage="正在加载策略列表…"
     >
-      {loadError ? <Message severity="error" className="strategy-list-alert">{loadError}</Message> : null}
+      <Section className="strategy-list-page__stack" gap="md">
+        {loadError ? <Message status="error">{loadError}</Message> : null}
+        <StrategyDisclaimer />
 
-      <Paper className="strategy-list-grid">
-        <Stack
-          direction={{ xs: 'column', sm: 'row' }}
-          alignItems={{ xs: 'stretch', sm: 'center' }}
-          spacing={1.5}
-          className="strategy-list-grid-toolbar"
-        >
-          <SearchField
-            placeholder="输入策略名称搜索"
-            label="按策略名搜索"
-            value={nameQuery}
-            onChange={(e) => setNameQuery(e.target.value)}
+        <Section className="strategy-list-grid" gap="md">
+          <ListToolbar
+            search={(
+              <SearchField
+                fluid
+                surface="glass"
+                placeholder="输入策略名称搜索"
+                label="按策略名搜索"
+                value={nameQuery}
+                onChange={(e) => setNameQuery(e.target.value)}
+              />
+            )}
+            actions={(
+              <div
+                className="strategy-list-toolbar-actions"
+                data-ntq-help="strategy-list-refresh-import"
+              >
+                <Button
+                  variant="glass"
+                  icon="refresh"
+                  onClick={load}
+                  disabled={loading}
+                >
+                  刷新策略
+                </Button>
+                <Button
+                  variant="primary"
+                  icon="uploadFile"
+                  onClick={() => setImportOpen(true)}
+                  disabled={loading}
+                >
+                  导入策略包
+                </Button>
+              </div>
+            )}
           />
-          <NtqButton
-            variant="glass"
-            icon="refresh"
-            onClick={load}
-            disabled={loading}
-          >
-            刷新策略
-          </NtqButton>
-          <NtqButton
-            variant="primary"
-            icon="uploadFile"
-            onClick={() => setImportOpen(true)}
-            disabled={loading}
-          >
-            导入策略包
-          </NtqButton>
-        </Stack>
 
-        {catalogGroups.length > 0 ? (
-          <Stack
-            direction="row"
-            alignItems="center"
-            className="strategy-list-category-chips"
-            role="group"
-            aria-label="按归类筛选"
+          {catalogGroups.length > 0 ? (
+            <div data-ntq-help="strategy-list-filter">
+              <CategoryChipStrip
+                all={{
+                  label: '全部',
+                  count: rows.length,
+                  selected: !categoryQuery,
+                  onClick: () => setCategoryQuery(''),
+                }}
+                items={catalogGroups.map(({ category, queryValue, rows: categoryRows }) => ({
+                  key: queryValue,
+                  label: category,
+                  count: categoryRows.length,
+                  title: category,
+                  selected: categoryQuery === queryValue,
+                  onClick: () => toggleCategoryQuery(queryValue),
+                }))}
+                selectedItemRef={selectedChipRef}
+              />
+            </div>
+          ) : null}
+
+          <div
+            className={[
+              'strategy-list-grid-body',
+              loading && rows.length === 0 ? 'strategy-list-grid-body--loading' : '',
+            ].filter(Boolean).join(' ')}
           >
-            <CountTab
-              wide
-              label="全部"
-              count={rows.length}
-              selected={!categoryQuery}
-              onClick={() => setCategoryQuery('')}
-            />
-            <Box className="strategy-list-category-chips-scroller">
-              {catalogGroups.map(({ category, queryValue, rows: categoryRows }) => {
-                const selected = categoryQuery === queryValue;
-                return (
-                  <CountTab
+            {loading && rows.length === 0 ? (
+              <Loading variant="inline" message="正在加载策略列表…" />
+            ) : !loading && categoryQuery && !catalogHasSelectedCategory ? (
+              <p className="ntq-muted strategy-list-category-empty">没有该归类的策略</p>
+            ) : groupedRows.length === 0 ? (
+              <p className="ntq-muted strategy-list-category-empty">
+                {nameQuery.trim() ? '没有匹配的策略' : '暂无策略'}
+              </p>
+            ) : (
+              <div className="strategy-list-category-stack">
+                {groupedRows.map(({ category, queryValue, rows: categoryRows }, index) => (
+                  <div
                     key={queryValue}
-                    label={category}
-                    count={categoryRows.length}
-                    title={category}
-                    selected={selected}
-                    ref={selected ? selectedChipRef : undefined}
-                    onClick={() => toggleCategoryQuery(queryValue)}
-                  />
-                );
-              })}
-            </Box>
-          </Stack>
-        ) : null}
-
-        <Box className="strategy-list-grid-body">
-          {!loading && categoryQuery && !catalogHasSelectedCategory ? (
-            <Typography
-              variant="body2"
-              color="text.secondary"
-              className="strategy-list-category-empty"
-            >
-              没有该归类的策略
-            </Typography>
-          ) : groupedRows.length === 0 ? (
-            <DataGrid
-              autoHeight
-              rows={[]}
-              columns={columns}
-              loading={loading}
-              slots={NTQ_DATA_GRID_LOADING_SLOTS}
-              localeText={zhCN}
-              hideFooter
-              disableRowSelectionOnClick
-              sx={gridSx}
-            />
-          ) : (
-            <Stack spacing={2.5}>
-              {groupedRows.map(({ category, queryValue, rows: categoryRows }) => (
-                <Box key={queryValue} className="strategy-list-category-section">
-                  <Stack
-                    direction="row"
-                    alignItems="center"
-                    spacing={1}
-                    className="strategy-list-category-header"
+                    className="strategy-list-category-section"
+                    data-ntq-help={index === 0 ? 'strategy-list-table' : undefined}
                   >
-                    <Box
-                      component="button"
-                      type="button"
-                      className="strategy-list-category-header-btn"
-                      onClick={() => toggleCategoryQuery(queryValue)}
-                      aria-pressed={categoryQuery === queryValue}
-                      title={categoryQuery === queryValue ? '显示全部归类' : `只看${category}`}
-                    >
-                      <Typography
-                        variant="subtitle1"
-                        fontWeight={700}
-                        component="span"
-                        className="strategy-list-category-header-label"
+                    <div className="strategy-list-category">
+                      <button
+                        type="button"
+                        className="strategy-list-category-header-btn"
+                        onClick={() => toggleCategoryQuery(queryValue)}
+                        aria-pressed={categoryQuery === queryValue}
+                        title={categoryQuery === queryValue ? '显示全部归类' : `只看${category}`}
                       >
-                        {category}
-                      </Typography>
-                      <CountBadge
-                        count={categoryRows.length}
-                        label={`${categoryRows.length} 个策略`}
-                      />
-                    </Box>
-                  </Stack>
-                  <DataGrid
-                    autoHeight
-                    rows={categoryRows}
-                    columns={columns}
-                    loading={loading}
-                    getRowHeight={() => 'auto'}
-                    slots={NTQ_DATA_GRID_LOADING_SLOTS}
-                    localeText={zhCN}
-                    hideFooter
-                    disableRowSelectionOnClick
-                    sx={gridSx}
-                    onRowDoubleClick={(params) => {
-                      navigate(getEnterPath(params.row.name), {
-                        state: enterNavState(params.row),
-                      });
-                    }}
-                  />
-                </Box>
-              ))}
-            </Stack>
-          )}
-        </Box>
-      </Paper>
+                        <span className="strategy-list-category-header-label">{category}</span>
+                        <CountBadge
+                          count={categoryRows.length}
+                          label={`${categoryRows.length} 个策略`}
+                        />
+                      </button>
+                    </div>
+                    <DataGrid
+                      autoHeight
+                      density="sm"
+                      disableVirtualization
+                      rows={categoryRows}
+                      columns={columns}
+                      loading={false}
+                      getRowHeight={() => 'auto'}
+                      cellLayout="wrap"
+                      hideFooter
+                      className="strategy-list-data-grid"
+                      onRowDoubleClick={(params) => {
+                        navigate(getEnterPath(params.row.name), {
+                          state: enterNavState(params.row),
+                        });
+                      }}
+                    />
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </Section>
+      </Section>
 
       <StrategyPackageImportDialog
         open={importOpen}
         onClose={() => setImportOpen(false)}
         onSuccess={(result) => {
           const name = result?.strategy_name || '策略包';
-          showToast({ severity: 'success', content: `已导入 ${name}，列表已刷新` });
+          showToast({ status: 'success', content: `已导入 ${name}，列表已刷新` });
           load();
         }}
       />

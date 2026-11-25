@@ -1,26 +1,30 @@
 # Tag 术语表
-# Version: 0.4.0
+# Version: 0.4.2
+# Compatible-Core: >=0.5.0
+#
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# aliases / avoid 只做命名纪律，不能代替解释。
+# Tag = 可持久化的批量因子/标签；不做因子研究选优、不做多因子合成（那是 Strategy）。
 
 terms:
-  Facade:
-    definition: "对外统一入口类。本模块门面是 Tag。"
-    aliases:
-      - "门面"
-    avoid:
-      - "deep-import core.engines / core.services（跨模块优先 Facade）"
-
   Tag:
-    definition: "标签模块 Facade：discovery / execute / list；按 data.base 路由到 per_entity / global / non_time_series 执行器"
+    definition: |
+      标签/因子模块 Facade：发现 scenario、按 data.base 路由执行、列出结果。
+      per_entity 走 BacktestEngine；global / non_time_series 走主进程轻量管线。
+      跨模块只用 Tag + contracts，不要 deep-import core.engines / core.services。
+    in_code: "from core.modules.tag import Tag；discovery / execute / list"
     aliases:
       - "tag facade"
-
-  TagHooks:
-    definition: "userspace tag.py 钩子基类（calculate_tag / on_calendar_asof）；global / non_ts 复用 calculate_tag"
-    aliases:
-      - "tag hooks"
+      - "标签模块"
+    avoid:
+      - "deep-import core.engines / core.services"
 
   scenario:
-    definition: "一个 tag 场景目录；系统名 = 相对 userspace/extensions/tags 的路径"
+    definition: |
+      一个 tag 场景目录（hooks + settings），位于 userspace/extensions/tags/ 下。
+      系统身份（DB scenario.name 等）= 相对该根的路径；meta.key 只是 CLI/API 短 alias。
+      不要把 meta.key 直接当 DB 主键路径。
+    in_code: "userspace/extensions/tags/<path>/；Tag.find / list"
     aliases:
       - "tag_key path id"
       - "scenario_name"
@@ -28,33 +32,59 @@ terms:
       - "把 meta.key 当作 DB scenario.name（DB 用路径）"
 
   meta.key:
-    definition: "CLI/API 短 alias（全局唯一）"
+    definition: |
+      CLI/API 用的短 alias，须全局唯一。查找时可按 key 或路径解析到 scenario；
+      与路径 id 不是同一字段，混用时必须走查找，不能假设相等。
+    in_code: "scenario meta.key；Tag 查找参数"
     aliases:
       - "tag alias"
     avoid:
       - "与路径 id 混用而不做查找"
 
+  TagHooks:
+    definition: |
+      userspace tag.py 钩子基类：calculate_tag 算值；slice_based 还可 on_calendar_asof 做横截面。
+      global / non_ts 也复用 calculate_tag。从 contracts 导入。
+    in_code: "contracts.TagHooks；tag.py"
+    aliases:
+      - "tag hooks"
+    avoid: []
+
   base_route:
-    definition: "由 data.base 的 contract scope×type 推断：per_entity | global | non_time_series"
+    definition: |
+      由声明的 data.base 契约之 scope×type 推断出的执行路由：
+      per_entity | global | non_time_series。决定走 BE 还是轻量管线，以及能不能用
+      entity_based / slice_based。
+    in_code: "data.base → base_route；execute 路由"
     aliases:
       - "data.base 路由"
+    avoid: []
 
   entity_based:
-    definition: "仅 per_entity：各实体按交易日推进；经 BacktestEngine"
+    definition: |
+      仅 per_entity：各实体按交易日推进，经 BacktestEngine entity_based。
+      不要用于 global / non_ts base（那些不走 BE 实体并行）。
+    in_code: "per_entity + BE entity_based"
     aliases:
       - "entity parallel"
     avoid:
       - "用于 global / non_ts base"
 
   slice_based:
-    definition: "仅 per_entity：日历切片 + on_calendar_asof 横截面；经 BacktestEngine"
+    definition: |
+      仅 per_entity：按日历正式片推进，并调 on_calendar_asof 做横截面；经 BacktestEngine
+      slice_based。不要用于 global / non_ts。
+    in_code: "per_entity + BE slice_based；on_calendar_asof"
     aliases:
       - "calendar slice"
     avoid:
       - "用于 global / non_ts base"
 
   TagGlobalPipeline:
-    definition: "global 时序轻量主进程推进器（不走 BE）；实体哨兵 __global__"
+    definition: |
+      global 时序的轻量主进程推进器：不走 BacktestEngine；整宇宙一份序列按日推进。
+      落库/进度用哨兵实体 GLOBAL_ENTITY_ID（__global__）。不要硬塞进 entity_based/slice_based。
+    in_code: "TagGlobalPipeline；base_route=global"
     aliases:
       - "global runner"
       - "global_based"
@@ -62,7 +92,10 @@ terms:
       - "把 global 硬塞进 entity_based/slice_based"
 
   TagNonTimeSeriesPipeline:
-    definition: "非时序轻量主进程一次计算（不走 BE）；实体哨兵 __global__；as_of=计算窗 end_date"
+    definition: |
+      非时序轻量主进程：一次算完，不走 BE，不做日历 as_of 循环。
+      as_of 取计算窗 end_date；实体哨兵同为 __global__。
+    in_code: "TagNonTimeSeriesPipeline；base_route=non_time_series"
     aliases:
       - "non_ts runner"
       - "non_time_series"
@@ -70,24 +103,39 @@ terms:
       - "对非时序 base 做日历 as_of 循环"
 
   GLOBAL_ENTITY_ID:
-    definition: "global / non_ts 场景落库 / progress 用的哨兵 entity_id（__global__）"
+    definition: |
+      global / non_ts 场景落库与 progress 使用的哨兵 entity_id，字面量 __global__。
+      表示「不是某一只股票的分片」，避免空 entity 列。
+    in_code: "GLOBAL_ENTITY_ID == \"__global__\""
     aliases:
       - "__global__"
+    avoid: []
 
   list_data_key:
-    definition: "per_entity contract meta：所属 GLOBAL list 的 data_key（如 stock.list）"
+    definition: |
+      per_entity 契约 meta：所属 GLOBAL list 的 data_key（如 stock.list），定义实体宇宙。
+      与 data_contract 同义；Tag 执行器靠它解析有哪些实体。
+    in_code: "data.base meta.list_data_key"
     aliases:
       - "entity list data key"
+    avoid: []
 
   update_mode:
-    definition: "incremental=从 last_calculated_end 续算；refresh=目标区间重算语义"
+    definition: |
+      计算更新模式：incremental = 从 last_calculated_end 续算；refresh = 按目标区间重算语义。
+      配置常在 calculation.update_mode。不要用 max(as_of_date) 当 incremental 水位。
+    in_code: "calculation.update_mode；incremental | refresh"
     aliases:
       - "calculation.update_mode"
     avoid:
       - "用 max(as_of_date) 当 incremental 水位"
 
   last_calculated_end:
-    definition: "每实体上次成功算到的业务日（sys_tag_calc_progress / TagDataService）"
+    definition: |
+      每实体上次成功算到的业务日水位（sys_meta_tag_calc_progress / TagDataService）。
+      incremental 从此日之后续算。不要与 calculated_at（落库墙钟）、scenario.updated_at
+      （元数据时间）、或 max(as_of_date) 混用。
+    in_code: "TagDataService / calc progress；last_calculated_end"
     aliases:
       - "calc progress watermark"
     avoid:
@@ -96,17 +144,26 @@ terms:
       - "max(as_of_date)"
 
   TagInfo:
-    definition: "hooks 身份（key/path）；公开自 contracts；勿与 discovery 的 DiscoveredTagInfo 混淆"
+    definition: |
+      hooks 侧身份（key/path）数据类，公开自 contracts。勿与 discovery 的 DiscoveredTagInfo
+      混淆——Tag.find() 返回的是后者。
+    in_code: "contracts.TagInfo（hooks）"
     aliases: []
     avoid:
       - "把 Tag.find() 返回值当成 hooks.TagInfo"
 
   DiscoveredTagInfo:
-    definition: "discovery 校验通过后的场景元数据（settings + hooks_class）；Tag.find 返回此类型"
+    definition: |
+      discovery 校验通过后的场景元数据（settings + hooks_class 等）。Tag.find 返回此类型。
+    in_code: "Tag.find → DiscoveredTagInfo"
     aliases: []
     avoid:
       - "与 hooks TagInfo 同名混用"
 
   TagCalendarAsOfResult:
-    definition: "slice_based on_calendar_asof 返回：entity_tags + session_state（同 strategy）"
+    definition: |
+      slice_based 下 on_calendar_asof 的返回：entity_tags + session_state（形态对齐 strategy）。
+      横截面钩子用它把当日各实体标签与会话状态交回管线。
+    in_code: "contracts.TagCalendarAsOfResult；on_calendar_asof"
     aliases: []
+    avoid: []

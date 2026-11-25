@@ -2,6 +2,8 @@
 
 from flask import Blueprint, request
 
+from core.bff.shared.response import ok
+
 from .runtime import SetupRuntimeManager
 from .service import SetupService
 
@@ -60,6 +62,11 @@ def get_import_data_progress():
     return _setup_service.get_import_data_progress()
 
 
+@setup_api_bp.route('/v1/setup/import-data/plan', methods=['GET'])
+def get_import_data_plan():
+    return _setup_service.get_import_data_plan()
+
+
 @setup_api_bp.route('/v1/setup/import-data', methods=['POST'])
 def import_demo_data():
     return _setup_service.import_demo_data()
@@ -73,3 +80,44 @@ def get_ml_extras_status():
 @setup_api_bp.route('/v1/setup/ml-extras', methods=['POST'])
 def install_ml_extras():
     return _setup_service.install_ml_extras()
+
+
+@setup_api_bp.route("/v1/setup/site", methods=["GET"])
+def get_site_urls():
+    try:
+        from core.modules.ntq_external import site_urls
+    except ImportError:
+        return ok({})
+    payload = site_urls()
+    return ok(payload if isinstance(payload, dict) else {})
+
+
+@setup_api_bp.route("/v1/setup/license", methods=["GET"])
+def get_license_acceptance():
+    from core.infra.setup.core.shared.license_acceptance import status_payload
+
+    return ok(status_payload())
+
+
+@setup_api_bp.route("/v1/setup/license/accept", methods=["POST"])
+def post_license_acceptance():
+    from core.infra.setup.core.shared.license_acceptance import accept, is_accepted, status_payload
+
+    newly = not is_accepted()
+    accept(source="ui")
+    if newly:
+        try:
+            from core.infra.setup import Setup
+
+            Setup.trace.app_start(entry="ui")
+        except Exception:
+            pass
+    return ok(status_payload())
+
+
+@setup_api_bp.route("/v1/setup/license/decline", methods=["POST"])
+def post_license_decline():
+    from core.infra.setup.core.shared.license_acceptance import exit_process_soon
+
+    exit_process_soon()
+    return ok({"exiting": True})

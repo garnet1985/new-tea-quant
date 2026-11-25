@@ -1,68 +1,400 @@
 .settings-page {
   .settings-page-layout {
-    display: flex;
-    align-items: stretch;
-    gap: 16px;
-    min-height: 360px;
+    min-height: 22.5rem; // 360px
   }
 
   .settings-page-nav {
-    flex: 0 0 200px;
-    padding: 8px 0;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 5px;
-
-    .MuiTabs-indicator {
-      left: 0;
-      right: auto;
-      width: 3px;
-    }
-
-    .MuiTab-root {
-      align-items: flex-start;
-      text-align: left;
-      min-height: 44px;
-      padding: 10px 16px;
-      text-transform: none;
-      font-weight: 650;
-    }
+    // 栏宽由 Column sidebar token；表面由 Block
+    min-width: 0;
   }
 
   .settings-page-panel {
-    flex: 1;
     min-width: 0;
-    padding: 20px 24px;
-    background: rgba(255, 255, 255, 0.04);
-    border: 1px solid rgba(255, 255, 255, 0.12);
-    border-radius: 5px;
+  }
+}
+
+.settings-membership {
+  min-width: 0;
+}
+
+// 子 section 之间：底部分隔线（最后一块不加）
+.settings-membership > .ntq-section:not(:last-child),
+.settings-system > .ntq-section:not(:last-child),
+.settings-database > .ntq-section:not(:last-child),
+.settings-ai > .ntq-section:not(:last-child),
+.settings-agent > .ntq-section:not(:last-child),
+.settings-data > .ntq-section:not(:last-child),
+.settings-cache > .ntq-section:not(:last-child),
+.settings-feedback > .ntq-section:not(:last-child) {
+  padding-bottom: var(--ui-space-lg);
+  border-bottom: 1px solid var(--ui-white-12);
+}
+
+.settings-database {
+  min-width: 0;
+}
+
+.settings-database__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+.settings-database__domain-list {
+  margin: 0;
+  padding-left: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-xs);
+  color: var(--ui-text);
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-leading-normal);
+}
+
+// --- AI 配置 ---
+.settings-ai {
+  min-width: 0;
+}
+
+.settings-ai__provider-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-md);
+  min-width: 0;
+}
+
+.settings-ai__card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+
+  > strong {
+    font-size: var(--ui-font-sm);
+    font-weight: var(--ui-font-weight-bold);
+    color: var(--ui-text);
+  }
+}
+
+.settings-ai__card {
+  > .ntq-muted,
+  > .ntq-caption {
+    margin: 0;
+  }
+}
+
+.settings-ai__card--ready {
+  border-color: color-mix(in srgb, var(--ui-success) 55%, transparent);
+}
+
+.settings-ai__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+// --- Agent 配置 ---
+.settings-agent {
+  min-width: 0;
+}
+
+.settings-agent__pref-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-xs);
+  min-width: 0;
+}
+
+.settings-agent__pref-row {
+  display: flex;
+  align-items: center;
+  gap: var(--ui-space-sm);
+  padding: var(--ui-space-xs) 0;
+  border-bottom: 1px solid var(--ui-white-12);
+  min-width: 0;
+}
+
+.settings-agent__pref-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: var(--ui-font-sm);
+  line-height: var(--ui-leading-normal);
+  color: var(--ui-text);
+  word-break: break-word;
+}
+
+.settings-agent__pref-add {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--ui-space-sm);
+  width: fit-content;
+  max-width: 100%;
+
+  // Field 默认 width:100% 会把按钮挤到行尾；与 capped input 并排时收窄
+  > .ntq-field {
+    flex: 0 1 auto;
+    width: auto;
+    min-width: 0;
   }
 
-  @media (max-width: 768px) {
-    .settings-page-layout {
-      flex-direction: column;
-    }
-
-    .settings-page-nav {
-      flex: none;
-      width: 100%;
-
-      .MuiTabs-flexContainer {
-        flex-direction: row !important;
-        overflow-x: auto;
-      }
-
-      .MuiTabs-indicator {
-        top: auto;
-        bottom: 0;
-        width: auto;
-        height: 3px;
-      }
-
-      .MuiTab-root {
-        min-width: auto;
-        flex: 1 0 auto;
-      }
-    }
+  // 与输入框（非 hint）顶对齐：跳过 label 行高 + field gap
+  > .ntq-button {
+    flex: 0 0 auto;
+    margin-top: calc(var(--ui-font-sm) * 1.35 + var(--ui-space-sm));
   }
+}
+
+.settings-agent__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+// --- 数据范围 ---
+.settings-data {
+  min-width: 0;
+}
+
+.settings-data__guide {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-sm);
+
+  > p,
+  > ul {
+    margin: 0;
+  }
+
+  > ul {
+    padding-left: 1.25rem;
+  }
+
+  li + li {
+    margin-top: var(--ui-space-xs);
+  }
+}
+
+.settings-data__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+.settings-membership__head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+// 猫粮区标题行仍要「标题左、刷新右」
+.settings-membership__catfood .settings-membership__head {
+  justify-content: space-between;
+}
+
+.settings-membership__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+.settings-membership__invalid {
+  margin: 0;
+  color: var(--ui-error);
+  font-size: var(--ui-font-sm);
+}
+
+.settings-membership__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+.settings-membership__em {
+  color: var(--ui-accent);
+  font-weight: var(--ui-font-weight-medium);
+}
+
+.settings-membership__balance {
+  line-height: var(--ui-leading-relaxed);
+}
+
+.settings-membership__ledger {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-xs);
+  min-width: 0;
+}
+
+.settings-membership__ledger-row {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(0, 1fr) auto auto;
+  gap: var(--ui-space-sm);
+  align-items: baseline;
+  padding: var(--ui-space-xs) 0;
+  border-bottom: 1px solid var(--ui-white-12);
+  font-size: var(--ui-font-sm);
+}
+
+.settings-membership__ledger-time {
+  white-space: nowrap;
+}
+
+.settings-membership__ledger-reason {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.settings-membership__ledger-delta {
+  font-weight: var(--ui-font-weight-bold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.settings-membership__ledger-delta--spend {
+  color: var(--ui-accent);
+}
+
+.settings-membership__ledger-delta--gain {
+  color: var(--ui-success);
+}
+
+.settings-membership__ledger-delta--flat {
+  color: var(--ui-text-muted);
+}
+
+.settings-membership__ledger-after {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.settings-membership__ledger-more {
+  padding-top: var(--ui-space-xs);
+}
+
+// --- 安装与维护 ---
+.settings-system {
+  min-width: 0;
+}
+
+.settings-system__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+.settings-system__status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+
+  > .ntq-muted {
+    margin: 0;
+  }
+}
+
+.settings-system__dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-sm);
+  min-width: 0;
+
+  > .ntq-muted {
+    margin: 0;
+  }
+}
+
+.settings-system__risk-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.settings-system__dialog-actions {
+  gap: var(--ui-space-sm);
+}
+
+// --- 缓存管理 ---
+.settings-cache {
+  min-width: 0;
+}
+
+.settings-cache__options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-sm);
+  min-width: 0;
+  max-width: var(--ui-textarea-max-width);
+}
+
+.settings-cache__option.ntq-checkbox {
+  align-items: flex-start;
+}
+
+.settings-cache__option-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-xxs);
+  padding-top: 0.2rem;
+}
+
+.settings-cache__option-title {
+  font-weight: var(--ui-font-weight-medium);
+  color: var(--ui-text);
+}
+
+.settings-cache__option-hint {
+  font-size: var(--ui-font-xs);
+  line-height: var(--ui-leading-normal);
+  color: var(--ui-text-muted);
+  font-weight: var(--ui-font-weight-regular);
+}
+
+.settings-cache__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+.settings-cache__dialog-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--ui-space-sm);
+  min-width: 0;
+
+  > .ntq-muted {
+    margin: 0;
+  }
+}
+
+.settings-cache__dialog-list {
+  margin: 0;
+  padding-left: 1.25rem;
+}
+
+.settings-cache__dialog-actions {
+  gap: var(--ui-space-sm);
+}
+
+// --- 反馈与统计 ---
+.settings-feedback {
+  min-width: 0;
+}
+
+.settings-feedback__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ui-space-sm);
+}
+
+.settings-feedback__meta {
+  margin: 0;
+  font-size: var(--ui-font-xs);
 }

@@ -1,0 +1,154 @@
+"""安装按步骤记进度，导入按表记进度。完成数不含失败的表。"""
+
+from __future__ import annotations
+
+import os
+from pathlib import Path
+
+import pytest
+
+pytestmark = pytest.mark.force_run
+
+
+@pytest.fixture
+def progress_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path))
+    monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
+    from core.infra.progress.core import store
+
+    store.reset()
+    yield tmp_path
+    store.reset()
+
+
+def test_import_progress_counts_finished_tables_only(progress_dir):
+    from core.infra.setup.core.shared.install_progress import (
+        begin_import_table,
+        close_import,
+        fail_import_table,
+        finish_import_table,
+        open_import,
+        read_import_progress,
+    )
+
+    open_import(["cpi", "stock_list"], done_names=["cpi"])
+    begin_import_table("stock_list")
+    running = read_import_progress()
+    assert running["running"] is True
+    assert running["phase"] == "importing"
+    assert running["completedCount"] == 1
+    assert running["totalTables"] == 2
+    assert running["currentTable"] == "stock_list"
+    assert running["ratio"] == 0.5
+
+    fail_import_table("stock_list", "超时")
+    begin_import_table("stock_list")
+    retrying = read_import_progress()
+    assert retrying["completedCount"] == 1
+    assert retrying["currentTable"] == "stock_list"
+
+    finish_import_table("stock_list")
+    close_import()
+    done = read_import_progress()
+    assert done["running"] is False
+    assert done["phase"] == ""
+    assert done["completedCount"] == 2
+    assert done["currentTable"] == ""
+    assert (progress_dir / "import.json").is_file()
+
+
+def test_import_download_phase_text(progress_dir):
+    from core.infra.setup.core.shared.install_progress import (
+        begin_import_download,
+        clear_import_progress,
+        close_import,
+        finish_import_download,
+        open_import,
+        read_import_progress,
+        tick_import_download,
+    )
+
+    begin_import_download()
+    downloading = read_import_progress()
+    assert downloading["running"] is True
+    assert downloading["phase"] == "downloading"
+    assert "数据下载中" in downloading["statusText"]
+    assert downloading["totalTables"] == 0
+    assert downloading["downloadedBytes"] == 0
+
+    tick_import_download(5 * 1024 * 1024, 20 * 1024 * 1024)
+    mid = read_import_progress()
+    assert mid["phase"] == "downloading"
+    assert mid["downloadedBytes"] == 5 * 1024 * 1024
+    assert mid["totalBytes"] == 20 * 1024 * 1024
+    assert mid["ratio"] == 0.25
+    assert "5.0/20.0 MB" in mid["statusText"]
+    assert "25%" in mid["statusText"]
+
+    tick_import_download(
+        8 * 1024 * 1024,
+        20 * 1024 * 1024,
+        parts_done=2,
+        parts_total=5,
+    )
+    parted = read_import_progress()
+    assert parted["phase"] == "downloading"
+    assert "2/5 包" in parted["statusText"]
+    assert "8.0/20.0 MB" in parted["statusText"]
+
+    finish_import_download()
+    # 下载刚结束、尚未 open_import 时，不能被读成导表 1/1。
+    after_download = read_import_progress()
+    assert after_download["phase"] == "preparing"
+    assert after_download["totalTables"] == 0
+
+    open_import(["cpi"])
+    importing = read_import_progress()
+    assert importing["phase"] == "importing"
+    assert importing["totalTables"] == 1
+    assert importing["statusText"] == ""
+
+    close_import()
+    assert read_import_progress()["running"] is False
+    clear_import_progress()
+    cleared = read_import_progress()
+    assert cleared["running"] is False
+    assert cleared["totalTables"] == 0
+    assert cleared["phase"] == ""
+
+
+def test_bind_install_progress_dir_uses_target_userspace(tmp_path, monkeypatch):
+    from core.infra.setup.core.shared.install_progress import bind_install_progress_dir
+
+    monkeypatch.delenv("NTQ_PROGRESS_DIR", raising=False)
+    target = tmp_path / "ext-us"
+    progress = bind_install_progress_dir(target)
+    assert progress == (target / ".ntq" / "tmp" / "progress").resolve()
+    assert progress.is_dir()
+    assert Path(os.environ["NTQ_PROGRESS_DIR"]).resolve() == progress
+
+
+def test_failed_install_step_stays_on_the_root(progress_dir):
+    from core.infra.progress import Progress
+    from core.infra.setup.core.shared.install_progress import (
+        begin_install_step,
+        fail_install,
+        open_install,
+        pause_install_step,
+    )
+
+    open_install(["sys_req_check", "db_connection"], done_ids=["sys_req_check"])
+    begin_install_step("db_connection")
+    pause_install_step("db_connection")
+    paused = Progress.read("install")
+    assert paused["steps"][0]["status"] == "completed"
+    assert paused["steps"][1]["status"] == "paused"
+    assert paused["status"] == "running"
+
+    begin_install_step("db_connection")
+    fail_install("db_connection", "连不上\n详情")
+    failed = Progress.read("install")
+    assert failed["status"] == "failed"
+    assert failed["steps"][1]["status"] == "failed"
+    assert failed["detail"] == "连不上"
+    assert (progress_dir / "install.json").is_file()

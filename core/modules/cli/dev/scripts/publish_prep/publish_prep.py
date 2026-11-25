@@ -44,7 +44,7 @@ class PublishPrepOptions:
     skip_tests: bool = False
     skip_ic: bool = False
     skip_fed_build: bool = False
-    skip_py39: bool = False
+    skip_py311: bool = False
     package_userspace: bool = False
     skip_dep_check: bool = False  # 跳过依赖风险检测
     skip_icon_check: bool = False  # 跳过裸状态 emoji 扫描
@@ -146,7 +146,7 @@ def run_fed_build() -> int:
         )
         if install.returncode != 0:
             return int(install.returncode or 1)
-    env = {**os.environ, "CI": "true"}
+    env = {**os.environ, "CI": "true", "GENERATE_SOURCEMAP": "false"}
     proc = subprocess.run(["npm", "run", "build"], cwd=str(fed_root), env=env)
     if proc.returncode != 0:
         return int(proc.returncode or 1)
@@ -246,17 +246,17 @@ def run_publish_prep(opts: PublishPrepOptions) -> int:
         return _stop("模块文档版本校验未通过", doc_issues)
     else:
         print(
-            f"  {CmdLayout.icon.i('success')} **版本：** / # Version: / 最低支持核心版本 与 module_info 一致",
+            f"  {CmdLayout.icon.i('success')} 文首 模块·版本 + 最低支持核心版本 / glossary Version+Compatible-Core 与 module_info 一致",
             flush=True,
         )
 
-    if not opts.skip_py39:
-        from core.modules.cli.dev.scripts.py39_compat_check import run_py39_compat_check
+    if not opts.skip_py311:
+        from core.modules.cli.dev.scripts.py311_compat_check import run_py311_compat_check
 
-        if run_py39_compat_check() != 0:
-            return _stop("Python 3.9 兼容性检查未通过")
+        if run_py311_compat_check() != 0:
+            return _stop("Python 3.11 兼容性检查未通过")
     else:
-        print("\n[跳过] Python 3.9 兼容性检查", flush=True)
+        print("\n[跳过] Python 3.11 兼容性检查", flush=True)
 
     if run_ruff() != 0:
         return _stop("ruff check 未通过")

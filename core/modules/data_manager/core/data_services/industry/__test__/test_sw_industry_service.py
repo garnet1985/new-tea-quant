@@ -30,13 +30,13 @@ class _Manager:
 
 def _service():
     tables = {
-        "sys_sw_industry": _Table(
+        "sys_data_sw_industry": _Table(
             [
                 {"id": "801010.SI", "industry_code": "110000", "name": "农林牧渔", "level": "L1"},
                 {"id": "801011.SI", "industry_code": "110100", "name": "种植业", "level": "L2"},
             ]
         ),
-        "sys_sw_stock_industry_map": _Table(
+        "sys_map_sw_stock_industry": _Table(
             [
                 {
                     "stock_id": "000001.SZ",
@@ -47,7 +47,7 @@ def _service():
                 }
             ]
         ),
-        "sys_sw_industry_kline": _Table(
+        "sys_data_sw_industry_kline": _Table(
             [{"id": "801010.SI", "date": "20240102", "close": 1.0}]
         ),
     }
@@ -63,7 +63,7 @@ def test_quote_list_adds_sw_a_share():
 
 def test_quote_list_does_not_duplicate_sw_a_share():
     svc, tables = _service()
-    tables["sys_sw_industry"].rows.append(
+    tables["sys_data_sw_industry"].rows.append(
         {"id": SW_A_SHARE_ID, "name": "申万A指", "level": "L1"}
     )
     ids = [row["id"] for row in svc.load_quote_list()]
@@ -81,7 +81,7 @@ def test_stock_industry_includes_level_names():
 def test_kline_batch_filters_by_id_and_date():
     svc, tables = _service()
     grouped = svc.load_kline_batch(["801010.SI"], start_date="20240101", end_date="20240131")
-    condition, params, order_by = tables["sys_sw_industry_kline"].calls[-1]
+    condition, params, order_by = tables["sys_data_sw_industry_kline"].calls[-1]
     assert "id IN (%s)" in condition
     assert "date >= %s" in condition
     assert params == ("801010.SI", "20240101", "20240131")

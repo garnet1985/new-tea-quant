@@ -19,7 +19,7 @@ class TestSetupApi(unittest.TestCase):
         import core.infra.setup as pkg
 
         self.assertEqual(pkg.__all__, ["Setup"])
-        for name in ("env", "runtime", "artifacts", "meta", "trace", "types"):
+        for name in ("env", "runtime", "artifacts", "meta", "trace", "license", "types"):
             self.assertTrue(hasattr(Setup, name))
 
     def test_env_methods(self):
@@ -66,6 +66,10 @@ class TestSetupApi(unittest.TestCase):
         self.assertTrue(callable(Setup.trace.install_complete))
         self.assertTrue(callable(Setup.trace.install_step_failed))
         self.assertTrue(callable(Setup.trace.app_start))
+        self.assertTrue(callable(Setup.license.is_accepted))
+        self.assertTrue(callable(Setup.license.ensure_accepted))
+        self.assertTrue(callable(Setup.license.entry_path))
+        self.assertTrue(callable(Setup.license.apply_trace_consent))
 
     def test_types(self):
         self.assertIs(Setup.types.InstallProfileName, InstallProfileName)

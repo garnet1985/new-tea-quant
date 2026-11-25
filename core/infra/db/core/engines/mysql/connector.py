@@ -23,6 +23,7 @@ from core.infra.db.core.engines.mysql.sql_adapter import MysqlSqlAdapter
 logger = logging.getLogger(__name__)
 
 _LOG_SQL_MAX_CHARS = 500
+_DEFAULT_STATEMENT_TIMEOUT_SECONDS = 300
 _LOG_PARAMS_MAX_CHARS = 200
 
 
@@ -31,6 +32,22 @@ def _format_sql_for_log(query: str, *, max_len: int = _LOG_SQL_MAX_CHARS) -> str
     if len(text) <= max_len:
         return text
     return f"{text[:max_len]}... (truncated, total {len(text)} chars)"
+
+
+def statement_timeout_sql(server_version: str, seconds: int) -> Optional[str]:
+    """读语句的会话超时。MariaDB 用秒，MySQL 的 max_execution_time 只限制 SELECT。"""
+    if seconds <= 0:
+        return None
+    if "mariadb" in server_version.lower():
+        return f"SET SESSION max_statement_time = {int(seconds)}"
+    return f"SET SESSION max_execution_time = {int(seconds) * 1000}"
+
+
+def clear_statement_timeout_sql(server_version: str) -> Optional[str]:
+    """MariaDB 的限制作用于全部语句，读完要清掉，避免拖住后续写入。"""
+    if "mariadb" in server_version.lower():
+        return "SET SESSION max_statement_time = 0"
+    return None
 
 
 def _format_params_for_log(params: Any, *, max_len: int = _LOG_PARAMS_MAX_CHARS) -> str:
@@ -60,6 +77,8 @@ class MysqlConnector:
         self._all_connections = set()
         self._pool_maxconn = 10
         self._initialized = False
+        self._server_version_text: Optional[str] = None
+        self._timeout_unsupported = False
 
     def _create_connection(self) -> pymysql.Connection:
         conn_params = {
@@ -75,6 +94,48 @@ class MysqlConnector:
             'local_infile': True,
         }
         return pymysql.connect(**conn_params)
+
+    def _statement_timeout_seconds(self) -> int:
+        raw = self.config.get("statement_timeout_seconds", _DEFAULT_STATEMENT_TIMEOUT_SECONDS)
+        try:
+            return max(0, int(raw))
+        except (TypeError, ValueError):
+            return _DEFAULT_STATEMENT_TIMEOUT_SECONDS
+
+    def _server_version(self, cursor) -> str:
+        if self._server_version_text is None:
+            cursor.execute("SELECT VERSION() AS version")
+            row = cursor.fetchone() or {}
+            if isinstance(row, dict):
+                self._server_version_text = str(row.get("version") or "")
+            else:
+                self._server_version_text = str(row[0] if row else "")
+        return self._server_version_text
+
+    def _arm_select_timeout(self, cursor) -> str:
+        """给接下来的读语句加上限时。返回服务器版本，供读完后判断要不要清掉。"""
+        seconds = self._statement_timeout_seconds()
+        if seconds <= 0 or self._timeout_unsupported:
+            return ""
+        try:
+            version = self._server_version(cursor)
+            sql = statement_timeout_sql(version, seconds)
+            if sql:
+                cursor.execute(sql)
+            return version
+        except Exception:
+            self._timeout_unsupported = True
+            logger.warning("当前数据库不接受语句超时，读语句不再限时")
+            return ""
+
+    def _clear_select_timeout(self, cursor, server_version: str) -> None:
+        sql = clear_statement_timeout_sql(server_version)
+        if not sql:
+            return
+        try:
+            cursor.execute(sql)
+        except Exception:
+            logger.debug("清除语句超时失败", exc_info=True)
 
     def _is_connection_alive(self, conn: Optional[pymysql.Connection]) -> bool:
         if not conn:
@@ -206,8 +267,12 @@ class MysqlConnector:
             query = self.sql_adapter.normalize_query(query)
             conn = self._get_connection()
             with conn.cursor() as cursor:
-                cursor.execute(query, params)
-                results = cursor.fetchall()
+                server_version = self._arm_select_timeout(cursor)
+                try:
+                    cursor.execute(query, params)
+                    results = cursor.fetchall()
+                finally:
+                    self._clear_select_timeout(cursor, server_version)
                 # DictCursor 返回字典行；读出口统一 DECIMAL→float 等标量规范
                 return normalize_query_rows(list(results) if results else [])
         except Exception as e:

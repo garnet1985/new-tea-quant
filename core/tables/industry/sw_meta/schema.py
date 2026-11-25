@@ -1,5 +1,5 @@
 """
-申万行业分类（sys_sw_industry）。
+申万行业分类（sys_data_sw_industry）。
 
 来自 Tushare index_classify(src=SW2021)。主键是指数代码（801010.SI）。
 父子关系用 industry_code / parent_code，不用指数代码。
@@ -7,7 +7,8 @@
 schema = {
     "storage_domain": "data",
     "update_key": "stock_sw_industry",
-    "name": "sys_sw_industry",
+    "kind": "data",
+    "name": "sys_data_sw_industry",
     "primaryKey": "id",
     "fields": [
         {

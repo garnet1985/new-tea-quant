@@ -8,15 +8,10 @@ import uuid
 from typing import Any, Dict, Optional
 
 from core.bff.APIs.strategy.routes.runner.workbench_run import WorkbenchRunLauncher
-from core.infra.task_guard import TaskGuard
-from core.infra.task_guard.contracts import TaskLeaseBusyError
+from core.infra.job_pipeline import JobPipeline
+from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
-from core.modules.strategy.core.services.discovery import DiscoveryService
-from core.modules.strategy.core.services.progress import (
-    ATTRIBUTE_PIPELINE,
-    PipelineProgress,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -49,7 +44,7 @@ class AttributeRunLauncher:
         step: str,
         force_refresh: bool,
     ) -> Dict[str, Any]:
-        """申请租约并在后台启动归因。"""
+        """校验后交给 ``JobPipeline.submit``。"""
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
         if not name:
@@ -57,7 +52,7 @@ class AttributeRunLauncher:
         if norm is None:
             return {"is_triggered": False, "reason": "step 须为 enum / price / portfolio"}
 
-        info = DiscoveryService.find_strategy(name)
+        info = Strategy.find(name, enabled_only=True)
         if info is None:
             return {"is_triggered": False, "reason": f"策略不存在或未启用: {name}"}
 
@@ -65,24 +60,46 @@ class AttributeRunLauncher:
         if gate is not None:
             return {"is_triggered": False, "reason": gate}
 
-        status = TaskGuard.read_status()
-        if status.get("busy"):
-            kind = status.get("kind") or "unknown"
-            return {
-                "is_triggered": False,
-                "reason": f"系统任务进行中（{kind}），请稍后再试",
+        return JobPipeline.submit(
+            {
+                "kind": "strategy_attribute",
+                "resource_key": name,
+                "label": f"strategy_attribute:{name}:{norm}",
+                "domains": ["data", "strategy"],
+                "payload": {
+                    "step": norm,
+                    "force_refresh": bool(force_refresh),
+                },
             }
+        )
+
+    @classmethod
+    def start_now(
+        cls,
+        *,
+        strategy_name: str,
+        step: str,
+        force_refresh: bool,
+    ) -> Dict[str, Any]:
+        """管道 handler 调用：立刻开跑，不再入队。"""
+        name = str(strategy_name or "").strip()
+        norm = cls.normalize_step(step)
+        if not name:
+            return {"is_triggered": False, "reason": "strategy_name 无效"}
+        if norm is None:
+            return {"is_triggered": False, "reason": "step 须为 enum / price / portfolio"}
 
         jid = f"attr-run-{uuid.uuid4().hex[:12]}"
         busy = WorkbenchRunLauncher.claim_active(name, jid)
         if busy:
             return {"is_triggered": False, "reason": busy}
 
+        pipeline_name = Strategy.attribute_pipeline_name()
         desc = cls.pipeline_description(norm)
-        PipelineProgress.seed(
+        Strategy.seed_pipeline_progress(
             name,
             jid,
-            pipeline_name=ATTRIBUTE_PIPELINE,
+            pipeline_name=pipeline_name,
             pipeline_description=desc,
         )
         thread = threading.Thread(
@@ -97,7 +114,7 @@ class AttributeRunLauncher:
             "job_id": jid,
             "run_id": jid,
             "pipeline_id": jid,
-            "pipeline_name": ATTRIBUTE_PIPELINE,
+            "pipeline_name": pipeline_name,
             "pipeline_kind": "attribute",
             "pipeline_description": desc,
         }
@@ -117,11 +134,7 @@ class AttributeRunLauncher:
     @classmethod
     def _gate(cls, strategy_name: str, norm_step: str) -> Optional[str]:
         """可跑则返回 None，否则返回给人看的原因。"""
-        from core.bff.APIs.strategy.routes.attribution.status import (
-            AttributeStatus,
-        )
-
-        status = AttributeStatus.probe(strategy_name, norm_step)
+        status = Strategy.probe_attribute_status(strategy_name, norm_step)
         if not status.get("visible"):
             return str(status.get("tooltip") or "请先完成本层回测再归因")
         if not status.get("enabled"):
@@ -136,7 +149,7 @@ class AttributeRunLauncher:
         norm_step: str,
         force_refresh: bool,
     ) -> None:
-        lease = TaskGuard.lease(
+        lease = JobPipeline.running_lease(
             kind="strategy_attribute",
             job_id=job_id,
             resource_key=strategy_name,
@@ -147,23 +160,28 @@ class AttributeRunLauncher:
         try:
             lease.acquire()
             acquired = True
-        except TaskLeaseBusyError as exc:
-            inst = PipelineProgress.load(strategy_name, job_id)
+        except JobRunningBusyError as exc:
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
+            cls._notify_finished()
             return
         except Exception as exc:  # noqa: BLE001
             logger.exception("Attribute lease acquire failed job_id=%s", job_id)
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
+            cls._notify_finished()
             return
 
         try:
-            with PipelineProgress.bind(strategy_name, job_id) as prog:
+            with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                 prog.mark_running()
+                if JobPipeline.is_cancel_requested(job_id):
+                    prog.fail("用户取消")
+                    return
                 WorkbenchRunLauncher._duckdb_prepare()
                 kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
                 if kind.value == "enum":
@@ -191,12 +209,12 @@ class AttributeRunLauncher:
                 prog.complete(result=payload)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Attribute run failed job_id=%s", job_id)
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             else:
                 try:
-                    with PipelineProgress.bind(strategy_name, job_id) as prog:
+                    with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                         prog.fail(str(exc))
                 except Exception:
                     logger.exception(
@@ -210,6 +228,14 @@ class AttributeRunLauncher:
                 except Exception:
                     logger.exception("attribute lease release failed")
             WorkbenchRunLauncher.release_active(strategy_name, job_id)
+            cls._notify_finished()
+
+    @staticmethod
+    def _notify_finished() -> None:
+        try:
+            JobPipeline.notify_job_finished()
+        except Exception:
+            logger.exception("JobPipeline.notify_job_finished after attribute failed")
 
 
 __all__ = ["AttributeRunLauncher"]

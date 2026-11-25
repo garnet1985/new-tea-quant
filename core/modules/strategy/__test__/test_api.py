@@ -9,13 +9,12 @@ import pytest
 
 from core.modules.strategy import Strategy
 from core.modules.strategy.core import strategy as strategy_mod
+from core.modules.strategy import contracts as strategy_contracts
 from core.modules.strategy.contracts import (
     AsOfSlice,
-    CalendarAsOfResult,
     Investment,
     JobBundleLoader,
     Opportunity,
-    ProgressRecorder,
     SimulateKind,
     StrategyContext,
     StrategyHooks,
@@ -73,6 +72,9 @@ class TestStrategyApi(unittest.TestCase):
             "export_package",
             "import_package",
             "latest_completed_trading_date",
+            "scaffold_from_template",
+            "apply_settings_patch",
+            "validate_artifact",
         ):
             self.assertTrue(callable(getattr(Strategy, name)), name)
         self.assertFalse(hasattr(Strategy, "set_simulation_version_pinned"))
@@ -92,13 +94,11 @@ class TestStrategyApi(unittest.TestCase):
         self.assertEqual(StrategyContext.__name__, "StrategyContext")
         opp = Opportunity(stock={}, record_of_today={"close": 1.0})
         self.assertEqual(opp.trigger_price, 1.0)
-        result = CalendarAsOfResult(as_of_date="20240102", stocks=[])
-        self.assertEqual(result.session_state, {})
         self.assertTrue(Investment is not None)
         self.assertTrue(hasattr(AsOfSlice, "ready_date_by_entity"))
         self.assertTrue(hasattr(AsOfSlice, "slice_contracts"))
         self.assertTrue(hasattr(JobBundleLoader, "load"))
-        self.assertTrue(hasattr(ProgressRecorder, "for_tag_run"))
+        self.assertNotIn("ProgressRecorder", strategy_contracts.__all__)
 
     def test_list_strategies_delegates_to_discovery(self) -> None:
         info = MagicMock()

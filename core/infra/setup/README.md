@@ -1,36 +1,35 @@
 # Setup（`infra.setup`）
 
-安装编排、安装步骤、安装产物工厂。**不是** setuptools 的 `setup.py`。
+**模块：** `infra.setup` · **版本：** `0.2.0`
 
-**公开入口：** `from core.infra.setup import Setup`  
-CLI / `install.py` / `launcher.py` / BFF **只调用门面**。应用升级见 `core.infra.updater`。
+**最低支持核心版本：** `>=0.5.0`
 
-产物 zip 在 `initialization/userspace/`、`initialization/data/`（方便找到，不进本模块）。
+## 简介
 
-## 布局
+NTQ 的安装流程编排。首次启动时检测环境、创建目录、拷贝产物，装完就能跑。**不是** Python 的 setuptools——那是打包安装 Python 包的事，这个是装完之后让 NTQ 自己能跑的初始化流程。
 
-```text
-core/infra/setup/
-├── setup.py / contracts.py / __init__.py
-├── core/
-│   ├── env.py
-│   ├── install_runtime.py / cli_runtime.py / ui_runtime.py
-│   ├── steps/
-│   └── scripts/
-└── docs/ / __test__/
-```
+## 适用场景
 
-## 快速开始
+- 首次启动 NTQ 时，CLI 或 launcher 调这里完成安装
+- 装 CLI 运行时或 UI 运行时等可选组件
 
-见 [QUICKSTART.md](./QUICKSTART.md)。
+## 模块依赖
 
-```python
-from core.infra.setup import Setup
+- `infra.cmd_layout`：终端展示
+- `infra.project_context`：路径定位
+- `infra.trace`：上报安装事件
+- `infra.utils`：通用工具
 
-Setup.runtime.needs_install("cli")
-```
+## 设计初衷
+
+- **要解决的问题：** 安装流程在 CLI、BFF、独立安装器三处复用同一份编排，不各写一套。
+- **明确不做：** 不做升级（那是 `infra.updater`）；不做业务配置迁移。
 
 ## 相关文档
 
-- [API.md](./API.md)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [用户指南](./docs/USER_GUIDE.md)
+- [公开 API](./API.md)
+- [架构](./docs/ARCHITECTURE.md)
+- [术语表](./glossary.yaml)
+- [快速开始](./QUICKSTART.md)
+- [决策](./docs/DECISIONS.md)

@@ -36,7 +36,7 @@ class Analyzer:
         *,
         ignore_cache: bool = False,
     ) -> Dict[str, Any]:
-        """跑枚举层归因。"""
+        """跑机会盘点层归因。"""
         return cls.attribute(
             key_or_id, kind=SimulateKind.ENUMERATE, ignore_cache=ignore_cache
         )

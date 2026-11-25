@@ -1,12 +1,5 @@
 import React from 'react';
-import {
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogContentText,
-  DialogTitle,
-} from '@mui/material';
+import { Button, Dialog } from 'ui';
 
 function SetupDialogs({
   overwriteConfirmOpen,
@@ -24,78 +17,70 @@ function SetupDialogs({
       <Dialog
         open={overwriteConfirmOpen}
         onClose={() => setOverwriteConfirmOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        title="确认覆盖用户空间"
+        size="sm"
+        actions={(
+          <>
+            <Button variant="ghost" onClick={() => setOverwriteConfirmOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => {
+                setOverwriteConfirmOpen(false);
+                onConfirmOverwrite();
+              }}
+            >
+              确认覆盖
+            </Button>
+          </>
+        )}
       >
-        <DialogTitle>确认覆盖 userspace</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            你选择了“覆盖 userspace”。此操作会删除目标目录中的现有内容，并用初始化包重新解压，
-            可能覆盖现有策略、标签和用户配置。确定继续吗？
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setOverwriteConfirmOpen(false)} color="inherit">
-            取消
-          </Button>
-          <Button
-            color="error"
-            variant="contained"
-            onClick={() => {
-              setOverwriteConfirmOpen(false);
-              onConfirmOverwrite();
-            }}
-          >
-            确认覆盖
-          </Button>
-        </DialogActions>
+        <p className="ntq-muted">
+          您已选择“覆盖用户空间”。此操作会删除目标目录中的现有内容，并重新初始化，
+          可能覆盖现有策略、标签和用户配置。确定继续吗？
+        </p>
       </Dialog>
 
       <Dialog
         open={dbRiskConfirmOpen}
         onClose={() => setDbRiskConfirmOpen(false)}
-        maxWidth="sm"
-        fullWidth
+        title="确认是否覆盖已有数据"
+        size="sm"
+        actions={(
+          <>
+            <Button variant="ghost" onClick={() => setDbRiskConfirmOpen(false)}>
+              返回检查
+            </Button>
+            <Button
+              variant="attention"
+              onClick={() => {
+                setDbRiskConfirmOpen(false);
+                onConfirmDbRisk();
+              }}
+            >
+              我已确认，继续
+            </Button>
+          </>
+        )}
       >
-        <DialogTitle>确认数据库风险</DialogTitle>
-        <DialogContent>
-          <DialogContentText>
-            {isDuckdb ? (
-              <>
-                系统检测到
-                {' '}
-                <strong>userspace/system/db/</strong>
-                {' '}
-                下已有 DuckDB 数据文件（如 data.duckdb / tag.duckdb / strategy.duckdb）。
-                继续执行后，初始化数据导入可能覆盖其中部分表数据。请确认你要继续。
-              </>
-            ) : (
-              <>
-                系统检测到目标数据库
-                {dbRiskContext.dbType || dbRiskContext.database
-                  ? `（${dbRiskContext.dbType || 'db'}:${dbRiskContext.database || '未命名'}）`
-                  : ''}
-                已存在。
-                继续执行后，初始化数据导入可能覆盖其中部分表数据。请确认你要继续覆盖初始化数据。
-              </>
-            )}
-          </DialogContentText>
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setDbRiskConfirmOpen(false)} color="inherit">
-            返回检查
-          </Button>
-          <Button
-            color="warning"
-            variant="contained"
-            onClick={() => {
-              setDbRiskConfirmOpen(false);
-              onConfirmDbRisk();
-            }}
-          >
-            我已确认，继续
-          </Button>
-        </DialogActions>
+        <p className="ntq-muted">
+          {isDuckdb ? (
+            <>
+              系统检测到本地数据库目录中已有数据文件。
+              继续安装后，导入演示数据可能覆盖其中部分内容，且通常无法撤销。请确认要继续。
+            </>
+          ) : (
+            <>
+              系统检测到目标数据库
+              {dbRiskContext.dbType || dbRiskContext.database
+                ? `（${dbRiskContext.dbType || '数据库'}:${dbRiskContext.database || '未命名'}）`
+                : ''}
+              已存在。
+              继续安装后，导入演示数据可能覆盖其中部分内容，且通常无法撤销。请确认要继续。
+            </>
+          )}
+        </p>
       </Dialog>
     </>
   );

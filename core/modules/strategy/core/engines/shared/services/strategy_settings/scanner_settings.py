@@ -1,14 +1,15 @@
-"""``settings.scanner`` — 扫描模式与缓存/adapter 配置。
+"""``settings.scanner`` — 扫描模式与缓存配置。
 
 本文件:
-- ScannerSettings: 锚点严格模式、max_cache_days、adapter_names 等
-  边界: 负责 scanner section；不负责 ScanDateResolver 或 BE 扫描
+- ScannerSettings: 锚点严格模式、max_cache_days、watch_list 等
+  边界: 负责 scanner section；不负责 ScanDateResolver / BE / post_process
+  说明: 后续处理是全局 ``post_processors/<key>.is_enabled``，不在策略 settings 里
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 from .settings_base import SettingsBase
 from .validation_report import ValidationReport
@@ -16,7 +17,7 @@ from .validation_report import ValidationReport
 
 @dataclass
 class ScannerSettings(SettingsBase):
-    """``settings.scanner`` — adapters / 严格交易日 / 缓存 / watch_list。"""
+    """``settings.scanner`` — 严格交易日 / 缓存 / watch_list。"""
 
     raw_settings: Dict[str, Any]
 
@@ -30,16 +31,6 @@ class ScannerSettings(SettingsBase):
     @property
     def scanner(self) -> Dict[str, Any]:
         return dict(self._block())
-
-    @property
-    def adapter_names(self) -> List[str]:
-        raw = self._block().get("adapters", ["console"])
-        if isinstance(raw, str):
-            return [raw] if raw.strip() else ["console"]
-        if isinstance(raw, list):
-            names = [str(x).strip() for x in raw if str(x).strip()]
-            return names or ["console"]
-        return ["console"]
 
     @property
     def use_strict_previous_trading_day(self) -> bool:
@@ -73,10 +64,12 @@ class ScannerSettings(SettingsBase):
 
     def apply_defaults(self) -> None:
         s = self._block()
-        s.setdefault("adapters", ["console"])
         s.setdefault("use_strict_previous_trading_day", True)
         s.setdefault("max_cache_days", self._system_scan_max_versions())
         s.setdefault("watch_list", "")
+        # 清理过时字段（后续处理已改为全局 is_enabled）
+        s.pop("adapters", None)
+        s.pop("post_process", None)
         self._normalize_fields()
 
     def validate(self) -> ValidationReport:
@@ -93,7 +86,6 @@ class ScannerSettings(SettingsBase):
             return report
 
         self.apply_defaults()
-        self._validate_adapters(report)
         return report
 
     def to_dict(self) -> Dict[str, Any]:
@@ -102,14 +94,8 @@ class ScannerSettings(SettingsBase):
 
     def _normalize_fields(self) -> None:
         s = self._block()
-        adapters = s.get("adapters", ["console"])
-        if isinstance(adapters, str):
-            s["adapters"] = [adapters] if adapters.strip() else ["console"]
-        elif isinstance(adapters, list):
-            names = [str(x).strip() for x in adapters if str(x).strip()]
-            s["adapters"] = names or ["console"]
-        else:
-            s["adapters"] = ["console"]
+        s.pop("adapters", None)
+        s.pop("post_process", None)
 
         ust = s.get("use_strict_previous_trading_day", True)
         s["use_strict_previous_trading_day"] = ust if isinstance(ust, bool) else True
@@ -122,18 +108,6 @@ class ScannerSettings(SettingsBase):
 
         wl = s.get("watch_list", "")
         s["watch_list"] = "" if wl is None else str(wl)
-
-    def _validate_adapters(self, report: ValidationReport) -> None:
-        from core.modules.adapter import Adapter
-
-        for name in self.adapter_names:
-            ok, err = Adapter.validate(name)
-            if not ok:
-                SettingsBase.add_warning(
-                    report,
-                    f"scanner.adapters[{name}]",
-                    f"适配器 '{name}' 不可用: {err}",
-                )
 
 
 __all__ = ["ScannerSettings"]

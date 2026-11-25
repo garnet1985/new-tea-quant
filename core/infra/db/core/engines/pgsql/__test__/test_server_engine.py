@@ -32,17 +32,17 @@ def pgsql_engine():
 
 
 def test_pgsql_engine_table_operator_cached(pgsql_engine):
-    a = pgsql_engine.table_operator("sys_stock_list")
-    b = pgsql_engine.table_operator("sys_stock_list")
+    a = pgsql_engine.table_operator("sys_data_stock_list")
+    b = pgsql_engine.table_operator("sys_data_stock_list")
     assert a is b
-    assert a.table_name == "sys_stock_list"
+    assert a.table_name == "sys_data_stock_list"
 
 
 def test_pgsql_table_operator_load(pgsql_engine):
     pgsql_engine.connector.execute_query = MagicMock(
         return_value=[{"id": "1", "name": "a"}]
     )
-    op = pgsql_engine.table_operator("sys_stock_list")
+    op = pgsql_engine.table_operator("sys_data_stock_list")
     rows = op.load("id = %s", ("1",), limit=10)
     assert rows == [{"id": "1", "name": "a"}]
     sql = pgsql_engine.connector.execute_query.call_args[0][0]

@@ -1,0 +1,144 @@
+// =============================================================================
+// UI 通用设计 Token（可脱离 NTQ 复用）
+// -----------------------------------------------------------------------------
+// 供 `src/ui/**` 通用原语使用。命名：`--ui-*`
+// 产品壳 / 品牌 / 顶栏尺寸 → 见 `_ntq-tokens.scss`（`--ntq-*`）
+// 过渡期：旧名 `--ntq-space-*` 等由 `_tokens.scss` 别名到这里，逐步改引用即可
+// =============================================================================
+
+:root,
+body {
+  // --- 中性色 / 语义色（产品可用 --ntq-* 覆盖 --ui-accent 等）---
+  --ui-ink: #060612;
+  --ui-accent: #22d3ee;
+  --ui-accent-2: #a855f7;
+  --ui-success: #22c55e;
+  --ui-error: #ef4444;
+  --ui-warning: #fbbf24;
+
+  --ui-white-98: rgba(255, 255, 255, 0.98);
+  --ui-white-75: rgba(255, 255, 255, 0.75);
+  --ui-white-45: rgba(255, 255, 255, 0.45);
+  --ui-white-42: rgba(255, 255, 255, 0.42);
+  --ui-white-12: rgba(255, 255, 255, 0.12);
+  --ui-white-06: rgba(255, 255, 255, 0.06);
+  --ui-white-03: rgba(255, 255, 255, 0.03);
+
+  --ui-text: rgba(255, 255, 255, 0.86);
+  --ui-text-muted: rgba(255, 255, 255, 0.62);
+
+  // --- 间距 · props: none | xxs | xs | sm | md | lg | xl ---
+  --ui-space-none: 0;
+  --ui-space-xxs: 0.125rem;
+  --ui-space-xs: 0.25rem;
+  --ui-space-sm: 0.5rem;
+  --ui-space-md: 1rem;
+  --ui-space-lg: 1.5rem;
+  --ui-space-xl: 2rem;
+
+  // --- 字号 · props: xs | sm | normal | md | lg | xl ---
+  --ui-font-xs: 0.75rem;
+  --ui-font-sm: 0.875rem;
+  --ui-font-normal: 0.875rem;
+  --ui-font-md: 1rem;
+  --ui-font-lg: 1.5rem;
+  --ui-font-xl: 1.75rem;
+  --ui-font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
+
+  --ui-font-weight-regular: 400;
+  --ui-font-weight-medium: 600;
+  --ui-font-weight-bold: 700;
+  --ui-leading-tight: 1.25;
+  --ui-leading-normal: 1.5;
+  --ui-leading-relaxed: 1.68;
+
+  // --- 块级堆叠 ---
+  --ui-stack: 1rem;
+  --ui-heading-margin-top: 1.5rem;
+  --ui-heading-margin-top-lg: 2rem;
+  --ui-heading-margin-bottom: var(--ui-stack);
+  --ui-heading-gap-boost: calc(var(--ui-heading-margin-top) - var(--ui-stack));
+  --ui-heading-gap-boost-lg: calc(var(--ui-heading-margin-top-lg) - var(--ui-stack));
+  --ui-heading-gap-none-mt: 0;
+  --ui-heading-gap-none-mb: 0;
+  --ui-heading-gap-md-mt: var(--ui-heading-gap-boost);
+  --ui-heading-gap-md-mb: 0;
+  --ui-heading-gap-lg-mt: var(--ui-heading-gap-boost-lg);
+  --ui-heading-gap-lg-mb: 0;
+  --ui-heading-bar-width: 0.1875rem;
+  --ui-heading-bar-width-h1: 0.25rem;
+  --ui-heading-bar-pad-x: var(--ui-space-sm);
+  --ui-heading-bar-pad-y: var(--ui-space-xs);
+
+  // --- 圆角 ---
+  --ui-radius-none: 0;
+  --ui-radius-sm: 0.25rem;
+  --ui-radius-md: 0.5rem;
+  --ui-radius-lg: 0.75rem;
+  --ui-radius-pill: 999px;
+
+  // --- 输入默认实底（disabled 偏浅白，表示不可用）---
+  --ui-input-solid-bg: #12121f;
+  --ui-input-solid-bg-hover: #161625;
+  --ui-input-solid-bg-disabled: rgba(255, 255, 255, 0.08);
+
+  --ui-blur-sm: 0.5rem;
+  --ui-blur-md: 1rem;
+
+  // ---------------------------------------------------------------------------
+  // Wrapper 表面：只三种。抬亮 alpha 统一，用「有无 blur / 有无渐变」区分。
+  // 1) glass        透光玻璃：浅白抬亮，不模糊
+  // 2) frost        毛玻璃：同抬亮 + blur，柔化背景
+  // 3) frost-strong 渐变毛玻璃：ink 遮罩 + 浅抬亮 + blur，强隔底
+  // blur 由组件 class 施加；此处只定义 fill。
+  // ---------------------------------------------------------------------------
+  --ui-surface-lift: rgba(255, 255, 255, 0.06);
+
+  --ui-surface-glass: var(--ui-surface-lift);
+  --ui-surface-frost: var(--ui-surface-lift);
+  --ui-surface-frost-strong:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05) 0%,
+      rgba(255, 255, 255, 0.02) 100%
+    ),
+    color-mix(in srgb, var(--ui-ink) 52%, transparent);
+
+  // 旧名兼容（fill）；blur 行为见 Block / .ui-surface-* class
+  --ui-surface-soft: var(--ui-surface-glass);
+  --ui-surface-panel: var(--ui-surface-frost);
+  --ui-surface-gradient: var(--ui-surface-frost-strong);
+
+  --ui-divider-color: var(--ui-white-12);
+  --ui-layout-sidebar-width: 14.25rem;
+  // 文档用；@media 不能可靠读 CSS 变量，组件内写字面量 800px 并注明 sync
+  --ui-layout-stack-below: 800px;
+
+  --ui-icon-sm: 1rem;
+  --ui-icon-md: 1.25rem;
+  --ui-icon-lg: 1.5rem;
+  --ui-icon-xl: 2rem;
+  --ui-icon-xxl: 3rem;
+
+  --ui-progress-height-sm: 0.25rem;
+  --ui-progress-height-md: 0.5rem;
+  --ui-progress-ring-sm: 2.5rem;
+  --ui-progress-ring-md: 3.5rem;
+
+  --ui-form-control-font-size: var(--ui-font-normal);
+  --ui-form-control-line-height: 1.5;
+
+  // --- 交互色过渡（button / input hover·focus）---
+  --ui-transition-color: 0.3s ease;
+  --ui-transition-colors:
+    color var(--ui-transition-color),
+    background-color var(--ui-transition-color),
+    border-color var(--ui-transition-color),
+    box-shadow var(--ui-transition-color),
+    fill var(--ui-transition-color),
+    stroke var(--ui-transition-color);
+
+  // --- 输入默认最大宽度（maxWidth=true）；false 时去掉 ---
+  --ui-input-max-width: 20rem; // 320px
+  --ui-textarea-max-width: 25rem; // 400px
+}

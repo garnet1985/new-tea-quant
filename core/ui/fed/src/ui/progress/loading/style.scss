@@ -1,0 +1,48 @@
+.ntq-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.ntq-loading__message {
+  margin: 0;
+  text-align: center;
+  line-height: var(--ntq-leading-normal);
+}
+
+.ntq-loading--page {
+  flex-direction: column;
+  gap: var(--ntq-space-lg);
+  min-height: 420px;
+  padding: var(--ntq-space-xl) var(--ntq-space-lg);
+
+  &.ntq-loading--min-40vh {
+    min-height: 40vh;
+  }
+
+  &.ntq-loading--min-48vh {
+    min-height: 48vh;
+  }
+}
+
+.ntq-loading--inline {
+  flex-direction: column;
+  gap: var(--ntq-space-sm);
+  padding: var(--ntq-space-sm) 0;
+
+  &.is-block {
+    width: 100%;
+    padding: var(--ntq-space-md) 0;
+  }
+}
+
+.ntq-loading--inlineRow {
+  flex-direction: row;
+  gap: var(--ntq-space-sm);
+  padding: var(--ntq-space-xs) 0;
+
+  .ntq-loading__message {
+    text-align: left;
+  }
+}

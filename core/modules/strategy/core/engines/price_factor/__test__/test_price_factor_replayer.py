@@ -216,10 +216,12 @@ def test_replay_limit_up_first_promotes_same_episode() -> None:
 
 
 class _AlwaysNewHooks(StrategyHooks):
-    def has_opportunity(self, ctx: StrategyContext) -> bool:
+    def is_opportunity(self, ctx: StrategyContext, records) -> bool:
+        _ = records
         return False
 
-    def is_new_opportunity(self, ctx: StrategyContext) -> bool:
+    def is_new_opportunity(self, ctx: StrategyContext, *, previous, gap) -> bool:
+        _ = (ctx, previous, gap)
         return True
 
 

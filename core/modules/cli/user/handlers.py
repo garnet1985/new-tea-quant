@@ -36,17 +36,9 @@ class UserHandlers:
     @staticmethod
     def parse_strategy_version_spec(raw: object) -> tuple[str, int]:
         """``rsi_v1:3`` / ``demo/foo:v3`` → (策略, version int)。按最后一个冒号切开。"""
-        from core.modules.strategy.core.helpers.version_id import WorkbenchVersionId
+        from core.modules.strategy import Strategy
 
-        text = str(raw or "").strip()
-        if ":" not in text:
-            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
-        name, _, vid = text.rpartition(":")
-        name = name.strip()
-        sid = WorkbenchVersionId.parse(vid)
-        if not name or sid is None:
-            raise ValueError("必须写成 策略:版本，例如 rsi_v1:3")
-        return name, sid
+        return Strategy.parse_version_spec(raw)
 
     @staticmethod
     def run_app_update() -> int:
@@ -120,10 +112,100 @@ class UserHandlers:
             UserHandlers.setup_logging(verbose=args.verbose)
             force = bool(getattr(args, "force", False))
             suffix = " [force]" if force else ""
-            print(f"{i('ongoing')} 导入 initialization/data 数据包{suffix}", flush=True)
-            return Setup.runtime.import_init_data(force=force)
+            print(f"{i('ongoing')} 导入演示数据包{suffix}", flush=True)
+            return Setup.runtime.import_data_pack(pack_kind="demo", force=force)
+
+        if cmd == "auth":
+            return UserHandlers.run_auth(args)
 
         return None
+
+    @staticmethod
+    def _auth_guide() -> str:
+        return "\n".join(
+            [
+                "Guide：",
+                "  1. 登录官网会员中心，复制通用凭证（ntq_ 开头 + 48 位小写十六进制）",
+                "  2. 再执行：python cli.py auth",
+                "  3. 在提示处粘贴凭证后回车（输入不回显，属正常）",
+                "  4. 也可在应用设置页粘贴保存；清除用：python cli.py auth --clear",
+                "  5. 仅查看是否已配置：python cli.py auth --status",
+            ]
+        )
+
+    @staticmethod
+    def _auth_print_status() -> int:
+        from core.infra.membership import Membership
+
+        status = Membership.status()
+        if status["configured"]:
+            print(f"{i('success')} 已配置会员凭证（{status['path']}）", flush=True)
+            return 0
+        if status["invalid"]:
+            print(
+                f"{i('error')} 凭证文件存在但格式无效（{status['path']}）",
+                flush=True,
+            )
+            print(UserHandlers._auth_guide(), flush=True)
+            return 1
+        print(f"{i('warning')} 尚未配置会员凭证", flush=True)
+        print(UserHandlers._auth_guide(), flush=True)
+        return 1
+
+    @staticmethod
+    def run_auth(args: argparse.Namespace) -> int:
+        """Prompt for membership token via getpass; never echo or print the secret."""
+        import getpass
+
+        from core.infra.membership import Membership
+
+        clear = bool(getattr(args, "clear", False))
+        status_only = bool(getattr(args, "status", False))
+
+        if clear and status_only:
+            print(
+                f"{i('error')} 请二选一：cli.py auth / auth --status / auth --clear",
+                flush=True,
+            )
+            return 1
+
+        if clear:
+            Membership.clear()
+            print(f"{i('success')} 已清除本地会员凭证", flush=True)
+            return 0
+
+        if status_only:
+            return UserHandlers._auth_print_status()
+
+        try:
+            token_text = getpass.getpass("会员凭证（输入不回显）: ").strip()
+        except (EOFError, KeyboardInterrupt):
+            print(flush=True)
+            print(f"{i('error')} 设置失败", flush=True)
+            print(UserHandlers._auth_guide(), flush=True)
+            return 1
+
+        if not token_text:
+            print(f"{i('error')} 设置失败（未输入凭证）", flush=True)
+            print(UserHandlers._auth_guide(), flush=True)
+            return 1
+
+        err = Membership.save(token_text)
+        if err:
+            print(f"{i('error')} 设置失败", flush=True)
+            print(f"  {err}", flush=True)
+            print(UserHandlers._auth_guide(), flush=True)
+            return 1
+
+        try:
+            from core.infra.trace import Trace
+
+            Trace.track_member_bind(source="cli_auth", force=True)
+        except Exception:
+            pass
+
+        print(f"{i('success')} token 设置成功", flush=True)
+        return 0
 
     @staticmethod
     def _run_scaffold(kind: str, raw_path: object, args: argparse.Namespace) -> int:
@@ -131,24 +213,25 @@ class UserHandlers:
         if not path:
             raise SystemExit(f"new_{kind} 需要目标路径")
 
-        from core.modules.cli.user.scripts.create_from_template import CreateFromTemplate
-
         UserHandlers.setup_logging(verbose=args.verbose)
 
-        try:
-            if kind == "tag":
-                result = CreateFromTemplate.create_tag(path)
-                label = "Tag 场景"
-            else:
-                result = CreateFromTemplate.create_strategy(path)
-                label = "策略"
-            print(f"{i('success')} 已新建 {label}: {result.key}", flush=True)
-            print(f"   目录: {result.dest}", flush=True)
-            print("   请编辑 settings.py 与 worker，然后运行回测或打标。", flush=True)
-            return 0
-        except CreateFromTemplate.Error as exc:
-            print(f"{i('error')} {exc}", flush=True)
+        if kind == "tag":
+            from core.modules.tag import Tag
+
+            out = Tag.scaffold_from_template(path)
+            label = "Tag 场景"
+        else:
+            from core.modules.strategy import Strategy
+
+            out = Strategy.scaffold_from_template(path)
+            label = "策略"
+        if not out.get("ok"):
+            print(f"{i('error')} {out.get('error') or '新建失败'}", flush=True)
             return 1
+        print(f"{i('success')} 已新建 {label}: {out.get('key')}", flush=True)
+        print(f"   目录: {out.get('dest') or out.get('path')}", flush=True)
+        print("   请编辑 settings.py 与 worker，然后运行回测或打标。", flush=True)
+        return 0
 
     @staticmethod
     def execute(args: argparse.Namespace, app: CliApp) -> None:
@@ -156,6 +239,17 @@ class UserHandlers:
 
         if cmd == "renew":
             UserHandlers._handle_renew(app, args)
+            return
+
+        if cmd == "list":
+            from core.modules.cli.user.list_catalog import run as run_list_catalog
+
+            code = run_list_catalog(
+                getattr(args, "resource", None),
+                as_json=bool(getattr(args, "json", False)),
+            )
+            if code != 0:
+                raise SystemExit(code)
             return
 
         if cmd == "export_adj_factor":
@@ -186,6 +280,14 @@ class UserHandlers:
             )
             return
 
+        if cmd == "series_relation":
+            UserHandlers._run_series_relation(args)
+            return
+
+        if cmd == "agent":
+            UserHandlers._run_agent(args)
+            return
+
         if cmd in (
             "scan",
             "strategy_enumerate",
@@ -211,9 +313,27 @@ class UserHandlers:
         source = UserHandlers._strategy_name(getattr(args, "source", None))
         force = bool(getattr(args, "force", False))
 
+        if getattr(args, "clear_logs", False):
+            from core.modules.data_source.core.service.run_status import clear_finished_runs
+
+            removed = clear_finished_runs()
+            if not removed:
+                print("没有可清理的运行状态。", flush=True)
+                return
+            print(f"已清理 {len(removed)} 次运行状态。", flush=True)
+            return
+
         if source and source.lower() == "list":
             from core.modules.data_source import DataSourceManager
 
+            if getattr(args, "json", False):
+                import json
+
+                print(
+                    json.dumps(DataSourceManager().task_catalog(force=force), ensure_ascii=False),
+                    flush=True,
+                )
+                return
             print(DataSourceManager.format_renew_targets_help(), flush=True)
             return
 
@@ -234,34 +354,20 @@ class UserHandlers:
     def _resolve_strategy_key(name: Optional[str]) -> str:
         from core.modules.strategy import Strategy
 
-        explicit = UserHandlers._strategy_name(name)
-        if explicit:
-            info = Strategy.find(explicit, enabled_only=True)
-            if info is None:
-                keys = Strategy.list_enabled_keys()
-                print(f"策略不存在或未启用: {explicit}", flush=True)
-                if keys:
-                    print(f"可用 meta.key: {', '.join(sorted(keys))}", flush=True)
-                raise SystemExit(1)
-            return str(info.get("key") or explicit)
-
-        enabled = Strategy.list_strategy_infos(enabled_only=True)
-        if not enabled:
-            print(
-                "未指定 --strategy，且 userspace/strategies 下没有 is_enabled=True 的合法策略。"
-                "请检查 settings.py 含 meta.key 与 is_enabled=True。",
-                flush=True,
-            )
+        out = Strategy.resolve_default_enabled_key(
+            UserHandlers._strategy_name(name) or None
+        )
+        if not out.get("ok"):
+            msg = str(out.get("message") or "策略不可用")
+            print(msg, flush=True)
+            choices = out.get("choices") or []
+            if choices and "未启用" in msg:
+                print(f"可用 meta.key: {', '.join(sorted(choices))}", flush=True)
             raise SystemExit(1)
-        if len(enabled) > 1:
-            chosen = enabled[0]
-            print(
-                "多个启用策略，默认使用 "
-                f"key={chosen.get('key')}（{chosen.get('unique_relative_path')}）；"
-                "可用 --strategy <meta.key> 指定",
-                flush=True,
-            )
-        return str(enabled[0].get("key") or enabled[0].get("unique_relative_path"))
+        note = str(out.get("message") or "").strip()
+        if note:
+            print(note, flush=True)
+        return str(out.get("key") or "")
 
     @staticmethod
     def _print_simulate_version(result: dict, step_key: str) -> None:
@@ -297,7 +403,7 @@ class UserHandlers:
                 "sampling_amount": int(stock_count),
             }
 
-        print(f"{i('numbers')} 枚举投资机会…", flush=True)
+        print(f"{i('numbers')} 机会盘点…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         if stock_count is not None:
             print(f"  采样: {stock_count} 只股票", flush=True)
@@ -306,7 +412,7 @@ class UserHandlers:
                 "  提示: 未传 --stocks 时将按 settings.sampling 抽样（可能数百只，耗时较长）",
                 flush=True,
             )
-        print("  进度: 5%→15% 为调度探针，之后按 batch 推进；完成后输出结果摘要", flush=True)
+        print(f"  {Strategy.describe_enumerate_progress_hint()}", flush=True)
 
         t0 = time.perf_counter()
         result = Strategy.enumerate(
@@ -322,8 +428,6 @@ class UserHandlers:
         # 终局摘要统一走 Strategy.present_report
         if enum_result.get("output_dir"):
             try:
-                from pathlib import Path
-
                 from core.modules.strategy import Strategy
                 from core.modules.strategy.contracts import SimulateKind
 
@@ -331,12 +435,12 @@ class UserHandlers:
                     SimulateKind.ENUMERATE, Path(enum_result["output_dir"])
                 )
             except FileNotFoundError as exc:
-                print(f"  展示枚举汇总失败（缺产物）: {exc}", flush=True)
+                print(f"  展示机会盘点汇总失败（缺产物）: {exc}", flush=True)
                 print(f"  success: {enum_result.get('success')}", flush=True)
                 print(f"  output_dir: {enum_result.get('output_dir')}", flush=True)
             except Exception as exc:
-                print(f"  展示枚举汇总失败: {exc}", flush=True)
-                logger.warning("展示枚举汇总失败", exc_info=True)
+                print(f"  展示机会盘点汇总失败: {exc}", flush=True)
+                logger.warning("展示机会盘点汇总失败", exc_info=True)
                 print(f"  success: {enum_result.get('success')}", flush=True)
                 print(f"  output_dir: {enum_result.get('output_dir')}", flush=True)
         else:
@@ -353,7 +457,6 @@ class UserHandlers:
     @staticmethod
     def _run_strategy_price_factor(args: argparse.Namespace) -> None:
         import time
-        from pathlib import Path
 
         from core.modules.strategy import Strategy
 
@@ -364,7 +467,7 @@ class UserHandlers:
         print(f"  策略: {strategy_key}", flush=True)
         if force:
             print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
-        print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
+        print("  依赖: 同指纹机会盘点产物；缺失时会先补跑机会盘点", flush=True)
 
         t0 = time.perf_counter()
         result = Strategy.price_factor(
@@ -378,7 +481,7 @@ class UserHandlers:
         UserHandlers._print_simulate_version(result, "price")
         if enum_part:
             print(
-                f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
+                f"  机会盘点: success={enum_part.get('success')} version={enum_part.get('version_id')}",
                 flush=True,
             )
 
@@ -407,7 +510,6 @@ class UserHandlers:
     @staticmethod
     def _run_strategy_portfolio(args: argparse.Namespace) -> None:
         import time
-        from pathlib import Path
 
         from core.modules.strategy import Strategy
 
@@ -418,7 +520,7 @@ class UserHandlers:
         print(f"  策略: {strategy_key}", flush=True)
         if force:
             print("  --force: 忽略缓存，同指纹仍写入原 version", flush=True)
-        print("  依赖: 同指纹枚举产物；缺失时会先补跑枚举", flush=True)
+        print("  依赖: 同指纹机会盘点产物；缺失时会先补跑机会盘点", flush=True)
 
         t0 = time.perf_counter()
         result = Strategy.portfolio(
@@ -432,7 +534,7 @@ class UserHandlers:
         UserHandlers._print_simulate_version(result, "portfolio")
         if enum_part:
             print(
-                f"  枚举: success={enum_part.get('success')} version={enum_part.get('version_id')}",
+                f"  机会盘点: success={enum_part.get('success')} version={enum_part.get('version_id')}",
                 flush=True,
             )
 
@@ -502,7 +604,7 @@ class UserHandlers:
 
     @staticmethod
     def _run_strategy_simulate(args: argparse.Namespace) -> None:
-        """一次跑完枚举、价格和资金。任一层失败即停。"""
+        """一次跑完机会盘点、价格和资金。任一层失败即停。"""
         UserHandlers._run_strategy_enumerate(args)
         UserHandlers._run_strategy_price_factor(args)
         UserHandlers._run_strategy_portfolio(args)
@@ -731,7 +833,7 @@ class UserHandlers:
                 args,
                 layer="enum",
                 api_name="attribute_enumerate",
-                title="枚举层归因",
+                title="机会盘点层归因",
                 need_cli="se",
             )
             return
@@ -765,4 +867,155 @@ class UserHandlers:
             return
 
         raise SystemExit(f"未知命令: {cmd}")
+
+    @staticmethod
+    def _run_agent(args: argparse.Namespace) -> None:
+        from core.modules.agent import Agent
+        from core.modules.agent.contracts import AgentError
+
+        UserHandlers.setup_logging(verbose=bool(getattr(args, "verbose", False)))
+        session_id = str(getattr(args, "agent_session", None) or "").strip() or None
+        provider_id = str(getattr(args, "agent_provider", None) or "").strip() or None
+
+        try:
+            if getattr(args, "agent_tools", False):
+                tools = Agent.list_tools()
+                if not tools:
+                    print("尚未登记工具。")
+                    return
+                print("Agent 工具:")
+                for tool in tools:
+                    flag = "ok" if tool.implemented else "stub"
+                    print(f"  - {tool.name} [{flag}]  {tool.description}")
+                return
+
+            if getattr(args, "agent_clear", False):
+                Agent.clear_session(session_id)
+                sid = session_id or "default"
+                print(f"已清空会话 {sid}（偏好与策略未改）。")
+                return
+
+            if getattr(args, "agent_prefs", False):
+                rules = Agent.list_preferences()
+                if not rules:
+                    print("还没有跨会话偏好。")
+                    return
+                print("跨会话偏好:")
+                for rule in rules:
+                    print(f"  - {rule}")
+                return
+
+            remember = getattr(args, "agent_remember", None)
+            if remember is not None:
+                text = str(remember or "").strip()
+                if not text:
+                    raise SystemExit("--remember 需要非空 RULE")
+                rules = Agent.remember(text)
+                print(f"已记住（共 {len(rules)} 条）。")
+                return
+
+            forget = getattr(args, "agent_forget", None)
+            if forget is not None:
+                text = str(forget or "").strip()
+                if not text:
+                    raise SystemExit("--forget 需要非空 RULE")
+                rules = Agent.forget(text)
+                print(f"已删除（剩余 {len(rules)} 条）。")
+                return
+
+            if getattr(args, "agent_settings", False):
+                settings = Agent.get_settings()
+                print(f"default_provider_id: {settings.get('default_provider_id')}")
+                print(
+                    f"context_prompt ({settings.get('context_prompt_max_chars')} chars max):"
+                )
+                prompt = str(settings.get("context_prompt") or "").strip()
+                print(prompt if prompt else "  (empty)")
+                prefs = settings.get("preferences") or []
+                print(f"preferences ({len(prefs)}):")
+                if not prefs:
+                    print("  (none)")
+                else:
+                    for rule in prefs:
+                        print(f"  - {rule}")
+                return
+
+            set_provider = getattr(args, "agent_set_provider", None)
+            if set_provider is not None:
+                pid = str(set_provider or "").strip()
+                if not pid:
+                    raise SystemExit("--set-provider 需要非空 ID")
+                settings = Agent.update_settings(default_provider_id=pid)
+                print(f"默认 Provider → {settings.get('default_provider_id')}")
+                return
+
+            if getattr(args, "agent_set_context", None) is not None:
+                text = str(getattr(args, "agent_set_context") or "")
+                settings = Agent.update_settings(context_prompt=text)
+                saved = str(settings.get("context_prompt") or "").strip()
+                print("补充说明已更新。" if saved else "补充说明已清空。")
+                return
+
+            message = str(getattr(args, "message", None) or "").strip()
+            if not message:
+                raise SystemExit(
+                    "用法: cli.py a \"一句话\" | cli.py agent --tools|--clear|--prefs|"
+                    "--settings|--remember RULE|--forget RULE|"
+                    "--set-provider ID|--set-context TEXT"
+                )
+
+            print(f"{i('sparkle')} Agent 处理中…", flush=True)
+            outcome = Agent.run(
+                message, session_id=session_id, provider_id=provider_id
+            )
+            reply = str((outcome or {}).get("reply") or "").strip()
+            mode = str((outcome or {}).get("mode") or "ask")
+            spent = (outcome or {}).get("catfood_spent")
+            balance = (outcome or {}).get("balance")
+            print(reply or "(空回复)")
+            meta = [f"mode={mode}"]
+            if spent is not None:
+                meta.append(f"catfood_spent={spent}")
+            if balance is not None:
+                meta.append(f"balance={balance}")
+            print(f"[{' · '.join(meta)}]")
+        except AgentError as exc:
+            raise SystemExit(str(exc)) from exc
+        except ValueError as exc:
+            raise SystemExit(str(exc)) from exc
+
+    def _run_series_relation(args: argparse.Namespace) -> None:
+        from core.modules.series_relation import SeriesRelation
+
+        if getattr(args, "list", False):
+            infos = SeriesRelation.list_infos()
+            if not infos:
+                print(
+                    "未发现 series_relation"
+                    "（检查 userspace/extensions/series_relation/*/settings.py）"
+                )
+                raise SystemExit(1)
+            print("可用 series_relation:")
+            for info in infos:
+                print(f"  - {info.key:<24} id={info.relative_path}  {info.display_name}")
+            return
+
+        key = UserHandlers._strategy_name(getattr(args, "key", None))
+        if not key:
+            raise SystemExit(
+                "用法: cli.py srel KEY | cli.py series_relation --list"
+            )
+        print(f"{i('chart')} 序列关系: {key}", flush=True)
+        result = SeriesRelation.run(key)
+        if not result.get("success"):
+            raise SystemExit(result.get("error") or "series_relation 失败")
+        report = str(result.get("report") or "").strip()
+        if report:
+            print(flush=True)
+            print(report, end="" if report.endswith("\n") else "\n", flush=True)
+        print(
+            f"产物: {result.get('output_dir')}  "
+            f"(series.json / summary.json / findings.md / report.txt)",
+            flush=True,
+        )
 

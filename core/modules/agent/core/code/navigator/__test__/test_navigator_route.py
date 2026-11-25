@@ -1,0 +1,143 @@
+"""Navigator：有序清单 + 金标评测。"""
+
+from __future__ import annotations
+
+from core.modules.agent.core.code.navigator.classifier import parse_kinds
+from core.modules.agent.evaluate.gold_set import GOLD_CASES
+from core.modules.agent.evaluate.harness import evaluate, format_report, worker_recall
+from core.modules.agent.core.code.navigator.router import regex_route, route
+
+
+def test_regex_pipeline_guide_then_worker_for_strategy_ideas():
+    r = regex_route("推荐能赚钱的策略并帮我写一个")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
+
+
+def test_regex_pipeline_identity_then_worker():
+    r = regex_route("NTQ 是什么，顺便帮我回测一下")
+    assert r.kind == "identity"
+    assert r.queue == ("identity", "worker")
+
+
+def test_regex_pipeline_guide_then_worker_for_news():
+    r = regex_route("法国暴乱影响 A 股吗，帮我改止损并重跑回测")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
+
+
+def test_regex_realtime_quote_is_out_of_scope():
+    assert regex_route("招商银行现在实时股价多少钱").kind == "out_of_scope"
+
+
+def test_regex_arch():
+    assert regex_route("NTQ 的回测四步架构原理是什么？").kind == "guide_arch"
+
+
+def test_regex_hypothesis_validation_is_worker():
+    gap = (
+        "帮我验证一下是不是出来跳空之后都会总有一天补回来？"
+        "假如跳空是个机会我能不能利用跳空进行盈利？"
+    )
+    assert regex_route(gap).kind == "worker"
+    assert regex_route("帮我验证金叉之后是不是更容易上涨").kind == "worker"
+    assert regex_route("跳空在 K 线上是什么意思").kind == "guide"
+    assert regex_route("有没有能赚钱的策略").kind == "guide"
+    assert regex_route("该买什么股今天能涨").kind == "advice"
+
+
+def test_parse_kinds_queue():
+    assert parse_kinds('{"kinds":["advice","worker"]}') == ["advice", "worker"]
+    assert parse_kinds('{"kinds":["guide"]}') == ["guide"]
+    assert parse_kinds('{"kinds":["worker","advice"]}') == ["advice", "worker"]
+    assert parse_kinds('{"kind":"guide"}') is None
+    assert parse_kinds("nonsense") is None
+
+
+def test_a0_regex_gold_floor():
+    report = evaluate(
+        name="A0_regex",
+        router=lambda t: route(t, provider_id="ntq", mode="regex"),
+    )
+    assert report.total == len(GOLD_CASES)
+    assert report.accuracy >= 0.90, format_report(report)
+    assert report.queue_exact_rate >= 0.90, format_report(report)
+    assert report.redline_miss == 0, format_report(report)
+    assert report.false_worker == 0, format_report(report)
+    assert worker_recall(report) >= 0.90, format_report(report)
+
+
+def _install_oracle_classifier(monkeypatch):
+    from core.modules.agent.core.code.navigator import classifier as clf
+    from core.modules.agent.evaluate.gold_set import expected_kinds
+    from core.infra.ai.contracts import CompleteResult
+    import json
+
+    by_text = {c["text"]: expected_kinds(c) for c in GOLD_CASES}
+
+    def fake_complete(messages, **kwargs):
+        user = messages[-1]["content"]
+        kinds = by_text.get(user, ["guide"])
+        return CompleteResult(
+            reply=json.dumps({"kinds": kinds}, ensure_ascii=False),
+            provider_id="ntq",
+            model="stub",
+        )
+
+    monkeypatch.setattr(clf.AiChannel, "complete", staticmethod(fake_complete))
+
+
+def test_route_uses_classifier_queue(monkeypatch):
+    _install_oracle_classifier(monkeypatch)
+    r = route("推荐能赚钱的策略并帮我写一个", provider_id="ntq")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
+
+
+def test_escalate_guide_when_model_misses_strategy_ideas(monkeypatch):
+    from core.modules.agent.core.code.navigator import classifier as clf
+    from core.infra.ai.contracts import CompleteResult
+
+    def fake_complete(messages, **kwargs):
+        return CompleteResult(
+            reply='{"kinds":["worker"]}', provider_id="ntq", model="stub"
+        )
+
+    monkeypatch.setattr(clf.AiChannel, "complete", staticmethod(fake_complete))
+    r = route("推荐能赚钱的策略并帮我写一个", provider_id="ntq", mode="ask")
+    assert r.kind == "guide"
+    assert r.queue == ("guide", "worker")
+
+
+def test_escalate_advice_when_model_misses_stock_tip(monkeypatch):
+    from core.modules.agent.core.code.navigator import classifier as clf
+    from core.infra.ai.contracts import CompleteResult
+
+    def fake_complete(messages, **kwargs):
+        return CompleteResult(
+            reply='{"kinds":["guide"]}', provider_id="ntq", model="stub"
+        )
+
+    monkeypatch.setattr(clf.AiChannel, "complete", staticmethod(fake_complete))
+    r = route("该买什么股今天能涨", provider_id="ntq", mode="ask")
+    assert r.kind == "advice"
+    assert "advice" in r.queue
+
+
+def test_a1_oracle(monkeypatch):
+    _install_oracle_classifier(monkeypatch)
+    report = evaluate(
+        name="A1_oracle",
+        router=lambda t: route(t, provider_id="ntq", mode="ask"),
+    )
+    assert report.accuracy >= 0.99, format_report(report)
+    assert report.queue_exact_rate >= 0.99, format_report(report)
+
+
+def test_classifier_failure_falls_back_to_regex(monkeypatch):
+    from core.modules.agent.core.code.navigator import classifier as clf
+
+    monkeypatch.setattr(clf, "classify_route", lambda *a, **k: None)
+    assert (
+        route("帮我改止损并重跑回测", provider_id="ntq", mode="ask").kind == "worker"
+    )

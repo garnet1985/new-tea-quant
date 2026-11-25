@@ -1,14 +1,31 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
-import { IconButton } from '@mui/material';
-import NtqIcon from 'views/ntqIcon';
-import RainbowButton from 'views/rainbowButton';
-import LoadingBars from 'views/loadingBars';
-import AssistantTypewriter from './assistantTypewriter';
-import { chatWithAssistant, fetchNtqQuota, listAssistantProviders } from 'api/assistantApi';
-import { fetchMembershipSettings } from 'api/settingsApi';
+import { Button } from 'ui';
+import RainbowButton from 'ntq-ui/rainbowButton';
+import AssistantReplyStream from './assistantReplyStream';
+import PendingStream from './pendingStream';
+import {
+  runAgent,
+  clearAgentSession,
+  fetchAgentSessionHistory,
+  fetchAgentQuota,
+  fetchAgentSettings,
+} from 'api/agentApi';
+import { listAiProviders } from 'api/aiApi';
+import { fetchMembershipSettings, notifyMembershipChanged } from 'api/settingsApi';
+import { fetchSiteUrls } from 'api/siteApi';
 import { isHttpStatusError } from 'service/request';
 import { GLOBAL_HELPER_SESSION_EVENT } from 'containers/globalHelper';
+import {
+  clearDockChat,
+  hydrateMessages,
+  isHeavyContext,
+  loadDockStore,
+  persistDockChat,
+  persistDockSelectedId,
+  readDockChat,
+} from './dockChatStore';
+import { splitAssistantReply } from './splitAssistantReply';
 import './style.scss';
 
 function errorMessage(err, fallback) {
@@ -24,16 +41,18 @@ function nextId(idRef) {
 
 function settingsLinkFor(content) {
   const text = String(content || '');
+  // Remote NTQ failures are not fixed by BYOK — no settings CTA.
+  if (/远端服务失败|远端模型|官网暂时不可用|官网应答超时|暂时连不上官网|HTTPS 证书校验失败|Install Certificates/.test(text)) {
+    return null;
+  }
   if (/凭证/.test(text)) {
     return { to: '/settings/membership', label: '去设置检查通用凭证' };
   }
-  if (/自己的密钥|供应商|API Key/.test(text)) {
-    return { to: '/settings/assistant', label: '去设置填写 API Key' };
+  if (/自己的密钥|未配置密钥|没有可用的供应商|API Key/.test(text)) {
+    return { to: '/settings/ai', label: '去设置填写 API Key' };
   }
   return null;
 }
-
-const MEMBER_REGISTER_URL = 'https://new-tea.cn/zh-hans/user/register';
 
 function buildAiOptions(items, membership) {
   const options = [];
@@ -46,17 +65,6 @@ function buildAiOptions(items, membership) {
     }
   });
   return options;
-}
-
-function toHistory(messages) {
-  return messages
-    .filter((item) => (
-      (item.role === 'user' || item.role === 'assistant')
-      && item.content
-      && !item.pending
-      && !item.error
-    ))
-    .map((item) => ({ role: item.role, content: item.content }));
 }
 
 function BubbleBody({ item, onNavigate }) {
@@ -85,19 +93,35 @@ function AssistantChatDock() {
   const [hint, setHint] = useState('');
   const [needsKey, setNeedsKey] = useState(false);
   const [options, setOptions] = useState([]);
-  const [selectedId, setSelectedId] = useState('');
+  const [selectedId, setSelectedId] = useState(() => loadDockStore().selectedId || '');
   const [ntqQuota, setNtqQuota] = useState(null);
+  const [memberConfigured, setMemberConfigured] = useState(false);
+  const [registerUrl, setRegisterUrl] = useState('');
+  const [contextTipDismissed, setContextTipDismissed] = useState(false);
   const listRef = useRef(null);
   const inputRef = useRef(null);
   const idRef = useRef(1);
   const typedIdsRef = useRef(new Set());
+  const messagesRef = useRef(messages);
+  const messagesOwnerRef = useRef('');
+  const prevSelectedRef = useRef('');
+
+  messagesRef.current = messages;
 
   const latestAssistantId = [...messages].reverse().find((item) => (
     item.role === 'assistant' && !item.error && !item.pending && item.content
   ))?.id ?? null;
 
-  const markTyped = useCallback((id) => {
-    if (id != null) typedIdsRef.current.add(id);
+  const showContextTip = !contextTipDismissed && isHeavyContext(messages);
+
+  const applyMessages = useCallback((rows, { markAllTyped = true } = {}) => {
+    const hydrated = hydrateMessages(rows, { idRef });
+    setMessages(hydrated);
+    if (markAllTyped) {
+      typedIdsRef.current = new Set(hydrated.map((item) => item.id));
+    }
+    setContextTipDismissed(false);
+    return hydrated;
   }, []);
 
   const scrollToBottom = useCallback(() => {
@@ -120,6 +144,18 @@ function AssistantChatDock() {
     };
     window.addEventListener(GLOBAL_HELPER_SESSION_EVENT, onHelper);
     return () => window.removeEventListener(GLOBAL_HELPER_SESSION_EVENT, onHelper);
+  }, []);
+
+  useEffect(() => {
+    let alive = true;
+    fetchSiteUrls()
+      .then((urls) => {
+        if (alive) setRegisterUrl(urls.registerUrl);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -149,17 +185,26 @@ function AssistantChatDock() {
     if (!open) return undefined;
     let cancelled = false;
     Promise.all([
-      listAssistantProviders(),
+      listAiProviders(),
       fetchMembershipSettings().catch(() => ({ configured: false })),
+      fetchAgentSettings().catch(() => null),
     ])
-      .then(([items, membership]) => {
+      .then(([items, membership, agentSettings]) => {
         if (cancelled) return;
         const nextOptions = buildAiOptions(items, membership);
         setOptions(nextOptions);
-        setSelectedId((current) => (
-          nextOptions.some((item) => item.id === current) ? current : (nextOptions[0]?.id || '')
-        ));
+        const storedId = loadDockStore().selectedId;
+        const settingsDefault = String(agentSettings?.defaultProviderId || '').trim();
+        setSelectedId((current) => {
+          if (nextOptions.some((item) => item.id === current)) return current;
+          if (storedId && nextOptions.some((item) => item.id === storedId)) return storedId;
+          if (settingsDefault && nextOptions.some((item) => item.id === settingsDefault)) {
+            return settingsDefault;
+          }
+          return nextOptions[0]?.id || '';
+        });
         setNeedsKey(nextOptions.length === 0);
+        setMemberConfigured(Boolean(membership?.configured));
         setHint('');
       })
       .catch((err) => {
@@ -173,13 +218,98 @@ function AssistantChatDock() {
     };
   }, [open]);
 
+  // SPA 内 dock 挂在 AppShell，切页不丢；刷新则从 localStorage / 本机 transcript 恢复。
+  useEffect(() => {
+    if (!selectedId) return undefined;
+    let cancelled = false;
+    const prev = prevSelectedRef.current;
+
+    if (prev && prev !== selectedId && messagesOwnerRef.current === prev) {
+      persistDockChat(prev, messagesRef.current);
+    }
+    if (prev === selectedId) return undefined;
+
+    prevSelectedRef.current = selectedId;
+    persistDockSelectedId(selectedId);
+
+    const local = readDockChat(selectedId);
+    if (local.length) {
+      messagesOwnerRef.current = selectedId;
+      applyMessages(local);
+      return undefined;
+    }
+
+    messagesOwnerRef.current = selectedId;
+    setMessages([]);
+    typedIdsRef.current = new Set();
+    setContextTipDismissed(false);
+
+    if (selectedId !== 'ntq') return undefined;
+
+    fetchAgentSessionHistory({ limit: 20 })
+      .then((result) => {
+        if (cancelled || prevSelectedRef.current !== 'ntq') return;
+        if (!result.messages.length) return;
+        messagesOwnerRef.current = 'ntq';
+        const hydrated = applyMessages(result.messages);
+        persistDockChat('ntq', hydrated);
+      })
+      .catch(() => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedId, applyMessages]);
+
+  useEffect(() => {
+    if (!selectedId || sending) return undefined;
+    if (messagesOwnerRef.current !== selectedId) return undefined;
+    const timer = window.setTimeout(() => {
+      persistDockChat(selectedId, messagesRef.current);
+    }, 200);
+    return () => window.clearTimeout(timer);
+  }, [messages, selectedId, sending]);
+
+  useEffect(() => {
+    const onUnload = () => {
+      if (selectedId && messagesOwnerRef.current === selectedId) {
+        persistDockChat(selectedId, messagesRef.current);
+      }
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => window.removeEventListener('beforeunload', onUnload);
+  }, [selectedId]);
+
   const refreshNtqQuota = useCallback(() => {
-    fetchNtqQuota()
+    fetchAgentQuota()
       .then((quota) => {
         setNtqQuota(quota?.available ? quota : null);
+        if (quota?.available && quota.balance != null) {
+          notifyMembershipChanged({ catfood: quota.balance });
+        }
       })
       .catch(() => setNtqQuota(null));
   }, []);
+
+  /** 打字结束后再露出消耗，并拉一次真实剩余猫粮（顶栏同步）。 */
+  const revealBilling = useCallback((id) => {
+    if (id == null) return;
+    typedIdsRef.current.add(id);
+    let shouldRefresh = false;
+    setMessages((prev) => {
+      let changed = false;
+      const next = prev.map((item) => {
+        if (item.id !== id || item.billingReady !== false) return item;
+        changed = true;
+        shouldRefresh = selectedId === 'ntq';
+        return { ...item, billingReady: true };
+      });
+      return changed ? next : prev;
+    });
+    if (shouldRefresh) {
+      refreshNtqQuota();
+    }
+  }, [refreshNtqQuota, selectedId]);
 
   useEffect(() => {
     if (!open || selectedId !== 'ntq') return undefined;
@@ -193,10 +323,27 @@ function AssistantChatDock() {
     el.style.height = `${Math.min(el.scrollHeight, 140)}px`;
   }, []);
 
-  const send = useCallback(async () => {
-    const content = draft.trim();
+  const clearChat = useCallback(async () => {
+    if (sending) return;
+    try {
+      if (selectedId === 'ntq') {
+        await clearAgentSession();
+      }
+      clearDockChat(selectedId);
+      messagesOwnerRef.current = selectedId;
+      setMessages([]);
+      typedIdsRef.current = new Set();
+      setHint('');
+      setContextTipDismissed(false);
+      if (selectedId === 'ntq') refreshNtqQuota();
+    } catch (err) {
+      setHint(errorMessage(err, '清空会话失败'));
+    }
+  }, [refreshNtqQuota, selectedId, sending]);
+
+  const send = useCallback(async (overrideContent) => {
+    const content = String(overrideContent != null ? overrideContent : draft).trim();
     if (!content || sending || !selectedId) return;
-    const history = toHistory(messages);
     const userId = nextId(idRef);
     const pendingId = nextId(idRef);
     setDraft('');
@@ -205,37 +352,69 @@ function AssistantChatDock() {
     }
     setSending(true);
     setMessages((prev) => [
-      ...prev,
+      ...prev.map((item) => (
+        item.role === 'assistant' && item.suggestions?.length
+          ? { ...item, suggestions: undefined }
+          : item
+      )),
       { id: userId, role: 'user', content },
-      { id: pendingId, role: 'assistant', content: '', pending: true },
+      {
+        id: pendingId,
+        role: 'assistant',
+        content: '',
+        pending: true,
+        pendingKind: selectedId === 'ntq' ? 'work' : 'ask',
+        pendingUserText: content,
+      },
     ]);
     try {
-      const result = await chatWithAssistant({
+      const result = await runAgent({
         content,
-        history,
-        providerId: selectedId,
+        providerId: selectedId === 'ntq' ? 'ntq' : selectedId,
       });
-      if (selectedId === 'ntq') refreshNtqQuota();
+      const spent = selectedId === 'ntq' ? result.catfoodSpent : null;
+      const rawReply = result.reply || '（空回复）';
+      const { body, suggestions } = splitAssistantReply(rawReply);
       setMessages((prev) => prev.map((item) => (
         item.id === pendingId
-          ? { ...item, pending: false, content: result.reply || '（空回复）' }
+          ? {
+            ...item,
+            pending: false,
+            content: body || rawReply,
+            suggestions: suggestions.length ? suggestions : undefined,
+            showDisclaimer: true,
+            mode: result.mode || (selectedId === 'ntq' ? 'ask' : undefined),
+            catfoodSpent: spent,
+            billingReady: false,
+          }
           : item
       )));
     } catch (err) {
       setMessages((prev) => prev.map((item) => (
         item.id === pendingId
-          ? { ...item, pending: false, error: true, content: errorMessage(err, '对话失败') }
+          ? {
+            ...item,
+            pending: false,
+            error: true,
+            content: errorMessage(err, '对话失败'),
+            billingReady: true,
+          }
           : item
       )));
+      if (selectedId === 'ntq') refreshNtqQuota();
     } finally {
       setSending(false);
     }
-  }, [draft, messages, refreshNtqQuota, selectedId, sending]);
+  }, [draft, refreshNtqQuota, selectedId, sending]);
+
+  const sendNextStep = useCallback((text) => {
+    void send(text);
+  }, [send]);
 
   const onDraftKeyDown = (event) => {
     if (event.nativeEvent.isComposing || event.keyCode === 229) return;
     if (event.key !== 'Enter') return;
-    if (!(event.metaKey || event.ctrlKey)) return;
+    if (event.shiftKey) return;
     event.preventDefault();
     send();
   };
@@ -273,21 +452,57 @@ function AssistantChatDock() {
               />
               <div className="ntq-assistant-dock__head-text">
                 <p className="ntq-assistant-dock__title">您好，我是新茶，有什么可以帮到您？</p>
-                <p className="ntq-assistant-dock__subtitle">我现在还只能帮助您回答一些基础问题，之后的版本喵星还会赋予我更强大的能力哦</p>
+                <p className="ntq-assistant-dock__subtitle">
+                  {selectedId === 'ntq'
+                    ? '可以问策略、回测和扫描；我会在本机执行工具（走 NTQ 会员额度）。'
+                    : '可以问策略、回测和扫描；我会在本机执行工具（走您自己的 API Key，不计 NTQ 猫粮）。'}
+                </p>
               </div>
             </div>
-            <IconButton
-              className="ntq-assistant-dock__close"
-              onClick={close}
-              aria-label="关闭新茶"
-              size="small"
-              disableRipple
-            >
-              <NtqIcon name="cancel" size={18} tone="muted" />
-            </IconButton>
+            <div className="ntq-assistant-dock__head-actions">
+              <button
+                type="button"
+                className="ntq-assistant-dock__clear"
+                onClick={clearChat}
+                disabled={sending || messages.length === 0}
+              >
+                清空会话
+              </button>
+              <Button
+                variant="ghost"
+                icon="close"
+                className="ntq-assistant-dock__close"
+                onClick={close}
+                aria-label="关闭新茶"
+              />
+            </div>
           </header>
 
           <div ref={listRef} className="ntq-assistant-dock__messages">
+            {showContextTip ? (
+              <div className="ntq-assistant-dock__context-tip" role="status">
+                <p className="ntq-assistant-dock__context-tip-text">
+                  对话已经比较长，继续追问会多耗猫粮。策略与回测结果在本机，可放心开新会话。
+                </p>
+                <div className="ntq-assistant-dock__context-tip-actions">
+                  <button
+                    type="button"
+                    className="ntq-assistant-dock__context-tip-btn"
+                    onClick={clearChat}
+                    disabled={sending}
+                  >
+                    新开会话
+                  </button>
+                  <button
+                    type="button"
+                    className="ntq-assistant-dock__context-tip-dismiss"
+                    onClick={() => setContextTipDismissed(true)}
+                  >
+                    知道了
+                  </button>
+                </div>
+              </div>
+            ) : null}
             {messages.length === 0 ? (
               <p className="ntq-assistant-dock__empty">
                 {needsKey ? (
@@ -296,21 +511,25 @@ function AssistantChatDock() {
                     {' '}
                     <RouterLink
                       className="ntq-assistant-dock__settings-link"
-                      to="/settings/assistant"
+                      to="/settings/ai"
                       onClick={close}
                     >
                       自己配置 AI
                     </RouterLink>
-                    {' '}
-                    <a
-                      className="ntq-assistant-dock__settings-link"
-                      href={MEMBER_REGISTER_URL}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      去官网注册
-                    </a>
-                    {' '}
+                    {registerUrl ? (
+                      <>
+                        {' '}
+                        <a
+                          className="ntq-assistant-dock__settings-link"
+                          href={registerUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          成为会员
+                        </a>
+                        {' '}
+                      </>
+                    ) : null}
                     <RouterLink
                       className="ntq-assistant-dock__settings-link"
                       to="/settings/membership"
@@ -333,22 +552,45 @@ function AssistantChatDock() {
                 ].filter(Boolean).join(' ')}
               >
                 {item.pending ? (
-                  <div className="ntq-assistant-dock__waiting" role="status">
-                    <LoadingBars barCount={4} className="ntq-loading-bars--sm" aria-label="正在联络喵星总部" />
-                    <span>正在联络喵星总部…</span>
-                  </div>
+                  <PendingStream
+                    kind={item.pendingKind === 'ask' ? 'ask' : 'work'}
+                    userText={item.pendingUserText || ''}
+                    onTick={scrollToBottom}
+                  />
                 ) : item.role === 'assistant' && !item.error ? (
-                  <AssistantTypewriter
-                    text={item.content}
+                  <AssistantReplyStream
+                    body={item.content}
+                    spent={item.catfoodSpent}
+                    suggestions={item.suggestions}
+                    showDisclaimer={item.showDisclaimer !== false}
                     animate={item.id === latestAssistantId && !typedIdsRef.current.has(item.id)}
+                    sending={sending}
                     onProgress={scrollToBottom}
-                    onDone={() => markTyped(item.id)}
+                    onComplete={() => revealBilling(item.id)}
+                    onPickNext={sendNextStep}
                   />
                 ) : (
-                  <BubbleBody item={item} onNavigate={close} />
+                  <BubbleBody
+                    item={item}
+                    onNavigate={close}
+                  />
                 )}
               </div>
             ))}
+          </div>
+
+          {!memberConfigured ? (
+            <p className="ntq-assistant-dock__framework-hint" role="note">
+              当前为开源框架态（本地准则，可被本机修改）。使用 NTQ 会员通道时，官网会在每次补全强制注入产品准则。
+            </p>
+          ) : null}
+
+          <div className="ntq-assistant-dock__ai-rule" role="note">
+            <span className="ntq-assistant-dock__ai-rule-line" aria-hidden="true" />
+            <span className="ntq-assistant-dock__ai-rule-text">
+              以上内容由 AI 生成，可能不准确，请谨慎使用
+            </span>
+            <span className="ntq-assistant-dock__ai-rule-line" aria-hidden="true" />
           </div>
 
           <form
@@ -358,6 +600,9 @@ function AssistantChatDock() {
               send();
             }}
           >
+            <p className="ntq-assistant-dock__composer-hint">
+              Enter 发送 · Shift+Enter 换行
+            </p>
             <textarea
               ref={inputRef}
               className="ntq-assistant-dock__input"
@@ -367,14 +612,23 @@ function AssistantChatDock() {
                 resizeDraft(event.target);
               }}
               onKeyDown={onDraftKeyDown}
-              placeholder="可以问任何 NTQ 问题，例如：我该怎么制定一个策略？"
+              placeholder={selectedId === 'ntq'
+                ? '例如：帮我建一个双均线策略并回测'
+                : '可以问任何 NTQ 问题，例如：我该怎么制定一个策略？'}
               rows={2}
               disabled={sending}
               aria-label="给新茶的问题"
             />
             <div className="ntq-assistant-dock__actions">
-              <span className="ntq-assistant-dock__quota">
-                {selectedId === 'ntq' && ntqQuota ? `(${ntqQuota.remaining}/${ntqQuota.limit})` : ''}
+              <span className="ntq-assistant-dock__quota" aria-live="polite">
+                {selectedId === 'ntq' && (
+                  sending
+                  || messages.some((m) => m.role === 'assistant' && m.billingReady === false)
+                )
+                  ? '进行中…'
+                  : selectedId === 'ntq' && ntqQuota
+                    ? `${Number(ntqQuota.balance ?? ntqQuota.remaining).toFixed(2)} ${ntqQuota.currency || '猫粮'}`
+                    : ''}
               </span>
               <div className="ntq-assistant-dock__actions-end">
                 {options.length > 0 ? (

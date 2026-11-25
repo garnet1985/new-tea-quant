@@ -4,6 +4,7 @@ import {
   clampFakeProgress,
   nextFakeProgress,
 } from 'service/progress/fakeProgress';
+import { progressRatio } from 'service/progress/ratio';
 
 export {
   FAKE_PROGRESS_CAP,
@@ -26,28 +27,51 @@ export const CHOICE_STEP_IDS = new Set(['import_data', 'resolve_ml_deps']);
 
 export const SETUP_CHOICE_COPY = {
   import_data: {
-    title: '数据库配置已经成功',
-    body: '要不要导入演示数据？导入后可以直接在策略实验室里试用示例。如果现在跳过，之后仍可在「设置 → 安装与维护」里导入。',
-    confirmLabel: '导入演示数据',
-    skipLabel: '跳过',
+    title: '选择演示数据',
+    layout: 'cards',
+    introBeforeLink: '在官网',
+    introLinkLabel: '注册会员',
+    introAfterLink:
+      '后可使用更多演示数据。若您只是想快速安装并体验一下，推荐选择「导入演示数据」；若您需要更多数据（全市场三年数据），请在此跳过，稍候注册会员后到「设置 → 安装与维护」再导入。',
+    choices: [
+      {
+        id: 'demo',
+        skip: false,
+        title: '导入演示数据',
+        description: '适用于非会员：约 300 只股票 × 三年数据，安装完成即可体验软件所有功能。',
+      },
+      {
+        id: 'later',
+        skip: true,
+        title: '稍后再导入',
+        description: '注册会员后可导入：全 A 股 5800+ 只股票 × 三年数据（2023年初 - 2025年底）。',
+      },
+    ],
   },
   resolve_ml_deps: {
-    title: '要安装机器学习依赖吗？',
-    body: '分析库可用 XGBoost / SHAP。安装可能需要几分钟。跳过后可随时在「设置 → 安装与维护」中补装。',
+    title: '您想现在安装机器学习的插件吗？',
+    layout: 'buttons',
+    body: '安装机器学习的插件可能需要几分钟。如果跳过，您仍然可以随时在「设置 → 安装与维护」中手动安装。',
     confirmLabel: '安装（可能需要几分钟）',
     skipLabel: '跳过',
   },
 };
 
 export const FAKE_PROGRESS_WITHIN_STEP_RATIO = 0.9;
+/** 下载只占 import_data 步骤权重的前一段，避免下载 100% 顶满整步后再因切到导表回落。 */
+export const IMPORT_DOWNLOAD_WITHIN_SHARE = 0.25;
 export const DEFAULT_STEP_PROGRESS_WEIGHT = 1;
 
 export const EMPTY_IMPORT_PROGRESS = {
   running: false,
+  phase: '',
+  statusText: '',
   totalTables: 0,
   completedCount: 0,
   currentTable: '',
-  percent: 0,
+  ratio: 0,
+  downloadedBytes: 0,
+  totalBytes: 0,
 };
 
 export const DB_SERVER_FIELD_KEYS = new Set(['host', 'port', 'database', 'user', 'password']);
@@ -100,10 +124,40 @@ export function setupFakeProgressBounds(definition, options = {}) {
   };
 }
 
+/**
+ * 把导入子阶段映射到 import_data 步骤内的 0..1。
+ * 下载最多占前 {@link IMPORT_DOWNLOAD_WITHIN_SHARE}；导表占剩余。
+ * preparing 返回 0，由 UI 侧高水位衔接，避免下载结束回落。
+ */
+export function importWithinStepRatio(importProgress) {
+  if (!importProgress?.running) return 0;
+  const phase = String(importProgress.phase || '');
+  const downloadShare = IMPORT_DOWNLOAD_WITHIN_SHARE;
+  if (phase === 'downloading') {
+    if (!(Number(importProgress.totalBytes) > 0)) return 0;
+    return downloadShare * progressRatio(importProgress.ratio);
+  }
+  if (phase === 'importing' && Number(importProgress.totalTables) > 0) {
+    const tableRatio = progressRatio(importProgress.ratio);
+    return downloadShare + (1 - downloadShare) * tableRatio;
+  }
+  return 0;
+}
+
 export function setupStatusSignature(status) {
   const steps = status?.stepStates || [];
   const parts = steps.map((item) => `${item.stepId}:${item.status}`);
   return `${status?.isReady ? '1' : '0'}|${parts.join(',')}`;
+}
+
+export function demoPackageHintFromStatus(status) {
+  const demo = status?.dataPackages?.packages?.demo;
+  if (!demo) return '';
+  if (demo.present) {
+    const size = demo.sizeLabel ? `（${demo.sizeLabel}）` : '';
+    return `本地已有演示数据包${size}，导入时无需重新下载。`;
+  }
+  return '本地尚无演示数据包，选择导入后将从官网下载。';
 }
 
 export function fakeProgressTickSize(basePercent, capPercent) {
@@ -168,7 +222,10 @@ export function validateDbConnectionSubmit(submitValues) {
   if (dbType === 'duckdb') {
     return '';
   }
-  const missing = ['host', 'database', 'user'].filter((key) => !String(submitValues[key] || '').trim());
+  const fieldLabels = { host: '主机地址', database: '数据库名称', user: '用户名' };
+  const missing = ['host', 'database', 'user']
+    .filter((key) => !String(submitValues[key] || '').trim())
+    .map((key) => fieldLabels[key]);
   if (missing.length > 0) {
     return `请填写 ${missing.join('、')} 后再继续。`;
   }

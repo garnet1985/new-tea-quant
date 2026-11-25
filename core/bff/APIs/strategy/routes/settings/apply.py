@@ -154,33 +154,11 @@ class WorkbenchApplySettings:
         settings_snapshot: Dict[str, Any],
     ) -> Optional[str]:
         """恢复前 round-trip：快照 execute_fp 须与 registry 一致。"""
-        from core.modules.strategy.core.services.artifacts import ArtifactStore
-        from core.modules.strategy.core.services.artifacts.version_meta import (
-            VersionMetaStore,
-        )
-        from core.modules.strategy.core.services.discovery import DiscoveryService
-        from core.modules.strategy.core.services.fingerprint import (
-            FingerprintCalculator,
-        )
+        from core.modules.strategy import Strategy
 
-        folder = DiscoveryService.resolve_strategy_folder(strategy_name)
-        root = ArtifactStore.simulations_root(folder)
-        entry = VersionMetaStore.get_registry_entry(root, str(int(version)))
-        expected = str((entry or {}).get("execute_fp") or "").strip()
-        if not expected:
-            return None
-
-        archive = VersionMetaStore.read_archive_context(root, str(int(version)))
-        try:
-            computed = FingerprintCalculator.to_execute_fingerprint(
-                StrategySettings.from_dict(settings_snapshot),
-                archive.get("entity_ids") or [],
-            )
-        except ValueError as exc:
-            return f"配置快照无法计算指纹: {exc}"
-        if computed != expected:
-            return "配置快照与 version 指纹不一致"
-        return None
+        return Strategy.verify_settings_restore_fingerprint(
+            strategy_name, version, settings_snapshot
+        )
 
     @staticmethod
     def _settings_path(strategy_name: str) -> Path:

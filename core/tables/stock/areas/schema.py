@@ -1,12 +1,13 @@
 """
-地域定义表（sys_areas）：id、value（地域名）、is_alive。
-与 sys_stock_area_map 配合（Tushare area，如深圳、北京）。
+地域定义表（sys_data_areas）：id、value（地域名）、is_alive。
+与 sys_map_stock_area 配合（Tushare area，如深圳、北京）。
 主键 id nullable=false；其余 nullable=true。
 """
 schema = {
     "storage_domain": "data",  # 市场/宏观/股票主数据等（data 域）
     "update_key": "stock_areas",
-    "name": "sys_areas",
+    "kind": "data",
+    "name": "sys_data_areas",
     "primaryKey": "id",
     "fields": [
         {

@@ -11,12 +11,10 @@ import threading
 import uuid
 from typing import Any, Dict, Optional
 
-from core.infra.task_guard import TaskGuard
-from core.infra.task_guard.contracts import TaskLeaseBusyError
+from core.infra.job_pipeline import JobPipeline
+from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.modules.strategy import Strategy
 from core.modules.strategy.contracts import WorkbenchStep
-from core.modules.strategy.core.services.discovery import DiscoveryService
-from core.modules.strategy.core.services.progress import PipelineProgress
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +41,7 @@ class WorkbenchRunLauncher:
         expected_rev: Optional[str] = None,
         force_settings_write: bool = False,
     ) -> Dict[str, Any]:
+        """校验后交给 ``JobPipeline.submit``（空闲开跑 / 忙则入队）。"""
         name = str(strategy_name or "").strip()
         norm = cls.normalize_step(step)
         if not name:
@@ -52,22 +51,51 @@ class WorkbenchRunLauncher:
         if not isinstance(api_settings, dict):
             return {"is_triggered": False, "reason": "settings 必须为对象"}
 
-        info = DiscoveryService.find_strategy(name)
+        info = Strategy.find(name, enabled_only=True)
         if info is None:
-            discovered = cls._find_any(name)
-            if discovered is None:
+            any_info = Strategy.find(name, enabled_only=False)
+            if any_info is None:
                 return {"is_triggered": False, "reason": f"策略不存在: {name}"}
-            if not discovered.is_enabled:
+            if not bool(any_info.get("is_enabled")):
                 return {"is_triggered": False, "reason": "策略未启用"}
             return {"is_triggered": False, "reason": f"策略不可运行: {name}"}
 
-        status = TaskGuard.read_status()
-        if status.get("busy"):
-            kind = status.get("kind") or "unknown"
-            return {
-                "is_triggered": False,
-                "reason": f"系统任务进行中（{kind}），请稍后再试",
+        return JobPipeline.submit(
+            {
+                "kind": "strategy_run",
+                "resource_key": name,
+                "label": f"strategy_run:{name}:{norm}",
+                "domains": ["data", "strategy"],
+                "payload": {
+                    "step": norm,
+                    "api_settings": dict(api_settings),
+                    "force_refresh": bool(force_refresh),
+                    "expected_rev": expected_rev,
+                    "force_settings_write": bool(force_settings_write),
+                },
             }
+        )
+
+    @classmethod
+    def start_now(
+        cls,
+        *,
+        strategy_name: str,
+        step: str,
+        api_settings: Dict[str, Any],
+        force_refresh: bool,
+        expected_rev: Optional[str] = None,
+        force_settings_write: bool = False,
+    ) -> Dict[str, Any]:
+        """管道 handler 调用：立刻开跑，不再入队。"""
+        name = str(strategy_name or "").strip()
+        norm = cls.normalize_step(step)
+        if not name:
+            return {"is_triggered": False, "reason": "strategy_name 无效"}
+        if norm is None:
+            return {"is_triggered": False, "reason": "step 须为 enum / price / portfolio"}
+        if not isinstance(api_settings, dict):
+            return {"is_triggered": False, "reason": "settings 必须为对象"}
 
         jid = f"wb-run-{uuid.uuid4().hex[:12]}"
         busy = cls.claim_active(name, jid)
@@ -106,11 +134,11 @@ class WorkbenchRunLauncher:
                 "reason": persist_err,
             }
 
-        PipelineProgress.seed(
+        Strategy.seed_pipeline_progress(
             name,
             jid,
             pipeline_name=norm,
-            pipeline_description=PipelineProgress.pipeline_description(norm),
+            pipeline_description=Strategy.pipeline_progress_description(norm),
         )
         thread = threading.Thread(
             target=cls._background_job,
@@ -125,7 +153,7 @@ class WorkbenchRunLauncher:
             "run_id": jid,
             "pipeline_id": jid,
             "pipeline_name": norm,
-            "pipeline_description": PipelineProgress.pipeline_description(norm),
+            "pipeline_description": Strategy.pipeline_progress_description(norm),
             "settings_rev": str((occupancy or {}).get("settings_rev") or ""),
         }
 
@@ -158,7 +186,7 @@ class WorkbenchRunLauncher:
         jid = str(job_id or "").strip()
         if not jid:
             return None
-        doc = PipelineProgress.get(sn, jid, apply_stale=True)
+        doc = Strategy.get_pipeline_progress(sn, jid, apply_stale=True)
         if not doc:
             return None
         # HTTP aliases for existing clients (run_id / phase).
@@ -207,16 +235,6 @@ class WorkbenchRunLauncher:
         return out
 
     @classmethod
-    def _find_any(cls, key_or_id: str):
-        needle = str(key_or_id or "").strip()
-        if not needle:
-            return None
-        for info in DiscoveryService.discover_strategies():
-            if info.id() == needle or info.key == needle:
-                return info
-        return None
-
-    @classmethod
     def _background_job(
         cls,
         job_id: str,
@@ -225,7 +243,7 @@ class WorkbenchRunLauncher:
         api_settings: Dict[str, Any],
         force_refresh: bool,
     ) -> None:
-        lease = TaskGuard.lease(
+        lease = JobPipeline.running_lease(
             kind="strategy_run",
             job_id=job_id,
             resource_key=strategy_name,
@@ -234,16 +252,19 @@ class WorkbenchRunLauncher:
         )
         try:
             lease.acquire()
-        except TaskLeaseBusyError as exc:
-            inst = PipelineProgress.load(strategy_name, job_id)
+        except JobRunningBusyError as exc:
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             cls._clear_active(strategy_name, job_id)
             return
 
         try:
-            with PipelineProgress.bind(strategy_name, job_id) as prog:
+            with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                 prog.mark_running()
+                if JobPipeline.is_cancel_requested(job_id):
+                    prog.fail("用户取消")
+                    return
                 cls._duckdb_prepare()
                 kind = WorkbenchStep.parse(norm_step).to_simulate_kind()
                 result = Strategy.simulate(
@@ -273,12 +294,12 @@ class WorkbenchRunLauncher:
                 prog.complete(result=payload)
         except Exception as exc:  # noqa: BLE001
             logger.exception("Workbench run failed job_id=%s", job_id)
-            inst = PipelineProgress.load(strategy_name, job_id)
+            inst = Strategy.load_pipeline_progress(strategy_name, job_id)
             if inst is not None:
                 inst.fail(str(exc))
             else:
                 try:
-                    with PipelineProgress.bind(strategy_name, job_id) as prog:
+                    with Strategy.bind_pipeline_progress(strategy_name, job_id) as prog:
                         prog.fail(str(exc))
                 except Exception:
                     logger.exception("PipelineProgress.fail unavailable job_id=%s", job_id)
@@ -289,6 +310,10 @@ class WorkbenchRunLauncher:
             except Exception:
                 logger.exception("pipeline lease release failed")
             cls._clear_active(strategy_name, job_id)
+            try:
+                JobPipeline.notify_job_finished()
+            except Exception:
+                logger.exception("JobPipeline.notify_job_finished after workbench failed")
 
     @staticmethod
     def _persist_run_settings(

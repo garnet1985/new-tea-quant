@@ -1,8 +1,14 @@
-import { measureHole, placeCard, queryHelpTarget } from './helpTarget';
+import { liveStepsNow, measureHole, placeCard, queryHelpTarget } from './helpTarget';
 
 describe('placeCard', () => {
   const card = { width: 360, height: 200 };
   const viewport = { width: 1280, height: 800 };
+
+  it('centers the card when there is no hole', () => {
+    const pos = placeCard(null, card, viewport);
+    expect(pos.left).toBe(Math.round((1280 - 360) / 2));
+    expect(pos.top).toBe(Math.round((800 - 200) / 2));
+  });
 
   it('prefers the right side when there is room', () => {
     const pos = placeCard(
@@ -21,6 +27,21 @@ describe('placeCard', () => {
       viewport,
     );
     expect(pos.left + card.width).toBeLessThan(900);
+  });
+});
+
+describe('liveStepsNow', () => {
+  afterEach(() => {
+    document.body.innerHTML = '';
+  });
+
+  it('keeps steps without a target as live', () => {
+    expect(liveStepsNow([{ pages: [{ title: 'hi', body: 'x' }] }])).toHaveLength(1);
+    expect(liveStepsNow([{ target: '', pages: [{ title: 'hi', body: 'x' }] }])).toHaveLength(1);
+  });
+
+  it('still requires a visible node when target is set', () => {
+    expect(liveStepsNow([{ target: 'missing', pages: [{ title: 'hi', body: 'x' }] }])).toHaveLength(0);
   });
 });
 

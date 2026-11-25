@@ -1,6 +1,6 @@
 """资金层无风险利率：隔夜 SHIBOR → 日利率。
 
-表内 ``one_night`` 为年化百分数（与 Tushare / sys_shibor 一致）。
+表内 ``one_night`` 为年化百分数（与 Tushare / sys_data_shibor 一致）。
 日利率 = pct / 100 / 252。缺日沿用最近已有；整段皆无则按 0。
 不回退 LPR。
 """
@@ -63,7 +63,7 @@ def overnight_daily_rf(
 
 
 def load_overnight_shibor(start_date: str = "", end_date: str = "") -> Dict[str, float]:
-    """读 ``sys_shibor.one_night``。失败返回空 dict。"""
+    """读 ``sys_data_shibor.one_night``。失败返回空 dict。"""
     start = _norm_date(start_date)
     end = _norm_date(end_date)
     try:
@@ -71,7 +71,7 @@ def load_overnight_shibor(start_date: str = "", end_date: str = "") -> Dict[str,
 
         rows = DataManager().macro.load_shibor(start or None, end or None)
     except Exception:
-        logger.warning("读 sys_shibor 失败，夏普按 rf=0", exc_info=True)
+        logger.warning("读 sys_data_shibor 失败，夏普按 rf=0", exc_info=True)
         return {}
     out: Dict[str, float] = {}
     for row in rows or []:
@@ -82,7 +82,7 @@ def load_overnight_shibor(start_date: str = "", end_date: str = "") -> Dict[str,
         if day and pct is not None:
             out[day] = pct
     if not out:
-        logger.warning("sys_shibor 无隔夜数据 %s..%s，夏普按 rf=0", start, end)
+        logger.warning("sys_data_shibor 无隔夜数据 %s..%s，夏普按 rf=0", start, end)
     return out
 
 

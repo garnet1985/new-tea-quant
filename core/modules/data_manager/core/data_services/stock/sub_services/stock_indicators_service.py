@@ -1,4 +1,4 @@
-"""日频估值/基本面指标服务（``sys_stock_indicators``）。"""
+"""日频估值/基本面指标服务（``sys_data_stock_indicators``）。"""
 
 from __future__ import annotations
 
@@ -17,7 +17,7 @@ class StockIndicatorsService(BaseDataService):
 
     def _get_model(self):
         if self._model is None:
-            self._model = self.data_manager.get_table("sys_stock_indicators")
+            self._model = self.data_manager.get_table("sys_data_stock_indicators")
         return self._model
 
     def load_range(

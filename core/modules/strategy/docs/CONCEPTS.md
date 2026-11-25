@@ -1,8 +1,10 @@
 # Strategy — 概念与运作
 
-**模块：** `modules.strategy` · **版本：** `0.10.0`
+**模块：** `modules.strategy` · **版本：** `0.12.2`
 
-本文写归因怎么运转：一套「如果」副本、三层懒执行、报告回答什么。目录与数据流见 [ARCHITECTURE.md](./ARCHITECTURE.md)；为什么这样定见 [DESIGN.md](./DESIGN.md)。
+**最低支持核心版本：** `>=0.5.0`
+
+本文写归因怎么运转：一套「如果」副本、三层懒执行、报告回答什么。单个英文词（simulate、execute_fp、Opportunity 等）见 [glossary.yaml](../glossary.yaml)。目录与数据流见 [ARCHITECTURE.md](./ARCHITECTURE.md)；为什么这样定见 [DECISIONS.md](./DECISIONS.md)。
 
 文字入口见 [README.md](../README.md)；调用见 [API.md](../API.md)；指纹与 version 见 [VERSIONING.md](./VERSIONING.md)。
 
@@ -16,7 +18,7 @@
 
 | CLI | 须先有 | 补到 | 这一层回答 |
 |-----|--------|------|------------|
-| `sea` | `se` | 枚举 | 机会多不多、散不散；纸面止盈 / 止损 / 过期是否极端。含重叠，不是去噪账，也不是资金账 |
+| `sea` | `se` | 机会盘点 | 机会多不多、散不散；纸面止盈 / 止损 / 过期是否极端。含重叠，不是去噪账，也不是资金账 |
 | `spa` | `sp` | 价格 | 去近邻之后，等权投一笔能不能赚、利润是否堆在少数笔。出场结构只描述，不代算盈利区间 |
 | `soa` | `so` | 组合 | 钱有没有买到该买的；槽位、分配方式、资金怎么改变收益和回撤 |
 
@@ -28,7 +30,7 @@
 
 `attribution.py` 的顶层 `inputs` 展开成一套 version：当前主号是基准格，其余是副本 `{主号}-attr{n}`，不占主号序列。`sea` / `spa` / `soa` 共用这套身份。命令只决定补到哪一层、用哪一层指标画曲线。
 
-只改价格去噪间隔时，枚举指纹可以与基准相同，价格层复用已有枚举。`sea` 展格时会丢掉只影响回放的近邻间隔，避免为同一枚举身份多跑一遍。
+只改价格去噪间隔时，机会盘点指纹可以与基准相同，价格层复用已有机会盘点。`sea` 展格时会丢掉只影响回放的近邻间隔，避免为同一机会盘点身份多跑一遍。
 
 未写 `inputs` 时，系统按当前 effective 补一套默认轴（止损 / 止盈、可解析的 `core` 标量、可选的近邻间隔）。一旦写了非空 `inputs`，只扫声明的轴。
 
@@ -42,11 +44,11 @@
 
 ## 组合资金是另一轮
 
-`soa` 上，资金分配不进上面那套共用 `inputs`。`allocation` 单独做单因素扫描：锚定当前主 version，复用已有枚举，只改分配再补组合。
+`soa` 上，资金分配不进上面那套共用 `inputs`。`allocation` 单独做单因素扫描：锚定当前主 version，复用已有机会盘点，只改分配再补组合。
 
 可以扫的包括分配方式、持仓数、初始资金、单票上限、Kelly 系数、每笔手数、选仓排序。未写 `allocation` 时，按当前 settings 生成默认档。声明了 `allocation` 之后，单票上限、Kelly 系数、每笔手数不会再自动加进默认档，除非自己写上。
 
-选仓排序在 `portfolio.allocation.opportunity_selection`。不写、空列表、或权重全是 0，都是到达顺序。写了 `on_pick_portfolio_member` 时仍以钩子为准。
+选仓排序在 `portfolio.allocation.opportunity_selection`。不写、空列表、或权重全是 0，都是到达顺序。写了 `select_portfolio_entries` 时仍以钩子为准。
 
 ---
 
@@ -54,7 +56,7 @@
 
 跑哪一层，就出那一层的报告。主产物是敏感度排名、每轴一条曲线、该层问题章节。有 `joint_sweep` 时再加一张热力表。
 
-- 枚举章节看机会数量、覆盖、时间分散、纸面出场，以及止盈之后还有没有空间（一档全平时标明不可测）。
+- 机会盘点章节看机会数量、覆盖、时间分散、纸面出场，以及止盈之后还有没有空间（一档全平时标明不可测）。
 - 价格章节看去噪后的边、利润是否集中、哪种出场贡献了利润。
 - 组合章节看折损、买到和漏掉、仓位结构。想法轴即使在共用副本上有组合产物，结论也不再讲成一遍因子贡献。
 
@@ -76,7 +78,6 @@
 - [API.md](../API.md)
 - [术语表](../glossary.yaml)
 - [架构](./ARCHITECTURE.md)
-- [设计](./DESIGN.md)
 - [Version / 指纹](./VERSIONING.md)
 - [价格回放](./notes/PRICE_REPLAY.md)
 - [选仓排序](./notes/OPPORTUNITY_SELECTION.md)

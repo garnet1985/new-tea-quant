@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Tuple
+from typing import Any, Dict, Optional, Tuple
 
 from core.infra.project_context import ProjectContext
 
@@ -10,36 +10,46 @@ from core.modules.data_source.core.data_class.config import DataSourceConfig
 from core.modules.data_source.core.data_class.handler_mapping import HandlerMapping
 from core.modules.data_source.core.service.date_range.date_range_service import needs_renew_work
 from core.modules.data_manager import DataManager
-from core.modules.data_source.core.service.renew.renew_common_helper import RenewCommonHelper
 
 
-def _format_yyyy_mm_dd(value: str) -> str:
-    raw = str(value or "").strip().replace("-", "")
+def _format_assumed_end_hint(assumed: str) -> str:
+    """YYYYMMDD → 「2025年12月31日」；无法解析则原样返回。"""
+    raw = str(assumed or "").strip()
     if len(raw) == 8 and raw.isdigit():
-        return f"{raw[:4]}-{raw[4:6]}-{raw[6:8]}"
-    return str(value or "").strip()
+        return f"{raw[:4]}年{int(raw[4:6])}月{int(raw[6:8])}日"
+    return raw
 
 
-def _truncation_meta(configured_as_of: str) -> Tuple[bool, str, str]:
-    is_truncated = bool(configured_as_of)
-    hint = ""
-    settings_path = ""
-    if is_truncated:
-        settings_path = "/settings/data"
-        hint = (
-            f"data.json 已将数据截至日期截断为 {_format_yyyy_mm_dd(configured_as_of)}"
-            f"（as_of_latest_completed_trading_date）。"
-            "更新状态按该截至日评估，而非实时市场最新交易日。"
-        )
-    return is_truncated, hint, settings_path
+def _demo_truncation_meta() -> Tuple[bool, str, str]:
+    """演示档会员提示：看 ``sync_access==demo``（官网演示包），不是扫描「演示模式」。
+
+    截止日取 ``assumed_latest_completed_trading_date``，本地不硬编码。
+    自建数据源且会员档不是 demo 时不会触发。
+    """
+    try:
+        from core.modules.ntq_external.member_profile import member_profile
+
+        profile = member_profile()
+    except Exception:
+        return False, "", ""
+    if profile.get("sync_access") != "demo":
+        return False, "", ""
+    assumed = ProjectContext.config.get_assumed_latest_completed_trading_date() or ""
+    label = _format_assumed_end_hint(assumed)
+    hint = (
+        f"官网演示数据截止{label}。"
+        if label
+        else "您当前为官网演示数据档，区间由会员档位决定。"
+    )
+    return True, hint, "/settings/membership"
 
 
 def get_data_end_meta_light() -> Dict[str, Any]:
-    """``data.json`` truncation only — no DB / calendar lookup (fast list)."""
-    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
-    is_truncated, hint, settings_path = _truncation_meta(configured_as_of)
+    """假定最新日展示 + 演示档提示；不做日历/DB 查询（快列）。"""
+    assumed = ProjectContext.config.get_assumed_latest_completed_trading_date()
+    is_truncated, hint, settings_path = _demo_truncation_meta()
     return {
-        "configured_as_of": configured_as_of,
+        "assumed_latest_completed_trading_date": assumed,
         "effective_end_date": None,
         "is_end_date_truncated": is_truncated,
         "truncation_hint": hint,
@@ -48,37 +58,20 @@ def get_data_end_meta_light() -> Dict[str, Any]:
 
 
 def _resolve_freshness_end_date(data_manager) -> str:
-    """
-    Effective renew/freshness end date.
+    """计划和“是否还要更新”共用的截止数据日（日历；不按本地会员窗裁）。"""
+    from core.modules.data_source.core.service.renew_progress import resolve_uptodate_day
 
-    When ``data.json`` sets ``as_of_latest_completed_trading_date``, align to the last
-    open trading day on or before that date (via ``sys_trade_calendar``). Raw as-of can
-    fall on a non-trading day (e.g. 20260101), which would otherwise mark caught-up DB
-    rows as stale.
-    """
-    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
-    if configured_as_of:
-        if data_manager and getattr(data_manager, "service", None):
-            try:
-                derived = data_manager.service.calendar._derive_completed_from_trade_calendar(
-                    as_of_date=configured_as_of
-                )
-                if derived:
-                    return derived
-            except Exception:
-                pass
-        return str(configured_as_of).strip()
-    return RenewCommonHelper.resolve_latest_completed_trading_date(data_manager)
+    return resolve_uptodate_day(data_manager)
 
 
 def get_data_end_meta(data_manager) -> Dict[str, Any]:
-    """Summarize effective data end date and ``data.json`` truncation."""
-    configured_as_of = ProjectContext.config.get_as_of_latest_completed_trading_date()
+    """Summarize renew effective end date；assumed 仅作计算侧展示。"""
+    assumed = ProjectContext.config.get_assumed_latest_completed_trading_date()
     effective_end = _resolve_freshness_end_date(data_manager)
-    is_truncated, hint, settings_path = _truncation_meta(configured_as_of)
+    is_truncated, hint, settings_path = _demo_truncation_meta()
 
     return {
-        "configured_as_of": configured_as_of,
+        "assumed_latest_completed_trading_date": assumed,
         "effective_end_date": effective_end or None,
         "is_end_date_truncated": is_truncated,
         "truncation_hint": hint,
@@ -107,6 +100,11 @@ def _build_freshness_context(
         elif dep == "index_list":
             try:
                 dependencies[dep] = data_manager.index.load_list(sync_from_config=False)
+            except Exception:
+                dependencies[dep] = []
+        elif dep == "sw_industry":
+            try:
+                dependencies[dep] = data_manager.sw.load_quote_list() or []
             except Exception:
                 dependencies[dep] = []
 
@@ -141,12 +139,7 @@ def evaluate_update_status(
             data_manager=data_manager,
         )
         if needs_renew_work(context, source_key=source_key):
-            hint = ""
-            if ProjectContext.config.get_as_of_latest_completed_trading_date():
-                _, truncation_hint, _ = _truncation_meta(
-                    ProjectContext.config.get_as_of_latest_completed_trading_date()
-                )
-                hint = truncation_hint
+            _, hint, _ = _demo_truncation_meta()
             return "needs_update", "需要更新", hint
         return "up_to_date", "已经更新", ""
     except Exception:

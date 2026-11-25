@@ -1,0 +1,161 @@
+.ntq-tag {
+  --ntq-tag-accent: var(--ntq-white-75);
+  --ntq-tag-fg: var(--ntq-text);
+
+  display: inline-flex;
+  align-items: center;
+  gap: var(--ntq-space-xxs);
+  max-width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  vertical-align: middle;
+  border-radius: var(--ntq-radius-sm);
+  border: 1px solid transparent;
+  font-weight: var(--ntq-font-weight-medium);
+  // 收紧行高，避免 CJK 字盒偏高造成「上松下紧」的错觉
+  line-height: 1;
+  color: var(--ntq-tag-fg);
+  white-space: nowrap;
+}
+
+.ntq-tag--with-tooltip {
+  cursor: help;
+}
+
+/* 多 Tag 间距：勿用相邻 margin（flex 换行时下一行首枚会被顶歪）。父级用 gap ≥ 0.5rem。 */
+
+.ntq-tag--sm {
+  min-height: 1.375rem; // 22px
+  // 光学居中：底略多 1px，抵消汉字重心偏下
+  padding: 0.0625rem 0.625rem 0.125rem; // 1px 10px 2px
+  font-size: 0.6875rem; // 11px（标签专用，略小于 font-xs）
+}
+
+.ntq-tag--md {
+  min-height: 1.625rem; // 26px
+  padding: 0.125rem 0.75rem 0.1875rem; // 2px 12px 3px
+  font-size: var(--ntq-font-xs); // 12px
+}
+
+// --- 形态 ---
+.ntq-tag--soft {
+  border-color: color-mix(in srgb, var(--ntq-tag-accent) 35%, transparent);
+  background: color-mix(in srgb, var(--ntq-tag-accent) 14%, transparent);
+  backdrop-filter: blur(var(--ntq-blur-sm));
+  -webkit-backdrop-filter: blur(var(--ntq-blur-sm));
+}
+
+.ntq-tag--outline {
+  border-color: color-mix(in srgb, var(--ntq-tag-accent) 45%, transparent);
+  background: transparent;
+}
+
+// 实心：border 与背景同色（不透明 accent）；字色在 status 规则后统一压回 on-solid
+.ntq-tag--solid {
+  --ntq-tag-on-solid: var(--ntq-ink);
+  border-color: var(--ntq-tag-accent);
+  background: var(--ntq-tag-accent);
+
+  .ntq-tag__icon {
+    color: inherit;
+  }
+
+  .ntq-tag__delete {
+    color: inherit;
+
+    &:hover {
+      color: inherit;
+      background: rgba(0, 0, 0, 0.14);
+    }
+  }
+}
+
+// --- 色调 ---
+.ntq-tag--success,
+.ntq-tag--green {
+  --ntq-tag-accent: var(--ntq-green);
+}
+
+.ntq-tag--error {
+  --ntq-tag-accent: var(--ntq-error);
+}
+
+.ntq-tag--warning {
+  --ntq-tag-accent: var(--ntq-warning);
+}
+
+.ntq-tag--info,
+.ntq-tag--cyan {
+  --ntq-tag-accent: var(--ntq-cyan);
+}
+
+.ntq-tag--violet {
+  --ntq-tag-accent: var(--ntq-violet);
+}
+
+.ntq-tag--neutral,
+.ntq-tag--muted {
+  --ntq-tag-accent: var(--ntq-white-45);
+  --ntq-tag-fg: var(--ntq-text-muted);
+}
+
+// 深色实心底用浅色字
+.ntq-tag--solid.ntq-tag--error,
+.ntq-tag--solid.ntq-tag--violet {
+  --ntq-tag-on-solid: var(--ntq-white-98);
+}
+
+.ntq-tag--solid.ntq-tag--neutral,
+.ntq-tag--solid.ntq-tag--muted {
+  --ntq-tag-accent: var(--ntq-white-75);
+  --ntq-tag-on-solid: var(--ntq-ink);
+}
+
+// solid 的字色必须压过 status（尤其 neutral 的 muted），否则浅字叠浅底会糊成一团
+.ntq-tag--solid {
+  --ntq-tag-fg: var(--ntq-tag-on-solid);
+  color: var(--ntq-tag-fg);
+}
+
+.ntq-tag__icon {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  line-height: 0;
+  color: var(--ntq-tag-accent);
+}
+
+.ntq-tag__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.ntq-tag__delete {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  margin-left: var(--ntq-space-xxs);
+  margin-right: -0.25rem;
+  padding: 0;
+  border: none;
+  border-radius: var(--ntq-radius-sm);
+  background: transparent;
+  color: var(--ntq-text-muted);
+  cursor: pointer;
+  line-height: 0;
+  transition: var(--ui-transition-colors);
+
+  &:hover {
+    color: var(--ntq-text);
+    background: var(--ntq-white-06);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--ntq-cyan);
+    outline-offset: 1px;
+  }
+}

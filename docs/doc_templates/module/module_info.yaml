@@ -8,6 +8,9 @@ name: <namespace.module_name> # 目录约定：core/modules/x → modules.x；co
 version: "<MAJOR.MINOR.PATCH>" # 须与 changelog[0].version 一致
 compatible_core_versions: ">=<core.min>" # 例：">=0.4.0"
 description: "<模块一句话简述>"
+# 站点文档（可选；Drupal title / display title）
+site_title: ""
+site_display_title: ""
 dependencies:
   - <dep.namespace.name> # 无则写 []
 changelog:

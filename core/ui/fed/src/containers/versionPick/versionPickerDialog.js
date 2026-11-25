@@ -1,20 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import {
-  Box,
-  Button,
-  Dialog,
-  DialogActions,
-  DialogContent,
-  DialogTitle,
-  List,
-  ListItem,
-  ListItemButton,
-  ListItemText,
-  Pagination,
-  Stack,
-  TextField,
-  Typography,
-} from '@mui/material';
+import { Button, Dialog, TextField } from 'ui';
 import VersionPickLabel from './versionPickLabel';
 import { versionPickSearchText } from './versionPickMarks';
 import { formatVersionPickTime } from 'service/format/formatDateTime';
@@ -81,81 +66,108 @@ function VersionPickerDialog({
     if (closeOnSelect) onClose?.();
   };
 
+  const dialogTitle = (
+    <div className="ntq-version-picker-dialog__title">
+      <span className="ntq-version-picker-dialog__title-main">{title}</span>
+      {titleExtra || null}
+    </div>
+  );
+
   return (
-    <Dialog open={open} onClose={onClose} maxWidth="sm" fullWidth sx={dialogSx}>
-      <DialogTitle sx={{ pr: 3 }}>
-        <Stack direction="row" alignItems="baseline" justifyContent="space-between" spacing={2}>
-          <Box component="span" sx={{ flexShrink: 0 }}>{title}</Box>
-          {titleExtra || null}
-        </Stack>
-      </DialogTitle>
-      <DialogContent dividers>
-        <Stack spacing={1}>
-          <TextField
-            size="small"
-            fullWidth
-            placeholder="搜索版本 ID、时间或标记"
-            value={search}
-            onChange={(event) => {
-              setSearch(event.target.value);
-              setPage(1);
-            }}
-          />
-          <Typography variant="caption" color="text.secondary">
-            {pool.length > 0
-              ? `共 ${filtered.length} 条${filtered.length !== pool.length ? `（已筛选，全部 ${pool.length} 条）` : ''}`
-              : emptyHint}
-          </Typography>
-          <List className="ntq-version-picker-dialog__list">
-            {allowClear ? (
-              <ListItem disablePadding>
-                <ListItemButton selected={!selected} onClick={() => pick('')}>
-                  <ListItemText primary={clearLabel} />
-                </ListItemButton>
-              </ListItem>
-            ) : null}
-            {slice.length > 0 ? slice.map((version) => (
-              <ListItem
-                key={version.id}
-                disablePadding
-                secondaryAction={hasActions ? renderSecondaryAction(version) : null}
+    <Dialog
+      open={open}
+      onClose={onClose}
+      title={dialogTitle}
+      size="sm"
+      sx={dialogSx}
+      actions={(
+        <Button variant="ghost" onClick={onClose}>关闭</Button>
+      )}
+    >
+      <div className="ntq-version-picker-dialog__body">
+        <TextField
+          labelPlacement="none"
+          maxWidth={false}
+          placeholder="搜索版本 ID、时间或标记"
+          value={search}
+          onChange={(event) => {
+            setSearch(event.target.value);
+            setPage(1);
+          }}
+        />
+        <p className="ntq-version-picker-dialog__meta">
+          {pool.length > 0
+            ? `共 ${filtered.length} 条${filtered.length !== pool.length ? `（已筛选，全部 ${pool.length} 条）` : ''}`
+            : emptyHint}
+        </p>
+        <ul className="ntq-version-picker-dialog__list">
+          {allowClear ? (
+            <li className="ntq-version-picker-dialog__item">
+              <button
+                type="button"
+                className={[
+                  'ntq-version-picker-dialog__row',
+                  !selected ? 'is-selected' : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => pick('')}
               >
-                <ListItemButton
-                  selected={version.id === selected}
-                  sx={hasActions ? { pr: 14 } : undefined}
-                  onClick={() => pick(version.id)}
-                >
-                  <ListItemText
-                    primary={<VersionPickLabel version={version} />}
-                    secondary={formatVersionPickTime(version)}
-                  />
-                </ListItemButton>
-              </ListItem>
-            )) : null}
-            {slice.length === 0 && !(allowClear && pool.length === 0) ? (
-              <Box className="ntq-version-picker-dialog__empty">
-                <Typography variant="body2" color="text.secondary">
-                  {pool.length > 0 ? noMatchHint : emptyHint}
-                </Typography>
-              </Box>
-            ) : null}
-          </List>
-          {filtered.length > VERSION_PICKER_PAGE_SIZE ? (
-            <Box className="ntq-version-picker-dialog__pages">
-              <Pagination
-                count={totalPages}
-                page={currentPage}
-                onChange={(_event, nextPage) => setPage(nextPage)}
-                size="small"
-                color="primary"
-              />
-            </Box>
+                <span className="ntq-version-picker-dialog__primary">{clearLabel}</span>
+              </button>
+            </li>
           ) : null}
-        </Stack>
-      </DialogContent>
-      <DialogActions>
-        <Button onClick={onClose}>关闭</Button>
-      </DialogActions>
+          {slice.length > 0 ? slice.map((version) => (
+            <li key={version.id} className="ntq-version-picker-dialog__item">
+              <button
+                type="button"
+                className={[
+                  'ntq-version-picker-dialog__row',
+                  hasActions ? 'has-secondary' : '',
+                  version.id === selected ? 'is-selected' : '',
+                ].filter(Boolean).join(' ')}
+                onClick={() => pick(version.id)}
+              >
+                <span className="ntq-version-picker-dialog__primary">
+                  <VersionPickLabel version={version} />
+                </span>
+                <span className="ntq-version-picker-dialog__secondary">
+                  {formatVersionPickTime(version)}
+                </span>
+              </button>
+              {hasActions ? (
+                <div className="ntq-version-picker-dialog__secondary-action">
+                  {renderSecondaryAction(version)}
+                </div>
+              ) : null}
+            </li>
+          )) : null}
+          {slice.length === 0 && !(allowClear && pool.length === 0) ? (
+            <li className="ntq-version-picker-dialog__empty">
+              <p>{pool.length > 0 ? noMatchHint : emptyHint}</p>
+            </li>
+          ) : null}
+        </ul>
+        {filtered.length > VERSION_PICKER_PAGE_SIZE ? (
+          <div className="ntq-version-picker-dialog__pages">
+            <Button
+              variant="ghost"
+              disabled={currentPage <= 1}
+              onClick={() => setPage((prev) => Math.max(1, prev - 1))}
+            >
+              上一页
+            </Button>
+            <span className="ntq-version-picker-dialog__page-label">
+              {currentPage} / {totalPages}
+            </span>
+            <Button
+              variant="ghost"
+              disabled={currentPage >= totalPages}
+              onClick={() => setPage((prev) => Math.min(totalPages, prev + 1))}
+            >
+              下一页
+            </Button>
+          </div>
+        ) : null}
+      </div>
     </Dialog>
   );
 }

@@ -1,12 +1,12 @@
 import React from 'react';
-import MetricCard from 'views/metricCard';
-import MetricGrid from 'views/metricGrid';
-import { SectionBlock } from 'views/sectionBlock';
+import MetricCard from 'ui/metric/metricCard';
+import MetricGrid from 'ui/metric/metricGrid';
+import ReportBlock from 'ntq-ui/reportBlock';
 import { ENUM_METRIC_TIPS } from '../reportMetricTips';
 import ReportUnavailableHint from '../reportUnavailableHint';
 
 const SINGLE_STOCK_ENUM_SECTION_TIP =
-  '该股在枚举阶段的汇总指标；触发日在上方 K 线图中标注。';
+  '该股在机会盘点阶段的汇总指标；触发日在上方 K 线图中标注。';
 
 function StockEnumDetailReport({ metrics }) {
   const avail = metrics?._availability ?? {};
@@ -21,7 +21,7 @@ function StockEnumDetailReport({ metrics }) {
   }
 
   return (
-    <SectionBlock title="枚举统计" tip={SINGLE_STOCK_ENUM_SECTION_TIP}>
+    <ReportBlock title="机会盘点统计" tip={SINGLE_STOCK_ENUM_SECTION_TIP}>
       <MetricGrid>
         {avail.overview ? (
           <>
@@ -31,7 +31,7 @@ function StockEnumDetailReport({ metrics }) {
               value={`${metrics.totalOpportunities.toLocaleString()} 个`}
             />
             <MetricCard
-              title="机会完成度"
+              title="机会完整度"
               titleTip={ENUM_METRIC_TIPS.completeness}
               value={`${metrics.completedCount.toLocaleString()} / ${metrics.totalOpportunities.toLocaleString()} (${metrics.completedRatio}%)`}
             />
@@ -74,17 +74,17 @@ function StockEnumDetailReport({ metrics }) {
               title="机会分散度"
               titleTip={ENUM_METRIC_TIPS.dispersion}
               value={Number.isFinite(Number(metrics.stdGap))
-                ? `SD ${metrics.stdGap} 天`
+                ? `标准差 ${metrics.stdGap} 天`
                 : '—'}
               hint={[
-                Number.isFinite(Number(metrics.cv)) ? `CV ${metrics.cv}` : null,
+                Number.isFinite(Number(metrics.cv)) ? `变异系数 ${metrics.cv}` : null,
                 (metrics.dispersionConclusion && String(metrics.dispersionConclusion).trim()) || null,
               ].filter(Boolean).join(' · ') || undefined}
             />
           </>
         ) : null}
       </MetricGrid>
-    </SectionBlock>
+    </ReportBlock>
   );
 }
 

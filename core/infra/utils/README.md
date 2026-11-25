@@ -1,40 +1,32 @@
 # Utils（`infra.utils`）
 
-与业务无关的通用工具：日期、类型/DataFrame、CSV/归档 IO、确定性随机、Markdown 模版填充、本机区域。
+**模块：** `infra.utils` · **版本：** `0.2.2`
 
-## 布局
+**最低支持核心版本：** `>=0.5.0`
 
-```text
-core/infra/utils/
-├── utils.py            # Facade Utils
-├── contracts.py
-├── core/
-│   ├── date/           # Utils.date
-│   ├── type_utils.py   # Utils.types
-│   ├── io/             # Utils.io（CsvIo / FileIo）
-│   ├── math/           # Utils.math
-│   ├── markdown/       # Utils.markdown
-│   └── locale/         # Utils.locale
-├── API.md / QUICKSTART.md / glossary.yaml
-├── __test__/           # 仅 test_api.py
-└── docs/
-```
+## 简介
 
-## 快速开始
+和业务无关的通用小工具。日期处理、类型转换、CSV / zip IO、确定性随机、Markdown 模板填充、本机时区——这些东西散在各模块会形成"互相 import"的蛛网，集中一处。
 
-见 [QUICKSTART.md](./QUICKSTART.md)。
+## 适用场景
 
-```python
-from core.infra.utils import Utils
+- 模块里要写 CSV、打包 zip
+- 算交易日偏移、生成确定性 UUID
 
-Utils.date.today()
-Utils.locale.is_china()
-Utils.io.write_dicts_to_csv(path, rows)
-```
+## 模块依赖
 
-配置合并请用 `ProjectContext.config` / `ConfigManager`，不要用本模块替代。
+无硬依赖（运行需 Python 标准库）
+
+## 设计初衷
+
+- **要解决的问题：** 通用小工具集中一处，避免各模块重复实现或互相依赖。
+- **明确不做：** 不做业务工具（回测指标、因子计算等）；不做第三方库的薄代理（pandas、numpy 直接 import）。
 
 ## 相关文档
 
-- [API.md](./API.md)
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md)
+- [用户指南](./docs/USER_GUIDE.md)
+- [公开 API](./API.md)
+- [架构](./docs/ARCHITECTURE.md)
+- [术语表](./glossary.yaml)
+- [快速开始](./QUICKSTART.md)
+- [决策](./docs/DECISIONS.md)

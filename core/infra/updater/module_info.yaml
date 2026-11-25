@@ -3,6 +3,9 @@ version: 0.1.0
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "应用升级：编排源码、数据迁移脚本注册表、post-upgrade 收尾、同步 userspace updater。"
+# 站点文档（可选；Drupal title / display title）
+site_title: "升级模块 (Updater)"
+site_display_title: "自动升级 - Updater 模块"
 dependencies:
   - infra.utils
 changelog:

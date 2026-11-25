@@ -14,11 +14,11 @@ pytestmark = pytest.mark.force_run
 def test_index_sql_is_unique_per_table():
     manager = SchemaManager(database_type="duckdb")
     sql = manager.generate_create_index_sql(
-        "sys_money_supply",
+        "sys_data_money_supply",
         {"name": "idx_date", "fields": ["date"], "unique": True},
     )
-    assert '"sys_money_supply__idx_date"' in sql
-    assert 'ON "sys_money_supply"' in sql
+    assert '"sys_data_money_supply__idx_date"' in sql
+    assert 'ON "sys_data_money_supply"' in sql
 
 
 def test_parse_duckdb_index_expressions():
@@ -62,7 +62,7 @@ def test_same_index_name_is_created_on_each_table(tmp_path):
         yield Wrapper()
 
     manager = SchemaManager(database_type="duckdb")
-    for table in ("sys_cpi", "sys_money_supply"):
+    for table in ("sys_data_cpi", "sys_data_money_supply"):
         manager.create_table(
             {
                 "name": table,
@@ -78,20 +78,20 @@ def test_same_index_name_is_created_on_each_table(tmp_path):
 
     rows = con.execute(
         "SELECT table_name, index_name FROM duckdb_indexes() "
-        "WHERE table_name IN ('sys_cpi', 'sys_money_supply') ORDER BY 1"
+        "WHERE table_name IN ('sys_data_cpi', 'sys_data_money_supply') ORDER BY 1"
     ).fetchall()
     con.close()
     assert rows == [
-        ("sys_cpi", "sys_cpi__idx_date"),
-        ("sys_money_supply", "sys_money_supply__idx_date"),
+        ("sys_data_cpi", "sys_data_cpi__idx_date"),
+        ("sys_data_money_supply", "sys_data_money_supply__idx_date"),
     ]
 
 
 def test_existing_column_coverage_is_not_duplicated(tmp_path):
     db_path = tmp_path / "covered.duckdb"
     con = duckdb.connect(str(db_path))
-    con.execute('CREATE TABLE sys_areas (id INTEGER PRIMARY KEY, value VARCHAR, is_alive INTEGER)')
-    con.execute('CREATE UNIQUE INDEX idx_value ON sys_areas("value")')
+    con.execute('CREATE TABLE sys_data_areas (id INTEGER PRIMARY KEY, value VARCHAR, is_alive INTEGER)')
+    con.execute('CREATE UNIQUE INDEX idx_value ON sys_data_areas("value")')
 
     class Wrapper:
         def execute(self, query, params=None):
@@ -118,7 +118,7 @@ def test_existing_column_coverage_is_not_duplicated(tmp_path):
 
     SchemaManager(database_type="duckdb").create_table(
         {
-            "name": "sys_areas",
+            "name": "sys_data_areas",
             "primaryKey": "id",
             "fields": [
                 {"name": "id", "type": "int", "nullable": False},
@@ -133,9 +133,9 @@ def test_existing_column_coverage_is_not_duplicated(tmp_path):
         factory,
     )
     rows = con.execute(
-        "SELECT index_name FROM duckdb_indexes() WHERE table_name = 'sys_areas' ORDER BY 1"
+        "SELECT index_name FROM duckdb_indexes() WHERE table_name = 'sys_data_areas' ORDER BY 1"
     ).fetchall()
     con.close()
     assert ("idx_value",) in rows
-    assert ("sys_areas__idx_value",) not in rows
-    assert ("sys_areas__idx_is_alive",) in rows
+    assert ("sys_data_areas__idx_value",) not in rows
+    assert ("sys_data_areas__idx_is_alive",) in rows

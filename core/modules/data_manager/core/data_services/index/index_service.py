@@ -31,8 +31,8 @@ class IndexService(BaseDataService):
         super().__init__(data_manager)
         
         # 获取相关 Model - 私有属性，不对外暴露
-        self._stock_index_indicator = data_manager.get_table("sys_index_klines")
-        self._stock_index_indicator_weight = data_manager.get_table("sys_index_weight")
+        self._stock_index_indicator = data_manager.get_table("sys_data_index_klines")
+        self._stock_index_indicator_weight = data_manager.get_table("sys_data_index_weight")
         
         # 获取 DatabaseManager 用于复杂 SQL 查询
         from core.infra.db.contracts import DatabaseManager
@@ -42,7 +42,7 @@ class IndexService(BaseDataService):
 
     def sync_list_from_config(self) -> int:
         """
-        将 data.json 中的 benchmark_stock_index_list upsert 到 sys_index_list。
+        将 data.json 中的 benchmark_stock_index_list upsert 到 sys_data_index_list。
 
         配置为权威来源；表供 DataManager / DataContract 查询。
         """
@@ -64,20 +64,20 @@ class IndexService(BaseDataService):
                     "type": item.get("type") or "stock",
                 }
             )
-        index_list_model = self.data_manager.get_table("sys_index_list")
+        index_list_model = self.data_manager.get_table("sys_data_index_list")
         if not index_list_model:
-            logger.warning("sys_index_list 未注册，跳过指数列表同步")
+            logger.warning("sys_data_index_list 未注册，跳过指数列表同步")
             return 0
         if not records:
             logger.warning("benchmark_stock_index_list 为空，跳过指数列表同步")
             return 0
         affected = index_list_model.save_records(records)
-        logger.info("sys_index_list 已从配置同步 %s 条（upsert）", affected)
+        logger.info("sys_data_index_list 已从配置同步 %s 条（upsert）", affected)
         return affected
 
     def load_list(self, order_by: str = "id", *, sync_from_config: bool = True) -> List[Dict[str, Any]]:
         """
-        加载指数列表（sys_index_list）。
+        加载指数列表（sys_data_index_list）。
 
         Args:
             order_by: 排序字段，默认 id
@@ -88,7 +88,7 @@ class IndexService(BaseDataService):
         """
         if sync_from_config:
             self.sync_list_from_config()
-        index_list_model = self.data_manager.get_table("sys_index_list")
+        index_list_model = self.data_manager.get_table("sys_data_index_list")
         if not index_list_model:
             return []
         return index_list_model.load("1=1", order_by=f"{order_by} ASC") or []

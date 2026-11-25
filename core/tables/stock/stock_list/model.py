@@ -1,5 +1,5 @@
 """
-sys_stock_list 表 Model
+sys_data_stock_list 表 Model
 """
 from typing import List, Dict, Any, Optional
 from core.infra.db.contracts import DbBaseModel
@@ -8,7 +8,7 @@ from core.tables.stock.stock_list.schema import schema as _schema
 
 
 class DataStockListModel(DbBaseModel):
-    """股票列表表 Model（表名 sys_stock_list）"""
+    """股票列表表 Model（表名 sys_data_stock_list）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

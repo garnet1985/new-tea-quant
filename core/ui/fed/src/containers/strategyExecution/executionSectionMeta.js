@@ -6,7 +6,7 @@ export const EXECUTION_PANEL_TOOLTIP =
   '使用左边的参数和设置来执行三层回测';
 
 export const EXEC_STEP_ENUM_TOOLTIP =
-  '枚举机会：在当前策略与样本范围内，列出历史上所有满足条件的交易机会，用于衡量策略发现机会的能力。';
+  '机会盘点：在当前策略与样本范围内，列出历史上所有满足条件的交易机会，用于衡量策略发现机会的能力。';
 
 export const EXEC_STEP_PRICE_TOOLTIP =
   '价格回测：对历史样本中的每笔机会按单股买卖规则回测，衡量价格波动带来的盈亏，用于初步评估策略对个股的整体盈利能力。';

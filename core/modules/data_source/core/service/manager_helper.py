@@ -8,6 +8,7 @@ import logging
 
 from core.infra.project_context import ProjectContext
 from core.modules.data_source.core.base_class.base_handler import BaseHandler
+from core.modules.data_source.core.hooks.base import DataSourceHooks
 from core.modules.data_source.core.base_class.base_provider import BaseProvider
 from core.modules.data_source.core.data_class.config import DataSourceConfig
 
@@ -74,23 +75,23 @@ class DataSourceManagerHelper:
     @staticmethod
     def load_config_from_py(config_path: Path) -> Dict[str, Any]:
         """
-        从 handler 目录的 config.py 加载配置。
+        从 handler 目录的 settings.py 加载配置。
 
-        约定：config.py 中必须定义 CONFIG 字典，框架原样使用，不解析 extra 等。
+        约定：settings.py 中必须定义 settings 字典，框架原样使用。
         """
         if not config_path.exists() or not config_path.suffix == ".py":
             return None
         try:
-            spec = importlib.util.spec_from_file_location("handler_config", config_path)
+            spec = importlib.util.spec_from_file_location("handler_settings", config_path)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
-            config = getattr(mod, "CONFIG", None)
+            config = getattr(mod, "settings", None)
             if not isinstance(config, dict):
-                logger.warning(f"config.py 中 CONFIG 必须是 dict，当前: {type(config)}，路径: {config_path}")
+                logger.warning(f"settings.py 中 settings 必须是 dict，当前: {type(config)}，路径: {config_path}")
                 return None
             return {k: v for k, v in config.items() if not (isinstance(k, str) and k.startswith("_"))}
         except Exception as e:
-            logger.warning(f"加载 config.py 失败 {config_path}: {e}")
+            logger.warning(f"加载 settings.py 失败 {config_path}: {e}")
             return None
 
     @staticmethod
@@ -184,7 +185,7 @@ class DataSourceManagerHelper:
             return False
         if not isinstance(handler_cls, type):
             return False
-        if not issubclass(handler_cls, BaseHandler):
+        if not issubclass(handler_cls, DataSourceHooks) or handler_cls is DataSourceHooks:
             return False
         return True
 
@@ -205,14 +206,15 @@ class DataSourceManagerHelper:
         if depend_on_data_source_names is None:
             depend_on_data_source_names = []
         try:
-            handler_instance = handler_cls(
+            hooks = handler_cls()
+            return BaseHandler(
                 data_source_key=data_source_key,
                 schema=schema,
                 config=config,
                 providers=providers,
-                depend_on_data_source_names=depend_on_data_source_names
+                depend_on_data_source_names=depend_on_data_source_names,
+                hooks=hooks,
             )
-            return handler_instance
         except TypeError as e:
             raise ValueError(f"创建 Handler 实例失败: {e}")
         

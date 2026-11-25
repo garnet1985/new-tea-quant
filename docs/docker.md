@@ -19,7 +19,7 @@ docker compose up -d --build
 数据库就绪后，首次建议在应用容器内跑 CLI 安装：
 
 ```bash
-docker compose --profile ntq run --rm ntq python install.py
+docker compose --profile ntq run --rm ntq python install.py --accept-license
 ```
 
 查看用户 CLI：

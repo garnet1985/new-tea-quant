@@ -6,21 +6,22 @@ from unittest.mock import MagicMock
 import pytest
 
 from core.modules.strategy.core.enums import SimulateKind
-from core.modules.strategy.core.services.progress import (
-    PipelineProgress,
-    ProgressRecorder,
-)
+from core.modules.strategy.core.services.progress import PipelineProgress
 from core.modules.strategy.core.strategy import Strategy
 import core.modules.strategy.core.strategy as strategy_mod
 
 pytestmark = pytest.mark.force_run
 
 
-def _patch_recorder(tmp_path, monkeypatch):
-    def _build(channel, file_key):
-        return tmp_path / "progress" / channel / f"{file_key}.json"
+@pytest.fixture(autouse=True)
+def progress_dir(tmp_path, monkeypatch):
+    monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "progress"))
+    monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
+    from core.infra.progress.core import store
 
-    monkeypatch.setattr(ProgressRecorder, "build_path", staticmethod(_build))
+    store.reset()
+    yield tmp_path
+    store.reset()
 
 
 class _FakePipeline:
@@ -38,7 +39,6 @@ class _FakePipeline:
 
 
 def test_run_steps_completes_report_after_pipeline(tmp_path, monkeypatch):
-    _patch_recorder(tmp_path, monkeypatch)
     monkeypatch.setattr(
         strategy_mod.BackTestPipelines,
         "__class_getitem__",

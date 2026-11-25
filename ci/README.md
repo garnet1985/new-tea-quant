@@ -4,12 +4,13 @@
 
 | 脚本 | Workflow | 作用 |
 |------|----------|------|
-| [`smoke_fresh_install.py`](./smoke_fresh_install.py) | `.github/workflows/ci.yml` → `smoke-fresh-install` | 模拟源码 zip 冷启动：`install.py` → `cli.py se` |
+| [`smoke_fresh_install.py`](./smoke_fresh_install.py) | `.github/workflows/ci.yml` → `smoke-fresh-install` | 模拟源码 zip 冷启动：`install.py` → 解析首个已启用策略 → `cli.py se` |
 
 本地复现（在已解压的项目根）::
 
 ```bash
 python ci/smoke_fresh_install.py
+python ci/smoke_fresh_install.py --strategy dual_ma   # 可选：写死策略
 ```
 
 与下列区分：

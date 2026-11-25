@@ -43,6 +43,15 @@ def _run(cmd: list[str], *, cwd: Path, label: str) -> int:
     return int(proc.returncode)
 
 
+def _json_from_cli_stdout(text: str) -> object:
+    """``cli.py`` 常先打横幅，再打 JSON；取出首尾花括号之间的对象。"""
+    start = text.find("{")
+    end = text.rfind("}")
+    if start < 0 or end < start:
+        raise json.JSONDecodeError("no JSON object in CLI output", text, 0)
+    return json.loads(text[start : end + 1])
+
+
 def _first_strategy_key(cli_py: Path, root: Path) -> str | None:
     """安装后解析第一个可用策略 key（优先 is_enabled）。"""
     cmd = [str(cli_py), "cli.py", "list", "strategies", "--json"]
@@ -62,9 +71,14 @@ def _first_strategy_key(cli_py: Path, root: Path) -> str | None:
         )
         return None
     try:
-        payload = json.loads(proc.stdout or "{}")
+        payload = _json_from_cli_stdout(proc.stdout or "")
     except json.JSONDecodeError as exc:
-        print(f"[smoke] {i('error')} 策略列表 JSON 无法解析: {exc}", flush=True)
+        preview = (proc.stdout or proc.stderr or "")[:240].replace("\n", "\\n")
+        print(
+            f"[smoke] {i('error')} 策略列表 JSON 无法解析: {exc}"
+            + (f" | stdout={preview!r}" if preview else ""),
+            flush=True,
+        )
         return None
     rows = payload.get("strategies") if isinstance(payload, dict) else None
     if not isinstance(rows, list):

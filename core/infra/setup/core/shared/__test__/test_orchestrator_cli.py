@@ -92,6 +92,11 @@ def test_ensure_cli_install_passes_if_needed(monkeypatch: pytest.MonkeyPatch) ->
     assert recorded["cmd"][-2:] == [str(cr.REPO_ROOT / "install.py"), "--if-needed"]
 
 
+def _patch_install_entry_license(monkeypatch: pytest.MonkeyPatch, mod) -> None:
+    """单元测试不测条款交互；无 TTY 时 ensure_accepted 会直接失败。"""
+    monkeypatch.setattr(mod.Setup.license, "ensure_accepted", lambda **_k: True)
+
+
 def test_install_py_default_runs_even_when_ready(monkeypatch: pytest.MonkeyPatch) -> None:
     import importlib.util
 
@@ -105,6 +110,7 @@ def test_install_py_default_runs_even_when_ready(monkeypatch: pytest.MonkeyPatch
     monkeypatch.setattr(mod.Setup.env, "to_root_dir", lambda: None)
     monkeypatch.setattr(mod.Setup.env, "ensure_venv", lambda **_k: None)
     monkeypatch.setattr(mod.Setup.runtime, "needs_install", lambda _profile: False)
+    _patch_install_entry_license(monkeypatch, mod)
     called: list = []
     monkeypatch.setattr(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
@@ -305,6 +311,7 @@ def test_if_needed_deps_only_does_not_request_full_install(
     monkeypatch.setattr(mod.Setup.env, "ensure_venv", lambda **_k: None)
     monkeypatch.setattr(mod.Setup.runtime, "needs_install", lambda _profile: True)
     monkeypatch.setattr(mod.Setup.runtime, "cli_install_scope", lambda: "deps_only")
+    _patch_install_entry_license(monkeypatch, mod)
     called: list = []
     monkeypatch.setattr(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
@@ -327,6 +334,7 @@ def test_if_needed_full_imports_demo_by_default(monkeypatch: pytest.MonkeyPatch)
     monkeypatch.setattr(mod.Setup.env, "ensure_venv", lambda **_k: None)
     monkeypatch.setattr(mod.Setup.runtime, "needs_install", lambda _profile: True)
     monkeypatch.setattr(mod.Setup.runtime, "cli_install_scope", lambda: "full")
+    _patch_install_entry_license(monkeypatch, mod)
     called: list = []
     monkeypatch.setattr(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
@@ -347,6 +355,7 @@ def test_default_install_imports_demo(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(mod.Setup.env, "to_root_dir", lambda: None)
     monkeypatch.setattr(mod.Setup.env, "ensure_venv", lambda **_k: None)
+    _patch_install_entry_license(monkeypatch, mod)
     called: list = []
     monkeypatch.setattr(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)
@@ -367,6 +376,7 @@ def test_skip_demo_data_flag(monkeypatch: pytest.MonkeyPatch) -> None:
 
     monkeypatch.setattr(mod.Setup.env, "to_root_dir", lambda: None)
     monkeypatch.setattr(mod.Setup.env, "ensure_venv", lambda **_k: None)
+    _patch_install_entry_license(monkeypatch, mod)
     called: list = []
     monkeypatch.setattr(
         mod.Setup.runtime, "install_cli", lambda **kwargs: called.append(kwargs)

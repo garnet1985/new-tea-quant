@@ -199,9 +199,27 @@ class TestTagSettings:
         assert ts.data.tag_time_axis_based_on == ""
 
     def test_demo_market_cap_tier_settings(self):
-        from userspace.extensions.tags.demo.market_cap_tier.settings import (
-            settings as demo_settings,
+        import importlib.util
+        from pathlib import Path
+
+        from core.infra.setup.core.shared.install_runtime import REPO_ROOT
+
+        relative = Path("extensions/tags/demo/market_cap_tier/settings.py")
+        candidates = [
+            REPO_ROOT / "userspace" / relative,
+            REPO_ROOT
+            / "core/infra/setup/core/steps/init_userspace/assets/userspace"
+            / relative,
+        ]
+        settings_path = next((path for path in candidates if path.is_file()), None)
+        assert settings_path is not None, "demo/market_cap_tier settings.py not found"
+        spec = importlib.util.spec_from_file_location(
+            "demo_market_cap_tier_settings", settings_path
         )
+        assert spec is not None and spec.loader is not None
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        demo_settings = module.settings
 
         ts = TagSettings.from_dict(demo_settings, tag_key="demo/market_cap_tier")
         report = ts.validate()

@@ -16,10 +16,16 @@ pytestmark = pytest.mark.force_run
 class TestDbApi(unittest.TestCase):
     def test_facade_exported_only(self) -> None:
         import core.infra.db as pkg
-        from core.infra.db import Db
+        from core.infra.db import Db, DatabaseManager, DbBaseModel, Field
 
-        self.assertEqual(pkg.__all__, ["Db"])
-        self.assertFalse(hasattr(pkg, "DatabaseManager"))
+        # Db 为主门面；DbBaseModel / Field / DatabaseManager 为 userspace 短导入兼容再导出
+        self.assertEqual(
+            pkg.__all__, ["Db", "DbBaseModel", "Field", "DatabaseManager"]
+        )
+        self.assertIs(pkg.Db, Db)
+        self.assertIs(pkg.DbBaseModel, DbBaseModel)
+        self.assertIs(pkg.Field, Field)
+        self.assertIs(pkg.DatabaseManager, DatabaseManager)
         self.assertFalse(hasattr(pkg, "create_engine"))
         self.assertFalse(hasattr(pkg, "build_engine_meta"))
         for name in ("manager", "migration", "engine", "duckdb", "sql", "rows"):

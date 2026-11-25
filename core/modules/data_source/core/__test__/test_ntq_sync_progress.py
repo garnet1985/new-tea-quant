@@ -139,13 +139,13 @@ def test_busy_slot_is_waited_out_past_a_handful_of_retries(monkeypatch):
     import io
     import json
     import urllib.error
-    import urllib.request
 
+    from userspace.extensions.data_source.providers.ntq import provider as ntq_provider
     from userspace.extensions.data_source.providers.ntq.provider import NtqProvider
 
     calls = {"n": 0}
 
-    def urlopen(request, timeout=None):
+    def urlopen_https(request, timeout=None, **_kwargs):
         calls["n"] += 1
         calls["timeout"] = timeout
         if calls["n"] <= 7:
@@ -166,11 +166,8 @@ def test_busy_slot_is_waited_out_past_a_handful_of_retries(monkeypatch):
         response.headers = {}
         return response
 
-    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
-    monkeypatch.setattr(
-        "userspace.extensions.data_source.providers.ntq.provider.time.sleep",
-        lambda pause: None,
-    )
+    monkeypatch.setattr(ntq_provider, "urlopen_https", urlopen_https)
+    monkeypatch.setattr(ntq_provider.time, "sleep", lambda pause: None)
     provider = NtqProvider({"token": "t", "base_url": "https://example.test"})
     page = provider.sync("sys_data_stock_klines", entity_id="000001.SZ")
     assert page["rows"] == [{"id": "000001.SZ"}]
@@ -235,14 +232,14 @@ def test_blank_numbers_become_null():
 def test_busy_wait_stops_when_the_slot_hold_is_over(monkeypatch):
     import io
     import urllib.error
-    import urllib.request
 
     from core.modules.data_source.core.data_class.error import ProviderError
+    from userspace.extensions.data_source.providers.ntq import provider as ntq_provider
     from userspace.extensions.data_source.providers.ntq.provider import NtqProvider
 
     clock = {"t": 0.0}
 
-    def urlopen(request, timeout=None):
+    def urlopen_https(request, timeout=None, **_kwargs):
         raise urllib.error.HTTPError(
             request.full_url,
             429,
@@ -251,13 +248,11 @@ def test_busy_wait_stops_when_the_slot_hold_is_over(monkeypatch):
             io.BytesIO(b"{}"),
         )
 
-    monkeypatch.setattr(urllib.request, "urlopen", urlopen)
+    monkeypatch.setattr(ntq_provider, "urlopen_https", urlopen_https)
+    monkeypatch.setattr(ntq_provider.time, "monotonic", lambda: clock["t"])
     monkeypatch.setattr(
-        "userspace.extensions.data_source.providers.ntq.provider.time.monotonic",
-        lambda: clock["t"],
-    )
-    monkeypatch.setattr(
-        "userspace.extensions.data_source.providers.ntq.provider.time.sleep",
+        ntq_provider.time,
+        "sleep",
         lambda pause: clock.__setitem__("t", clock["t"] + pause),
     )
     provider = NtqProvider({"token": "t", "base_url": "https://example.test"})

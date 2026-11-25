@@ -34,7 +34,7 @@
 
 | Case | 文件 | 说明 |
 |------|------|------|
-| `test_facade_exported_only` | `test_api.py` | `__all__ == ["Db"]` |
+| `test_facade_exported_only` | `test_api.py` | `__all__` 含 `Db` + 契约短导入再导出；无游离引擎工厂 |
 | `test_manager_namespace` | `test_api.py` | manager |
 | `test_migration_namespace` | `test_api.py` | migration + snapshot path |
 | `test_engine_namespace` | `test_api.py` | engine.build_meta / create |

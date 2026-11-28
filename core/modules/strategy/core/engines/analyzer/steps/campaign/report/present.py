@@ -88,7 +88,7 @@ class CampaignPresenter:
         strategy_key = _strategy_key(report)
 
         CmdLayout.title.print_h1(
-            f"{icon('chart')} {CampaignLabels.report_title(layer)}",
+            f"{icon('bar_chart')} {CampaignLabels.report_title(layer)}",
             stream=out,
         )
         CmdLayout.text.print_kv("策略key", strategy_key or "-", sep="：", stream=out)
@@ -165,7 +165,7 @@ class CampaignPresenter:
         if not rank and not sweeps:
             return
         icon = CmdLayout.icon.get
-        CmdLayout.title.print_h2(f"{icon('chart')} 参数扫描", stream=out)
+        CmdLayout.title.print_h2(f"{icon('bar_chart')} 参数扫描", stream=out)
         primary = str(
             report.get("sweep_primary_outcome")
             or (nested.get("sweep_primary_outcome") if isinstance(nested, dict) else "")

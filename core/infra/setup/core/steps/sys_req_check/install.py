@@ -26,7 +26,7 @@ from core.system import python_minimum
 def main() -> None:
     min_ver = python_minimum()
     step_result = 0
-    step_icon = CmdLayout.icon.i("failed")
+    step_icon = CmdLayout.icon.i("error")
 
     if sys.version_info >= min_ver:
         step_result = 1

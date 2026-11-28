@@ -625,7 +625,7 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
 
-        print(f"{i('chart')} {title}…", flush=True)
+        print(f"{i('bar_chart')} {title}…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         print(f"  层: {layer}", flush=True)
         print("  配置: attribution.py（不进指纹）", flush=True)
@@ -663,7 +663,7 @@ class UserHandlers:
         strategy_key = UserHandlers._resolve_strategy_key(getattr(args, "strategy", None))
         force = bool(getattr(args, "force", False))
 
-        print(f"{i('chart')} 滚动对照…", flush=True)
+        print(f"{i('bar_chart')} 滚动对照…", flush=True)
         print(f"  策略: {strategy_key}", flush=True)
         print("  配置: rolling.py（不进指纹）", flush=True)
         if force:
@@ -1005,7 +1005,7 @@ class UserHandlers:
             raise SystemExit(
                 "用法: cli.py srel KEY | cli.py series_relation --list"
             )
-        print(f"{i('chart')} 序列关系: {key}", flush=True)
+        print(f"{i('bar_chart')} 序列关系: {key}", flush=True)
         result = SeriesRelation.run(key)
         if not result.get("success"):
             raise SystemExit(result.get("error") or "series_relation 失败")

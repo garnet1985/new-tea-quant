@@ -1,6 +1,6 @@
 # 模块元数据
 name: infra.cmd_layout
-version: "0.2.0"
+version: "0.3.0"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "命令行UI模块：给命令行工具提供一套通用的UI组件，方便其他模块展示结果。"
@@ -9,6 +9,11 @@ site_title: "命令行布局 (CMD Layout)"
 site_display_title: "通用命令行的展示组件 - CMD Layout 模块"
 dependencies: []
 changelog:
+  - version: "0.3.0"
+    changes:
+      - 删除兼容入口 title.banner / section 与整个 separator 命名空间
+      - 删除图标别名表；调用方改用正式名（如 bar_chart / error）
+      - display_width 收到 shared/；bar_chart 标签按显示宽度对齐
   - version: "0.2.0"
     changes:
       - 标题层级 h1 / h2 / h3 / h4（总标题 / 大节 / --- 小节 / ### 细节）

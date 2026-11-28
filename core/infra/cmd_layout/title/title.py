@@ -1,17 +1,17 @@
-"""ASCII title layouts for CLI report presentation."""
+"""ASCII 标题块：h1 / h2 / h3 / h4。"""
+
 from __future__ import annotations
 
-import unicodedata
 from typing import Optional, TextIO
 
+from core.infra.cmd_layout.shared.display import display_width
 from core.infra.cmd_layout.shared.stream import StreamWriter
 
 
 class Title:
-    """Render ASCII title blocks for CLI reports."""
+    """终端报告标题层级。"""
 
     DEFAULT_CHAR = "*"
-    DEFAULT_SECTION_CHAR = "-"
     DEFAULT_BANNER_PAD = 16
     DEFAULT_H2_CHAR = "="
     DEFAULT_H2_MIN_WIDTH = 24
@@ -20,17 +20,11 @@ class Title:
 
     @staticmethod
     def display_width(text: str) -> int:
-        """Terminal column width (CJK fullwidth counts as 2)."""
-        width = 0
-        for ch in text:
-            if unicodedata.east_asian_width(ch) in ("F", "W"):
-                width += 2
-            else:
-                width += 1
-        return width
+        """兼容旧调用；实现见 ``shared.display``。"""
+        return display_width(text)
 
     @classmethod
-    def banner(
+    def _star_box(
         cls,
         text: str,
         *,
@@ -39,9 +33,10 @@ class Title:
         center: bool = False,
         pad: Optional[int] = None,
     ) -> str:
+        """星号框主体（供 h1 使用）。"""
         body = str(text)
         rule_char = (char or cls.DEFAULT_CHAR)[:1] or "*"
-        body_width = Title.display_width(body)
+        body_width = display_width(body)
         if width is not None:
             rule_width = max(1, int(width))
         else:
@@ -56,17 +51,6 @@ class Title:
         return f"{rule}\n{body}\n{rule}"
 
     @classmethod
-    def section(
-        cls,
-        text: str,
-        *,
-        char: str = DEFAULT_SECTION_CHAR,
-    ) -> str:
-        rule_char = (char or cls.DEFAULT_SECTION_CHAR)[:1] or "-"
-        body = str(text).strip()
-        return f"{rule_char * 2} {body} {rule_char * 2}"
-
-    @classmethod
     def h1(
         cls,
         text: str,
@@ -76,8 +60,8 @@ class Title:
         center: bool = False,
         pad: Optional[int] = None,
     ) -> str:
-        """Report-level title: blank line, star box, blank line (via print)."""
-        return "\n" + cls.banner(
+        """报告总标题：前空行 + 星号框。"""
+        return "\n" + cls._star_box(
             text, char=char, width=width, center=center, pad=pad
         )
 
@@ -89,10 +73,10 @@ class Title:
         char: str = DEFAULT_H2_CHAR,
         min_width: int = DEFAULT_H2_MIN_WIDTH,
     ) -> str:
-        """Major section: blank line, heading + underline."""
+        """大节：前空行 + 正文 + 等号下划线。"""
         body = str(text).strip()
         rule_char = (char or cls.DEFAULT_H2_CHAR)[:1] or "="
-        rule_width = max(cls.display_width(body), max(1, int(min_width)))
+        rule_width = max(display_width(body), max(1, int(min_width)))
         return f"\n{body}\n{rule_char * rule_width}"
 
     @classmethod
@@ -102,7 +86,7 @@ class Title:
         *,
         char: str = DEFAULT_H3_CHAR,
     ) -> str:
-        """Minor section: blank line + ``--- heading ---``."""
+        """小节：前空行 + ``--- heading ---``。"""
         rule_char = (char or cls.DEFAULT_H3_CHAR)[:1] or "-"
         body = str(text).strip()
         deco = rule_char * 3
@@ -115,37 +99,10 @@ class Title:
         *,
         prefix: str = DEFAULT_H4_PREFIX,
     ) -> str:
-        """Detail heading: blank line + ``### text``."""
+        """细节标题：前空行 + ``### text``。"""
         mark = str(prefix or cls.DEFAULT_H4_PREFIX).strip() or cls.DEFAULT_H4_PREFIX
         body = str(text).strip()
         return f"\n{mark} {body}"
-
-    @classmethod
-    def print_banner(
-        cls,
-        text: str,
-        *,
-        char: str = DEFAULT_CHAR,
-        width: Optional[int] = None,
-        center: bool = False,
-        pad: Optional[int] = None,
-        stream: Optional[TextIO] = None,
-    ) -> str:
-        out = cls.banner(text, char=char, width=width, center=center, pad=pad)
-        StreamWriter.write(out, stream=stream)
-        return out
-
-    @classmethod
-    def print_section(
-        cls,
-        text: str,
-        *,
-        char: str = DEFAULT_SECTION_CHAR,
-        stream: Optional[TextIO] = None,
-    ) -> str:
-        out = cls.section(text, char=char)
-        StreamWriter.write(out, stream=stream)
-        return out
 
     @classmethod
     def print_h1(
@@ -201,26 +158,7 @@ class Title:
 
 
 class TitleNamespace:
-    """CmdLayout.title namespace."""
-
-    @staticmethod
-    def banner(
-        text: str,
-        *,
-        char: str = Title.DEFAULT_CHAR,
-        width: Optional[int] = None,
-        center: bool = False,
-        pad: Optional[int] = None,
-    ) -> str:
-        return Title.banner(text, char=char, width=width, center=center, pad=pad)
-
-    @staticmethod
-    def section(
-        text: str,
-        *,
-        char: str = Title.DEFAULT_SECTION_CHAR,
-    ) -> str:
-        return Title.section(text, char=char)
+    """CmdLayout.title 命名空间。"""
 
     @staticmethod
     def h1(
@@ -257,29 +195,6 @@ class TitleNamespace:
         prefix: str = Title.DEFAULT_H4_PREFIX,
     ) -> str:
         return Title.h4(text, prefix=prefix)
-
-    @staticmethod
-    def print_banner(
-        text: str,
-        *,
-        char: str = Title.DEFAULT_CHAR,
-        width: Optional[int] = None,
-        center: bool = False,
-        pad: Optional[int] = None,
-        stream: Optional[TextIO] = None,
-    ) -> str:
-        return Title.print_banner(
-            text, char=char, width=width, center=center, pad=pad, stream=stream
-        )
-
-    @staticmethod
-    def print_section(
-        text: str,
-        *,
-        char: str = Title.DEFAULT_SECTION_CHAR,
-        stream: Optional[TextIO] = None,
-    ) -> str:
-        return Title.print_section(text, char=char, stream=stream)
 
     @staticmethod
     def print_h1(

@@ -19,19 +19,11 @@ class TestCmdLayoutApi(unittest.TestCase):
         import core.infra.cmd_layout as pkg
 
         self.assertEqual(pkg.__all__, ["CmdLayout", "i"])
-        for name in ("bar_chart", "title", "separator", "table", "text", "icon"):
+        for name in ("bar_chart", "title", "table", "text", "icon"):
             self.assertTrue(hasattr(CmdLayout, name), name)
-
-    def test_title_banner_and_section(self) -> None:
-        from core.infra.cmd_layout import CmdLayout
-
-        banner = CmdLayout.title.banner("这里是标题")
-        lines = banner.splitlines()
-        self.assertEqual(len(lines), 3)
-        self.assertEqual(lines[1], "这里是标题")
-        self.assertTrue(set(lines[0]) <= {"*"})
-        self.assertEqual(lines[0], lines[2])
-        self.assertEqual(CmdLayout.title.section("枚举汇总"), "-- 枚举汇总 --")
+        self.assertFalse(hasattr(CmdLayout, "separator"))
+        self.assertFalse(hasattr(CmdLayout.title, "banner"))
+        self.assertFalse(hasattr(CmdLayout.title, "section"))
 
     def test_title_h1_h2_h3_h4(self) -> None:
         from core.infra.cmd_layout import CmdLayout
@@ -68,13 +60,12 @@ class TestCmdLayoutApi(unittest.TestCase):
         self.assertIn("80.0%", lines[1])
         self.assertIn("20.0%", lines[2])
 
-    def test_separator_line_variants(self) -> None:
+    def test_bar_chart_from_values(self) -> None:
         from core.infra.cmd_layout import CmdLayout
 
-        self.assertEqual(CmdLayout.separator.line(width=8), "-" * 8)
-        self.assertEqual(CmdLayout.separator.thick(width=6), "=" * 6)
-        self.assertEqual(CmdLayout.separator.star(width=4), "*" * 4)
-        self.assertEqual(CmdLayout.separator.blank(), "")
+        text = CmdLayout.bar_chart.from_values([1.0, 1.0, 2.0], bins=2, title="分布")
+        self.assertTrue(text.startswith("分布"))
+        self.assertIn("[", text)
 
     def test_table_render(self) -> None:
         from core.infra.cmd_layout import CmdLayout
@@ -106,15 +97,15 @@ class TestCmdLayoutApi(unittest.TestCase):
 
         with mock.patch.object(IconService, "supports_emoji", return_value=True):
             self.assertEqual(CmdLayout.icon.get("success"), "✅")
-            self.assertEqual(CmdLayout.icon.i("ok"), "✅")
+            self.assertEqual(CmdLayout.icon.i("bar_chart"), "📊")
         with mock.patch.object(IconService, "supports_emoji", return_value=False):
             self.assertEqual(CmdLayout.icon.get("success"), "[OK]")
 
-    def test_print_banner_to_stream(self) -> None:
+    def test_print_h1_to_stream(self) -> None:
         from core.infra.cmd_layout import CmdLayout
 
         buf = io.StringIO()
-        returned = CmdLayout.title.print_banner("T", width=5, stream=buf)
+        returned = CmdLayout.title.print_h1("T", width=5, stream=buf)
         self.assertEqual(buf.getvalue().rstrip("\n"), returned)
         self.assertIn("T", returned)
 

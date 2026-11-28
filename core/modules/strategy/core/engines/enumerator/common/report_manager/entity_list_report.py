@@ -129,7 +129,7 @@ class EntityListReport:
             return
         CmdLayout.bar_chart.print(
             [(row.entity_id, row.opportunities) for row in top],
-            title=f"{icon('chart')} Top 实体",
+            title=f"{icon('bar_chart')} Top 实体",
             width=24,
             stream=out,
         )

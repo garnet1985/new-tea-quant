@@ -308,7 +308,7 @@ class OverallReport:
 
         roi = s.roi
         if roi.roi_percentile_values:
-            CmdLayout.title.print_h2(f"{icon('chart')} ROI 分布", stream=out)
+            CmdLayout.title.print_h2(f"{icon('bar_chart')} ROI 分布", stream=out)
             CmdLayout.text.print_indent(
                 CmdLayout.text.meta(
                     [
@@ -321,7 +321,7 @@ class OverallReport:
                 stream=out,
             )
             # 分位可为负；BarChart 会钳成 0，且占比列对分位无意义 → 用 table 打带符号数值
-            CmdLayout.title.print_h3(f"{icon('chart')} ROI 分位", stream=out)
+            CmdLayout.title.print_h3(f"{icon('bar_chart')} ROI 分位", stream=out)
             labels = list(roi.roi_percentile_labels or [])
             values = list(roi.roi_percentile_values or [])
             CmdLayout.table.print(

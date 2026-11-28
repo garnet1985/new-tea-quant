@@ -8,6 +8,7 @@ import math
 from dataclasses import dataclass
 from typing import List, Mapping, Optional, Sequence, TextIO, Tuple, Union
 
+from core.infra.cmd_layout.shared.display import display_width
 from core.infra.cmd_layout.shared.stream import StreamWriter
 
 BucketInput = Union[
@@ -68,15 +69,19 @@ class BarChart:
 
         max_value = max(b.value for b in parsed)
         total = sum(b.value for b in parsed)
-        label_width = max(len(b.label) for b in parsed)
+        label_width = max(display_width(b.label) for b in parsed)
         count_width = max(len(cls._format_count(b.value)) for b in parsed)
         if headers:
             h_label, h_bar, h_count, h_pct = headers
-            label_width = max(label_width, len(str(h_label or "")))
+            label_width = max(label_width, display_width(str(h_label or "")))
             count_width = max(count_width, len(str(h_count or "")))
             bar_header = str(h_bar or "")
             bar_pad = max(bar_width + 2, len(bar_header))  # +2 for []
-            header_row = f"  {str(h_label or ''):<{label_width}}  {bar_header:<{bar_pad}}"
+            label_h = str(h_label or "")
+            header_row = (
+                f"  {label_h}{' ' * max(0, label_width - display_width(label_h))}"
+                f"  {bar_header:<{bar_pad}}"
+            )
             if show_count:
                 header_row += f"  {str(h_count or ''):>{count_width}}"
             if show_pct:
@@ -95,7 +100,8 @@ class BarChart:
             if headers and headers[1]:
                 bar_pad = max(bar_width + 2, len(str(headers[1])))
                 bar = f"{bar:<{bar_pad}}"
-            row = f"  {bucket.label:<{label_width}}  {bar}"
+            label_pad = max(0, label_width - display_width(bucket.label))
+            row = f"  {bucket.label}{' ' * label_pad}  {bar}"
             if show_count:
                 row += f"  {cls._format_count(bucket.value):>{count_width}}"
             if show_pct:

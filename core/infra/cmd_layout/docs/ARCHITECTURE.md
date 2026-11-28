@@ -1,10 +1,10 @@
 # 命令行布局 — 架构
 
-**模块：** `infra.cmd_layout` · **版本：** `0.2.0`
+**模块：** `infra.cmd_layout` · **版本：** `0.3.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
-为终端报告提供纯文本排版片段：标题层级、分割线、表格、行内文本、图标、水平条形图。对外唯一入口为门面类 `CmdLayout`。词条见 [glossary.yaml](../glossary.yaml)。
+为终端报告提供纯文本排版片段：标题层级、表格、行内文本、图标、水平条形图。对外入口为门面 `CmdLayout`；包根另保留短入口 `i`（图标）。词条见 [glossary.yaml](../glossary.yaml)。
 
 ---
 
@@ -12,16 +12,21 @@
 
 **负责**
 
-- 门面类 `CmdLayout` 与命名空间：`bar_chart` / `title` / `separator` / `table` / `text` / `icon`
+- 门面 `CmdLayout` 命名空间：`bar_chart` / `title` / `table` / `text` / `icon`
 - 生成可打印字符串（及可选直接打印到流）
-- 跨平台默认：条形 / 分割 / 表线用 ASCII；图标按终端能力在 emoji 与 ASCII 间切换
+- 跨平台默认：条形用 ASCII；图标按终端能力在 emoji 与 ASCII 间切换
+- 终端显示宽度（CJK 全角计 2）供标题 / 表 / 条形标签对齐
 
 **不负责**
 
 - 策略报告业务内容与指标计算（调用方组装）
-- GUI / Web 图表组件
+- GUI / Web 图表；进度条产品（见 `infra.progress`）
 - 把内部实现类（`Title`、`BarChart`、`IconService` 等）作为跨模块公开 import 面
-- 进度条产品（无 `progress` 命名空间）
+- 官网业务排版
+
+**有意例外**
+
+- 包根导出 `i`（等价 `CmdLayout.icon.get`），便于 CLI f-string；不另导出其它便捷函数
 
 ---
 
@@ -29,56 +34,43 @@
 
 ```text
 core/infra/cmd_layout/
-├── cmd_layout.py          # 门面类 CmdLayout
-├── __init__.py            # 仅导出 CmdLayout / i
-├── API.md
-├── QUICKSTART.md
-├── glossary.yaml
-├── module_info.yaml
-├── shared/                # StreamWriter 等共用脚手架
-├── bar_chart/
-│   └── __test__/
-├── title/
-│   └── __test__/
-├── separator/
-│   └── __test__/
+├── cmd_layout.py          # 门面 CmdLayout
+├── __init__.py            # 导出 CmdLayout / i
+├── shared/
+│   ├── stream.py          # StreamWriter
+│   └── display.py         # display_width（CJK）
+├── bar_chart/             # 分布 / 直方图（含 from_values 预留）
+├── title/                 # h1–h4
 ├── table/
-│   └── __test__/
 ├── text/
-│   └── __test__/
-├── icon/
-│   └── __test__/
-├── __test__/              # 公开 API（test_api.py）
+├── icon/                  # 正式名图标表（无别名）
+├── __test__/
 └── docs/
-    └── ARCHITECTURE.md
 ```
+
+实现包目前在模块根下（未收入 `core/`）；行为边界以上表为准。
 
 ---
 
 ## 架构图
 
-```text
-调用方（strategy report / setup / …）
-        │
-        ▼
-   CmdLayout（门面 / Facade）
-   ├── bar_chart → 分布 / 直方图字符串
-   ├── title     → h1 / h2 / h3 / h4（及兼容 banner / section）
-   ├── separator → line / thick / star / blank
-   ├── table     → ASCII 对照表
-   ├── text      → meta / kv / indent / numbered / bullets
-   └── icon      → get / i / supports_emoji
-```
-
 ```mermaid
-flowchart LR
-  Caller --> CmdLayout
-  CmdLayout --> BarChart
-  CmdLayout --> Title
-  CmdLayout --> Separator
-  CmdLayout --> Table
-  CmdLayout --> Text
-  CmdLayout --> Icon
+flowchart TB
+  Caller --> Facade[CmdLayout]
+  Caller --> ShortI[i]
+  ShortI --> Icon
+  Facade --> BarChart
+  Facade --> Title
+  Facade --> Table
+  Facade --> Text
+  Facade --> Icon
+  Title --> Display[shared.display]
+  Table --> Display
+  BarChart --> Display
+  Title --> Stream[shared.stream]
+  Table --> Stream
+  Text --> Stream
+  BarChart --> Stream
 ```
 
 ---
@@ -86,10 +78,12 @@ flowchart LR
 ## 数据流（若有）
 
 ```text
-分桶或连续样本 / 标题文本 / 表头行 / 图标名
-  → CmdLayout.<namespace>.*
-  → str（可选 print 到 stdout 或指定 stream）
+分桶或连续样本 / 标题文本 / 表头行 / 图标正式名
+  → CmdLayout.<namespace>.* 或 i(name)
+  → str（可选 print 到 stdout / 指定 stream）
 ```
+
+**直方图预留：** `bar_chart.from_values` 在模块内等宽分桶后走 `render`；生产报告多用已分桶的 `render` / `print`。
 
 ---
 

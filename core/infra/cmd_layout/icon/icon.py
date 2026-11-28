@@ -1,4 +1,5 @@
-"""Cross-platform CLI icons: emoji on UTF-8 terminals, ASCII on Windows GBK."""
+"""跨平台 CLI 图标：UTF-8 终端用 emoji，Windows GBK 用 ASCII。"""
+
 from __future__ import annotations
 
 import logging
@@ -9,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 class IconService:
-    """跨平台图标服务：macOS/Linux 用 emoji，Windows GBK 用 ASCII 文本。"""
+    """跨平台图标：按名称取 emoji 或 ASCII 回退。"""
 
     ICONS: Dict[str, Dict[str, str]] = {
         # 结论类
@@ -67,46 +68,9 @@ class IconService:
         "brown_dot": {"emoji": "🟤", "ascii": "[INFO]"},
     }
 
-    ALIASES: Dict[str, str] = {
-        "information": "info",
-        "exclamation": "warning",
-        "failed": "error",
-        "err": "error",
-        "cross": "error",
-        "check": "success",
-        "pass": "success",
-        "ok": "success",
-        "done": "success",
-        "chart": "bar_chart",
-        "upward_trend": "line_chart",
-        "increase": "line_chart",
-        "decrease": "downward_trend",
-        "stock": "money",
-        "dot": "green_dot",
-        "label": "tag",
-        "list": "clipboard",
-        "dir": "folder",
-        "note": "memo",
-        "idea": "tip",
-        "bulb": "tip",
-        "party": "celebrate",
-        "delete": "trash",
-        "run": "play",
-        "start": "rocket",
-        "config": "gear",
-        "critical": "red_dot",
-        "high": "orange_dot",
-        "medium": "yellow_dot",
-        "low": "green_dot",
-        "enumerate": "numbers",
-        "sim": "game",
-        "save": "disk",
-        "watch": "eyes",
-    }
-
     @staticmethod
     def supports_emoji() -> bool:
-        """Detect whether the current stdout can print emoji safely."""
+        """当前 stdout 是否适合输出 emoji。"""
         if sys.platform == "win32":
             encoding = getattr(sys.stdout, "encoding", None)
             return str(encoding or "").lower() == "utf-8"
@@ -114,10 +78,9 @@ class IconService:
 
     @classmethod
     def get(cls, icon_name: str) -> str:
-        """Return emoji (UTF-8) or ASCII fallback (Windows GBK)."""
-        key = str(icon_name or "").lower()
-        icon_key = cls.ALIASES.get(key, key)
-        icon_def = cls.ICONS.get(icon_key)
+        """按正式名取图标；未知名返回空串。"""
+        key = str(icon_name or "").strip().lower()
+        icon_def = cls.ICONS.get(key)
         if not icon_def:
             logger.error("Unknown icon name: %s", icon_name)
             return ""
@@ -127,7 +90,7 @@ class IconService:
 
 
 class IconNamespace:
-    """CmdLayout.icon namespace."""
+    """CmdLayout.icon 命名空间。"""
 
     @staticmethod
     def get(icon_name: str) -> str:

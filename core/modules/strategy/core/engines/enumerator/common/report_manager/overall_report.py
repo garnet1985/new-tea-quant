@@ -232,7 +232,7 @@ class OverallReport:
             flush=True,
         )
         print(
-            f"{icon('chart')} 平均每股产生机会数: {summary.avg_per_stock:.2f}",
+            f"{icon('bar_chart')} 平均每股产生机会数: {summary.avg_per_stock:.2f}",
             file=out,
             flush=True,
         )

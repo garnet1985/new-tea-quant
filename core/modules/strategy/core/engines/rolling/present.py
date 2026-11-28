@@ -37,7 +37,7 @@ class RollingPresenter:
         report = self._report
         baseline = report.get("baseline") if isinstance(report.get("baseline"), dict) else {}
         parent = str(report.get("parent_version_id") or baseline.get("version_id") or "-")
-        CmdLayout.title.print_h1(f"{icon('chart')} 滚动对照", stream=out)
+        CmdLayout.title.print_h1(f"{icon('bar_chart')} 滚动对照", stream=out)
         meta = CmdLayout.text.meta(
             [
                 f"主 version {parent}",

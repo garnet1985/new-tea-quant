@@ -1,6 +1,6 @@
 # 命令行布局 API 文档
 
-**模块：** `infra.cmd_layout` · **版本：** `0.2.0`
+**模块：** `infra.cmd_layout` · **版本：** `0.3.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -34,7 +34,7 @@ print(f"{i('success')} 完成")  # ✅ 或 [OK]
 
 ## CmdLayout
 
-**描述：** 命令行布局门面类（Facade）— 下挂 `bar_chart` / `title` / `separator` / `table` / `text` / `icon` 命名空间
+**描述：** 命令行布局门面类（Facade）— 下挂 `bar_chart` / `title` / `table` / `text` / `icon` 命名空间
 
 ### bar_chart
 
@@ -93,7 +93,7 @@ text = CmdLayout.bar_chart.render(
 
 ### title
 
-**描述：** ASCII 标题块。新报告优先 `h1` / `h2` / `h3` / `h4`；`banner` / `section` 保留兼容。
+**描述：** ASCII 标题块：`h1` / `h2` / `h3` / `h4`。
 
 #### h1
 
@@ -102,7 +102,7 @@ text = CmdLayout.bar_chart.render(
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** 报告总标题：前空行 + 星号框（同 `banner`）+ 打印后再空行
+- **描述：** 报告总标题：前空行 + 星号框
 - **返回值：** `str`
 
 #### h2
@@ -141,53 +141,6 @@ text = CmdLayout.bar_chart.render(
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
 - **描述：** 对应 `h1` / `h2` / `h3` / `h4` 并打印到 `stream`
-
-#### banner
-
-`CmdLayout.title.banner(text, *, char="*", width=None, center=False, pad=None) -> str`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **描述：** 星号框主体（无前后空行）；新代码请用 `h1`
-- **返回值：** `str`
-
-#### section
-
-`CmdLayout.title.section(text, *, char="-") -> str`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **描述：** 形如 `-- 文本 --`；新代码请用 `h3`
-- **返回值：** `str`
-
-#### print_banner / print_section
-
-- **类型：** `static`
-- **状态：** `beta`
-- **描述：** 等同 `banner` / `section` 并打印
-
----
-
-### separator
-
-**描述：** ASCII 分割线。新报告优先用标题层级，少叠 `separator` + `section`。
-
-#### line / thick / star / blank
-
-`CmdLayout.separator.line(*, char="-", width=60) -> str`  
-`CmdLayout.separator.thick(*, width=60) -> str`  
-`CmdLayout.separator.star(*, width=60) -> str`  
-`CmdLayout.separator.blank() -> str`
-
-- **类型：** `static`
-- **状态：** `beta`
-- **描述：** 单行 `-` / `=` / `*` / 空行内容
-
-#### print_line / print_thick / print_star / print_blank
-
-- **类型：** `static`
-- **状态：** `beta`
-- **描述：** 对应上述并打印到 `stream`
 
 ---
 
@@ -277,7 +230,7 @@ text = CmdLayout.bar_chart.render(
 
 ### icon
 
-**描述：** 跨平台图标（UTF-8 终端用 emoji；Windows 非 UTF-8 标准输出时用 ASCII 回退）
+**描述：** 跨平台图标（UTF-8 终端用 emoji；Windows 非 UTF-8 标准输出时用 ASCII 回退）。只用正式名（如 `success` / `bar_chart` / `error`），无别名。
 
 #### get / i
 
@@ -286,7 +239,7 @@ text = CmdLayout.bar_chart.render(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **描述：** 按名称取图标；`i` 为简写；未知名返回空串
+- **描述：** 按正式名取图标；`i` 为简写；未知名返回空串
 
 #### supports_emoji
 

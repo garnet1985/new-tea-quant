@@ -3,8 +3,8 @@ from __future__ import annotations
 
 from typing import List, Optional, Sequence, TextIO
 
+from core.infra.cmd_layout.shared.display import display_width
 from core.infra.cmd_layout.shared.stream import StreamWriter
-from core.infra.cmd_layout.title.title import Title
 
 
 class Table:
@@ -26,22 +26,22 @@ class Table:
             return ""
         header_cells = [str(h) for h in headers]
         body_rows = [[str(cell) for cell in row] for row in rows]
-        widths = [Title.display_width(h) for h in header_cells]
+        widths = [display_width(h) for h in header_cells]
         for row in body_rows:
             for i, cell in enumerate(row):
                 if i < len(widths):
-                    widths[i] = max(widths[i], Title.display_width(cell))
+                    widths[i] = max(widths[i], display_width(cell))
                 else:
-                    widths.append(Title.display_width(cell))
+                    widths.append(display_width(cell))
         pad = " " * max(0, int(indent))
         sep = " " * max(1, int(gap))
 
         def fmt(row: Sequence[str]) -> str:
             parts: List[str] = []
             for i, cell in enumerate(row):
-                width = widths[i] if i < len(widths) else Title.display_width(cell)
+                width = widths[i] if i < len(widths) else display_width(cell)
                 text = str(cell)
-                pad_cols = max(0, width - Title.display_width(text))
+                pad_cols = max(0, width - display_width(text))
                 if i == 0:
                     parts.append(text + (" " * pad_cols))
                 else:

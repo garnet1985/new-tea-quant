@@ -2,7 +2,6 @@
 
 from .bar_chart.bar_chart import BarChartNamespace
 from .icon.icon import IconNamespace
-from .separator.separator import SeparatorNamespace
 from .table.table import TableNamespace
 from .text.text import TextNamespace
 from .title.title import TitleNamespace
@@ -13,7 +12,6 @@ class CmdLayout:
 
     bar_chart = BarChartNamespace
     title = TitleNamespace
-    separator = SeparatorNamespace
     table = TableNamespace
     text = TextNamespace
     icon = IconNamespace

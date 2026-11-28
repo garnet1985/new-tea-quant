@@ -148,7 +148,7 @@ class EntityListReport:
             return
         CmdLayout.bar_chart.print(
             [(row.entity_id, round(row.avg_roi * 100.0, 2)) for row in top],
-            title=f"{icon('chart')} Top ROI (%)",
+            title=f"{icon('bar_chart')} Top ROI (%)",
             width=24,
             stream=out,
         )

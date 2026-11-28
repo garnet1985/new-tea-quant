@@ -15,11 +15,11 @@ pytestmark = pytest.mark.force_run
 
 
 class TestIcon(unittest.TestCase):
-    def test_get_aliases(self) -> None:
+    def test_get_canonical_names(self) -> None:
         with mock.patch.object(IconService, "supports_emoji", return_value=True):
             self.assertEqual(CmdLayout.icon.get("success"), "✅")
-            self.assertEqual(CmdLayout.icon.get("ok"), "✅")
-            self.assertEqual(CmdLayout.icon.i("chart"), "📊")
+            self.assertEqual(CmdLayout.icon.i("bar_chart"), "📊")
+            self.assertEqual(CmdLayout.icon.get("ok"), "")
 
     def test_ascii_fallback(self) -> None:
         with mock.patch.object(IconService, "supports_emoji", return_value=False):

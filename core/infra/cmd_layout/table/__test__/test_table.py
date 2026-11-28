@@ -8,8 +8,8 @@ import unittest
 import pytest
 
 from core.infra.cmd_layout import CmdLayout
+from core.infra.cmd_layout.shared.display import display_width
 from core.infra.cmd_layout.table.table import Table
-from core.infra.cmd_layout.title.title import Title
 
 pytestmark = pytest.mark.force_run
 
@@ -38,7 +38,7 @@ class TestTable(unittest.TestCase):
         rule = lines[1].strip()
         self.assertEqual(len(rule), 6)
         self.assertGreater(
-            Title.display_width("中文名"),
+            display_width("中文名"),
             len("中文名"),
         )
 

@@ -131,7 +131,7 @@ class EntityListReport:
         top = self.rows[:5]
         if not top:
             return
-        CmdLayout.title.print_h3(f"{icon('chart')} Top 盈亏", stream=out)
+        CmdLayout.title.print_h3(f"{icon('bar_chart')} Top 盈亏", stream=out)
         CmdLayout.table.print(
             ["代码", "盈亏"],
             [[row.entity_id, f"{row.total_profit:+.2f}"] for row in top],

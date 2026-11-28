@@ -14,6 +14,7 @@ from .framework_index import (
 from .member_channel import (
     MODEL,
     PROVIDER_ID,
+    complete,
     fetch_member_quota,
     member_base_url,
     member_token,
@@ -25,6 +26,7 @@ __all__ = [
     "PROVIDER_ID",
     "clear_agent_policy_cache",
     "clear_framework_index_cache",
+    "complete",
     "fetch_agent_policy",
     "fetch_framework_index",
     "fetch_member_quota",

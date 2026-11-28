@@ -1,8 +1,8 @@
 name: infra.ai
-version: "0.1.0"
+version: "0.2.0"
 compatible_core_versions: ">=0.6.0"
 package: core.infra
-description: "AI 通道：供应商发现、密钥与裸 complete（无业务）。"
+description: "AI 通道：本机供应商发现、密钥与裸 complete（无官网业务）。"
 # 站点文档（可选；Drupal title / display title）
 site_title: "AI管理模块 (AI)"
 site_display_title: "管理AI的识别与配置 - AI 管理模块"
@@ -10,7 +10,12 @@ dependencies:
   - infra.project_context
   - infra.discovery
 changelog:
+  - version: "0.2.0"
+    changes:
+      - 去掉对 modules.ntq_external 的反向依赖；会员补全迁出
+      - 新增 AiChannel.complete_http（业务层注入端点凭证）
+      - 文档路径统一为 userspace/extensions/llm_providers/
   - version: "0.1.0"
     changes:
       - AiChannel：list_providers / set_api_key / complete
-      - 供应商目录 userspace/extensions/ai/providers
+      - 供应商目录 userspace/extensions/llm_providers

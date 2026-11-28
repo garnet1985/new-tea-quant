@@ -2,7 +2,7 @@
 
 **版本：** 0.1.0
 
-浏览器经本域访问 `modules.agent`（Provider：`ntq` 或某一个自备）。补全经 `infra.ai.AiChannel.complete`。
+浏览器经本域访问 `modules.agent`（Provider：`ntq` 或某一个自备）。补全经 agent `complete_result`：`ntq` 走 `ntq_external`，自备走 `infra.ai`。
 
 ## 与 infra.ai 的分界
 

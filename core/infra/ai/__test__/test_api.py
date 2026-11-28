@@ -25,9 +25,12 @@ class TestAiChannelApi(unittest.TestCase):
         self.assertTrue(callable(AiChannel.list_providers))
         self.assertTrue(callable(AiChannel.get_provider))
         self.assertTrue(callable(AiChannel.set_api_key))
+        self.assertTrue(callable(AiChannel.load_api_key))
         self.assertTrue(callable(AiChannel.complete))
+        self.assertTrue(callable(AiChannel.complete_http))
         self.assertIsNone(AiChannel.get_provider(""))
         self.assertIsNone(AiChannel.get_provider("../secret"))
+        self.assertIsNone(AiChannel.load_api_key(""))
         providers = AiChannel.list_providers()
         self.assertIsInstance(providers, list)
 

@@ -2,16 +2,50 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Mapping, Optional, Sequence
 
 from core.infra.ai import AiChannel
-from core.infra.ai.contracts import AiError
+from core.infra.ai.contracts import AiError, CompleteResult
 from core.modules.agent.contracts import AgentError
 from core.modules.agent.core.code.conf.conf import (
     ASK_DEFAULT_MAX_TOKENS,
     ASK_TEMPERATURE,
     PRODUCT_PROVIDER_ID,
 )
+
+
+def complete_result(
+    messages: Sequence[Mapping[str, str]],
+    *,
+    provider_id: str,
+    max_tokens: int = ASK_DEFAULT_MAX_TOKENS,
+    temperature: float = ASK_TEMPERATURE,
+    timeout_seconds: Optional[float] = None,
+    extra_body: Optional[Dict[str, Any]] = None,
+) -> CompleteResult:
+    """按 Provider 选通道：``ntq`` → 官网会员；其它 → 本机 ``infra.ai``。"""
+    pid = str(provider_id or "").strip()
+    try:
+        if pid == PRODUCT_PROVIDER_ID:
+            from core.modules.ntq_external.ai import member_channel
+
+            return member_channel.complete(
+                messages,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                timeout_seconds=timeout_seconds,
+                extra_body=extra_body,
+            )
+        return AiChannel.complete(
+            list(messages),
+            provider_id=pid or None,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout_seconds=timeout_seconds,
+            extra_body=extra_body,
+        )
+    except AiError as exc:
+        raise AgentError(str(exc)) from None
 
 
 def ask(
@@ -39,17 +73,14 @@ def ask(
             "phase": phase,
             "intent": intent,
         }
-    try:
-        result = AiChannel.complete(
-            messages,
-            provider_id=provider_id,
-            max_tokens=max_tokens,
-            temperature=ASK_TEMPERATURE,
-            timeout_seconds=timeout_seconds,
-            extra_body=body or None,
-        )
-    except AiError as exc:
-        raise AgentError(str(exc)) from None
+    result = complete_result(
+        messages,
+        provider_id=provider_id,
+        max_tokens=max_tokens,
+        temperature=ASK_TEMPERATURE,
+        timeout_seconds=timeout_seconds,
+        extra_body=body or None,
+    )
     accumulate_billing(billing, result.ntq if isinstance(result.ntq, dict) else None)
     return result.reply
 

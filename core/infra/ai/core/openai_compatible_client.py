@@ -18,30 +18,6 @@ _USER_AGENT = "NTQ-ai/0.1.0"
 class OpenAICompatibleClient:
     """按 OpenAI Chat Completions 协议发一次非流式补全。"""
 
-    def complete(
-        self,
-        *,
-        base_url: str,
-        api_key: str,
-        model: str,
-        messages: List[Dict[str, str]],
-        timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
-        max_tokens: int = _DEFAULT_MAX_TOKENS,
-        temperature: float = 0.7,
-        extra_body: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        text, _meta = self.complete_with_meta(
-            base_url=base_url,
-            api_key=api_key,
-            model=model,
-            messages=messages,
-            timeout_seconds=timeout_seconds,
-            max_tokens=max_tokens,
-            temperature=temperature,
-            extra_body=extra_body,
-        )
-        return text
-
     def complete_with_meta(
         self,
         *,
@@ -51,7 +27,7 @@ class OpenAICompatibleClient:
         messages: List[Dict[str, str]],
         timeout_seconds: float = _DEFAULT_TIMEOUT_SECONDS,
         max_tokens: int = _DEFAULT_MAX_TOKENS,
-        temperature: float = 0.7,
+        temperature: float = 0.2,
         extra_body: Optional[Dict[str, Any]] = None,
     ) -> Tuple[str, Dict[str, Any]]:
         url = _completions_url(base_url)

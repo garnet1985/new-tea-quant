@@ -3,15 +3,21 @@
 from __future__ import annotations
 
 import json
+import logging
 import urllib.error
 import urllib.request
-from typing import Optional
+from typing import Any, Dict, Mapping, Optional, Sequence
 
-from core.modules.ntq_external.conf.site_target import ai_base_url
+from core.infra.ai import AiChannel
+from core.infra.ai.contracts import AiError, CompleteResult
 from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.modules.ntq_external.conf.site_target import ai_base_url
 
 PROVIDER_ID = "ntq"
 MODEL = "glm-4-flash"
+_MEMBER_TIMEOUT_SECONDS = 60.0
+
+logger = logging.getLogger(__name__)
 
 
 def member_token() -> Optional[str]:
@@ -24,6 +30,69 @@ def member_token() -> Optional[str]:
 def member_base_url() -> str:
     """官网 AI 根地址：由统一的 ``base_url`` 派生。"""
     return ai_base_url()
+
+
+def _member_error(message: str) -> str:
+    """会员通道失败文案。保留可行动作；勿把本机 SSL 说成「官网挂了」。"""
+    text = str(message or "").strip()
+    low = text.lower()
+    if (
+        "certificate_verify_failed" in low
+        or "certificate verify failed" in low
+        or "unable to get local issuer certificate" in low
+    ):
+        return (
+            "本机 HTTPS 证书校验失败（macOS 常见）。"
+            "请确认 venv 已安装 certifi，或运行 Python 安装目录下的 Install Certificates.command。"
+        )
+    if "超时" in text:
+        return "官网应答超时，请稍候再试。"
+    if text.startswith("无法连接") or text.startswith("供应商请求失败"):
+        return "暂时连不上官网 AI，请检查网络后重试。"
+    if "远端服务失败" in text or "远端模型" in text:
+        return "暂时连不上官网 AI，请检查网络后重试。"
+    if text.startswith("供应商"):
+        return "官网" + text[len("供应商") :]
+    return text or "暂时连不上官网 AI，请检查网络后重试。"
+
+
+def complete(
+    messages: Sequence[Mapping[str, str]],
+    *,
+    max_tokens: int = 2048,
+    temperature: float = 0.2,
+    timeout_seconds: Optional[float] = None,
+    extra_body: Optional[Dict[str, Any]] = None,
+) -> CompleteResult:
+    """经官网会员通道做一次补全；依赖本机会员凭证。"""
+    token = member_token()
+    if not token:
+        raise AiError("还没有装载会员通用凭证。请到设置 → 会员装载。")
+    timeout = (
+        float(timeout_seconds)
+        if timeout_seconds is not None
+        else _MEMBER_TIMEOUT_SECONDS
+    )
+    try:
+        return AiChannel.complete_http(
+            messages,
+            base_url=member_base_url(),
+            api_key=token,
+            model=MODEL,
+            provider_id=PROVIDER_ID,
+            max_tokens=max_tokens,
+            temperature=temperature,
+            timeout_seconds=timeout,
+            extra_body=extra_body,
+        )
+    except AiError as exc:
+        logger.warning(
+            "member AI failed base=%s model=%s: %s",
+            member_base_url(),
+            MODEL,
+            exc,
+        )
+        raise AiError(_member_error(str(exc))) from None
 
 
 def fetch_member_quota() -> Optional[dict]:

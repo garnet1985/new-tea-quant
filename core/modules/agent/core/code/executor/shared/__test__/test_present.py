@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List, Optional
 
+from core.modules.agent.core.code.executor.shared import present as present_mod
 from core.modules.agent.core.code.executor.shared.present import (
     resolve_present_scenario,
     run_present,
@@ -69,10 +70,7 @@ def test_run_present_calls_ask_with_template(monkeypatch) -> None:
         )
         return "格式化后的报告"
 
-    monkeypatch.setattr(
-        "core.modules.agent.core.code.executor.shared.present.ask",
-        fake_ask,
-    )
+    monkeypatch.setattr(present_mod, "ask", fake_ask)
     out = run_present(
         conclusion="胜率 0.55，共 10 笔",
         scenario="backtest_price",
@@ -92,10 +90,7 @@ def test_run_present_fallback_on_ask_error(monkeypatch) -> None:
     def boom(*_a: Any, **_k: Any) -> str:
         raise RuntimeError("network")
 
-    monkeypatch.setattr(
-        "core.modules.agent.core.code.executor.shared.present.ask",
-        boom,
-    )
+    monkeypatch.setattr(present_mod, "ask", boom)
     assert (
         run_present(
             conclusion="兜底结论",

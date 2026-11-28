@@ -84,7 +84,7 @@ def _install_oracle_classifier(monkeypatch):
             model="stub",
         )
 
-    monkeypatch.setattr(clf.AiChannel, "complete", staticmethod(fake_complete))
+    monkeypatch.setattr(clf, "complete_result", fake_complete)
 
 
 def test_route_uses_classifier_queue(monkeypatch):
@@ -103,7 +103,7 @@ def test_escalate_guide_when_model_misses_strategy_ideas(monkeypatch):
             reply='{"kinds":["worker"]}', provider_id="ntq", model="stub"
         )
 
-    monkeypatch.setattr(clf.AiChannel, "complete", staticmethod(fake_complete))
+    monkeypatch.setattr(clf, "complete_result", fake_complete)
     r = route("推荐能赚钱的策略并帮我写一个", provider_id="ntq", mode="ask")
     assert r.kind == "guide"
     assert r.queue == ("guide", "worker")
@@ -118,7 +118,7 @@ def test_escalate_advice_when_model_misses_stock_tip(monkeypatch):
             reply='{"kinds":["guide"]}', provider_id="ntq", model="stub"
         )
 
-    monkeypatch.setattr(clf.AiChannel, "complete", staticmethod(fake_complete))
+    monkeypatch.setattr(clf, "complete_result", fake_complete)
     r = route("该买什么股今天能涨", provider_id="ntq", mode="ask")
     assert r.kind == "advice"
     assert "advice" in r.queue

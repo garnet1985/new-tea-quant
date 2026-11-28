@@ -1,29 +1,29 @@
 # AI 通道 术语表
-# Version: 0.1.0
+# Version: 0.2.0
 # Compatible-Core: >=0.6.0
 #
-# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
+# 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、相关对比）。
 # aliases / avoid 只做命名纪律，不能代替解释。
-# 本模块只管 HTTP 通道；多轮对话 / 工具调度见 modules.agent。
+# 本模块只管本机 HTTP 通道；官网会员见 ntq_external；多轮 / 工具见 modules.agent。
 
 terms:
   AiChannel:
     definition: |
-      本模块 Facade：发现 userspace 里装了哪些 AI 供应商、读写 API Key、发一次裸补全。
-      只管「连上模型并拿到回复」；不做多轮对话、工具调度、系统提示词编排（那是 Agent）。
-    in_code: "from core.infra.ai import AiChannel；list_providers / set_api_key / load_api_key / complete"
+      本模块 Facade：发现本机 llm_providers、读写 API Key、对本机供应商或任意 OpenAI 兼容端点做裸补全。
+      不做多轮对话、工具调度、系统提示词；也不做官网会员路由。
+    in_code: "from core.infra.ai import AiChannel；list_providers / set_api_key / load_api_key / complete / complete_http"
     aliases:
       - "AI 通道"
     avoid:
-      - "deep-import core.providers 当公开 API"
-      - "把 AiChannel 当成 Agent 入口"
+      - "deep-import core/ 当公开 API"
+      - "把 AiChannel 当成 Agent 或会员入口"
 
   Provider:
     definition: |
-      一家 AI 模型供应商的接入配置：id、目录、base_url、默认 model、是否启用、是否已有 Key 等。
-      实现放在 userspace/extensions/ai/providers/ 下，由 discovery 扫出；用户可自注册供应商。
+      一家本机 AI 模型供应商的接入配置：id、目录、base_url、默认 model、是否启用、是否已有 Key 等。
+      实现放在 userspace/extensions/llm_providers/ 下，由 discovery 扫出；用户可自注册供应商。
       Provider 不是「某一个模型」——模型是 Provider 上的字段；也不是会员通道凭证。
-    in_code: "contracts.ProviderInfo；AiChannel.list_providers / get_provider；userspace .../ai/providers/<id>/"
+    in_code: "contracts.ProviderInfo；AiChannel.list_providers / get_provider；userspace/extensions/llm_providers/<id>/"
     aliases:
       - "供应商"
       - "AI 供应商"
@@ -31,11 +31,12 @@ terms:
     avoid:
       - "把 Provider 当成某个 model 名字"
       - "与 infra.membership 的会员凭证混称"
+      - "旧路径 extensions/ai/providers"
 
   API Key:
     definition: |
-      某个 Provider 的访问密钥，用户填入后由本模块写入本地 userspace；complete / 工具侧用
-      load_api_key 读取。与官网会员通用凭证是两回事——会员凭证走 infra.membership，不经本模块。
+      某个本机 Provider 的访问密钥，用户填入后由本模块写入本地 userspace；complete / 工具侧用
+      load_api_key 读取。与官网会员通用凭证是两回事——会员凭证走 infra.membership / ntq_external。
       ProviderInfo 只暴露 has_api_key，不含明文。
     in_code: "AiChannel.set_api_key / load_api_key；ProviderInfo.has_api_key"
     aliases:
@@ -47,20 +48,29 @@ terms:
 
   complete:
     definition: |
-      单次裸补全：把 OpenAI 兼容 messages 发给指定（或默认）Provider，拿回 CompleteResult。
-      不注入百科、不拼系统提示词、不管多轮上下文、不做 function calling——调用方（通常是 Agent）
-      自己组好 messages 再进来。
+      对本机供应商的单次裸补全：把 OpenAI 兼容 messages 发给指定（或默认）本机 Provider，拿回 CompleteResult。
+      不注入百科、不拼系统提示词、不管多轮；官网会员请走 ntq_external 或 AiChannel.complete_http。
     in_code: "AiChannel.complete(messages, provider_id=..., ...) -> CompleteResult"
     aliases:
       - "裸补全"
       - "completion"
     avoid:
       - "对话 / chat session（多轮与工具是 modules.agent）"
-      - "以为 complete 会自动加 system prompt"
+      - "以为 complete 会走官网会员"
+
+  complete_http:
+    definition: |
+      对任意 OpenAI 兼容端点的裸补全：调用方传入 base_url / api_key / model；本模块只做消息校验与 HTTP。
+      供业务层（如 ntq_external 会员通道）注入已解析凭证，避免 infra 知道官网语义。
+    in_code: "AiChannel.complete_http(messages, base_url=..., api_key=..., model=..., provider_id=...)"
+    aliases:
+      - "端点补全"
+    avoid:
+      - "在 complete_http 里写死官网 URL"
 
   CompleteResult:
     definition: |
-      一次 complete 的返回：reply 文本、实际用的 provider_id / model，以及可选 usage / ntq 扩展字段。
+      一次 complete / complete_http 的返回：reply 文本、实际用的 provider_id / model，以及可选 usage / ntq 扩展字段。
       不含 API Key。调用失败抛 AiError，不是用 Result 表示错误态。
     in_code: "contracts.CompleteResult"
     aliases: []
@@ -70,7 +80,7 @@ terms:
   OpenAI-compatible:
     definition: |
       本通道假定供应商 HTTP API 遵循 OpenAI 请求/响应形态（messages、model、choices 等）。
-      符合该协议的供应商都可挂进 userspace providers；不是「只支持 OpenAI 官方一家」。
+      符合该协议的供应商都可挂进 userspace llm_providers；不是「只支持 OpenAI 官方一家」。
     in_code: "Provider base_url + HTTP POST；messages 形如 OpenAI chat"
     aliases:
       - "OpenAI 兼容协议"

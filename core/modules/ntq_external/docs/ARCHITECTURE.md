@@ -1,6 +1,6 @@
 # NtqExternal — 架构
 
-**模块：** `modules.ntq_external` · **版本：** `0.1.1`
+**模块：** `modules.ntq_external` · **版本：** `0.2.0`
 
 **最低支持核心版本：** `>=0.6.0`
 
@@ -33,7 +33,7 @@
 | `conf/site_target.py` | 配置 | 官网根地址与派生 URL；全应用唯一来源 |
 | `conf/endpoints.py` | 配置 | 生产默认地址常量 |
 | `member_profile.py` | 业务 | 读凭证 → 请求资料 → 归一化字段 |
-| `ai/member_channel.py` | 业务 | 会员凭证、AI 根地址、额度与流水 |
+| `ai/member_channel.py` | 业务 | 会员凭证、AI 根地址、额度与流水、会员补全 `complete` |
 | `ai/agent_policy.py` | 业务 | Agent 产品准则：resolve / fetch / 短时缓存 |
 | `feedback/feedback.py` | 业务 | 反馈提交与提示偏好 |
 | `feedback/core/` | 内部 | 提交、偏好、HTTP 客户端 |
@@ -56,12 +56,13 @@ flowchart TB
   Profile --> Mem[infra.membership]
   MemberAI --> Conf
   MemberAI --> Mem
+  MemberAI -->|complete_http| InfraAI[infra.ai]
   Feedback --> Conf
   Track[track register] --> Trace[infra.trace]
   Track --> Conf
 ```
 
-地址只从 `conf/` 出；资料与 AI 通道读本地凭证，不回传明文。
+地址只从 `conf/` 出；资料与 AI 通道读本地凭证，不回传明文。会员补全经 `infra.ai.complete_http`，infra 不反向依赖本模块。
 
 ## 数据流（若有）
 

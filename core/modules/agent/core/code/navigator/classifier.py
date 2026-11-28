@@ -7,8 +7,7 @@ import logging
 import re
 from typing import List, Optional, Sequence
 
-from core.infra.ai import AiChannel
-from core.infra.ai.contracts import AiError
+from core.modules.agent.contracts import AgentError
 from core.modules.agent.core.code.conf.conf import (
     CLASSIFIER_HEAVY_PROVIDER_IDS,
     CLASSIFIER_MAX_TOKENS_HEAVY,
@@ -16,6 +15,7 @@ from core.modules.agent.core.code.conf.conf import (
     CLASSIFIER_TEMPERATURE,
     PRODUCT_PROVIDER_ID,
 )
+from core.modules.agent.core.code.executor.shared.complete import complete_result
 from core.modules.agent.core.code.executor.shared.prompt_loader import load_prompt
 
 logger = logging.getLogger(__name__)
@@ -59,7 +59,7 @@ def classify_route(
         extra = None
         if pid == PRODUCT_PROVIDER_ID:
             extra = {"ntq": {"phase": "navigate", "intent": None}}
-        result = AiChannel.complete(
+        result = complete_result(
             [
                 {
                     "role": "system",
@@ -78,7 +78,7 @@ def classify_route(
         if kinds:
             return kinds
         logger.warning("router classifier bad reply: %s", (result.reply or "")[:160])
-    except (AiError, OSError, TimeoutError, ValueError) as exc:
+    except (AgentError, OSError, TimeoutError, ValueError) as exc:
         logger.warning("router classifier failed: %s", exc)
     except Exception as exc:  # noqa: BLE001 — 分流失败必须可回退正则
         logger.warning("router classifier unexpected: %s", exc)

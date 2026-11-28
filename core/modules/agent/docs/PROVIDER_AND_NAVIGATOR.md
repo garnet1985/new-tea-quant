@@ -130,6 +130,6 @@ Navigator 协议与金标（产品语义）  执行推理、计量猫粮
 - Provider：`core/code/provider/`（`resolve_provider`）
 - Navigator：`core/code/navigator/`
 - 流程：`Agent.run` → `code/pipeline.py`（全程同一 `provider.id`）
-- 出站：`infra.ai.AiChannel.complete`（经 `executor/shared/complete.ask`）
+- 出站：`executor/shared/complete.complete_result` — `ntq` → `ntq_external.member_channel.complete`；自备 → `infra.ai.AiChannel.complete`
 - 会员 ntq / 产品准则：`ntq_external`（Website；`ai.agent_policy.resolve_agent_policy`）
 - **远端状态协议：** [NTQ_REMOTE_PROTOCOL.md](./NTQ_REMOTE_PROTOCOL.md)（`ntq.phase` / `ntq.intent`）

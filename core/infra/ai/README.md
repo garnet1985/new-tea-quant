@@ -1,32 +1,33 @@
 # AI 通道（`infra.ai`）
 
-**模块：** `infra.ai` · **版本：** `0.1.0`
+**模块：** `infra.ai` · **版本：** `0.2.0`
 
 **最低支持核心版本：** `>=0.6.0`
 
 ## 简介
 
-和 AI 模型供应商打交道的基础设施。发现用户装了哪些供应商、写入 API Key、发请求拿补全。OpenAI 兼容协议，谁都能接。**不做：** 多轮对话、工具调度、系统提示词编排——那是 Agent 的事。
+本机 AI 供应商通道：发现用户装了哪些供应商、写入 API Key、发 OpenAI 兼容补全。官网会员通道不在本模块（见 `modules.ntq_external`）。多轮对话与工具调度是 Agent 的事。
 
 ## 适用场景
 
-- 设置页里让用户填 AI 供应商的 API Key
-- Agent 模块调模型时，从这里走一次裸补全
+- 设置页列出本机供应商并保存 API Key
+- Agent / 工具对自备供应商做一次裸补全
+- 业务层（如会员通道）经 `complete_http` 注入已解析端点
 
 ## 模块依赖
 
-- `infra.discovery`：自动发现用户装了哪些 AI 供应商
-- `infra.project_context`：路径与配置
+- `infra.discovery`：扫描本机供应商目录
+- `infra.project_context`：`llm_providers` 路径
 
 ## 设计初衷
 
-- **要解决的问题：** 把"HTTP 调模型"和"AI 业务逻辑"分开。供应商可以热切换（用户自己注册自带的供应商）。
-- **明确不做：** 不做 Agent 的多轮对话、工具调度、系统提示词。
+- **要解决的问题：** 把「HTTP 调模型」和「官网 / Agent 业务」分开；删除官网客户端后本机供应商仍可用。
+- **明确不做：** 会员凭证、多轮对话、工具调度、系统提示词。
 
 ## 相关文档
 
 - [用户指南](./docs/USER_GUIDE.md)
-- [门面 `AiChannel` 实现](./ai_channel.py)
 - [架构](./docs/ARCHITECTURE.md)
+- [设计与决策](./docs/DECISIONS.md)
 - [公开 API](./API.md)
 - [术语表](./glossary.yaml)

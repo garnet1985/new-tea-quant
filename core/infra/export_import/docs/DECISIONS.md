@@ -43,6 +43,12 @@
 
 ---
 
+## DEC-03：D3：解压须拒绝 zip-slip
+
+`BundleArchive.extract` 在 `extractall` 前校验每个成员路径仍落在目标目录内；绝对路径 / `..` 逃逸一律 `ValueError`。
+
+---
+
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)

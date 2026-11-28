@@ -1,5 +1,5 @@
 name: bff
-version: "0.2.1"
+version: "0.2.2"
 compatible_core_versions: ">=0.5.0"
 description: "FED 的 Flask BFF：HTTP 编排与 DTO；领域执行在 core.modules / core.infra。"
 # 站点文档（可选；Drupal title / display title）
@@ -18,12 +18,18 @@ dependencies:
   - infra.project_context
   - infra.membership
   - modules.ntq_external
+  - modules.series_relation
   - infra.job_pipeline
   - infra.discovery
   - infra.trace
   - infra.db
   - ui
 changelog:
+  - version: "0.2.2"
+    changes:
+      - 0.x 清理：移除 superseded V2-06 单步 progress 与 POST body is_force 别名
+      - setup runtime 用 ProjectContext.path.get_project_root 替代 parents[5] 硬编码
+      - 文档：ARCHITECTURE / GROUPING / USER_GUIDE 与路由索引对齐
   - version: "0.2.1"
     changes:
       - 增加决策者模式的API接口

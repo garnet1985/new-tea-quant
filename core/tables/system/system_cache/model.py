@@ -22,10 +22,7 @@ class CacheSystemModel(DbBaseModel):
         super().__init__(_schema["name"], db)
 
     def is_exists(self, key: str) -> bool:
-        v = self.load_one('"key" = %s', (key,))
-        if v:
-            return True
-        return False
+        return self.load_one('"key" = %s', (key,)) is not None
 
     def load_by_key(self, key: str) -> Optional[Dict[str, Any]]:
         """根据 key 查询，返回整行（含 text/json、created_at、last_updated）。"""

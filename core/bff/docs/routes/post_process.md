@@ -1,5 +1,9 @@
 # Post-process 路由
 
+**模块：** `bff` · **版本：** `0.2.2`
+
+**最低支持核心版本：** `>=0.5.0`
+
 编排见 `core/bff/APIs/post_process/`。FED 契约：`core/ui/fed/src/pages/postProcessPage/API.md`。
 
 | 方法 | 路径 | 实现 |

@@ -4,8 +4,6 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
-import pytest
-
 from core.modules.strategy.contracts import WorkbenchStep
 from core.bff.APIs.strategy.routes.runner.implementer import StrategyRunnerImplementer
 
@@ -44,19 +42,6 @@ def test_submit_run_resolves_name():
         expected_rev=None,
         force_settings_write=False,
     )
-
-
-def test_get_step_progress_rejects_bad_step():
-    impl = StrategyRunnerImplementer()
-    impl._WorkbenchRunLauncher = MagicMock()
-    with patch(
-        "core.bff.APIs.strategy.routes.runner.implementer.Strategy.resolve",
-        return_value="demo-key",
-    ):
-        with pytest.raises(ValueError, match="step"):
-            impl.get_step_progress(
-                strategy_key_or_name="demo/x", step="nope", job_id="j"
-            )
 
 
 def test_trigger_scan_resolves_name():

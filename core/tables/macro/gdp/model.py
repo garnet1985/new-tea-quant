@@ -1,5 +1,5 @@
 """
-data_gdp 表 Model
+sys_data_gdp 表 Model
 
 国内生产总值。
 """
@@ -9,7 +9,7 @@ from core.tables.macro.gdp.schema import schema as _schema
 
 
 class DataGdpModel(DbBaseModel):
-    """GDP 表 Model（表名 data_gdp）"""
+    """GDP 表 Model（表名 sys_data_gdp）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

@@ -21,11 +21,30 @@ terms:
   Discovery.file:
     definition: |
       单文件查找与读写命名空间：在树里按 key 定位、按文件名找、读 JSON/YAML/文本，
-      以及对受信 .py 配置做 load_python_config。实现类是 FileUtils；公开只走此命名空间。
-    in_code: "Discovery.file.find_in_tree / find_file / load_* / load_python_config"
+      parse_yaml_text（纯文本 YAML）、以及对受信 .py 做 load_python_namespace /
+      load_python_config。实现类是 FileUtils；公开只走此命名空间。
+    in_code: "Discovery.file.find_in_tree / find_file / load_* / parse_yaml_text / load_python_*"
     aliases:
       - "FileUtils"
     avoid: []
+
+  parse_yaml_text:
+    definition: |
+      解析 YAML 字符串（非读盘）。典型用途：markdown frontmatter。缺 pyyaml 抛 RuntimeError。
+    in_code: "Discovery.file.parse_yaml_text(text)"
+    aliases: []
+    avoid:
+      - "与 load_yaml（读文件）混用"
+
+  load_python_namespace:
+    definition: |
+      对受信 .py exec 后返回完整 globals。userspace tool.py 等需要多个符号时用它；
+      只要单一 mapping 变量时用 load_python_config。
+    in_code: "Discovery.file.load_python_namespace(path)"
+    aliases: []
+    avoid:
+      - "对不可信 .py 调用"
+      - "直接 FileUtils.load_python_namespace"
 
   find_in_tree:
     definition: |

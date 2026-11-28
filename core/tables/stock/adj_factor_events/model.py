@@ -9,10 +9,11 @@ from pathlib import Path
 import logging
 import re
 
-logger = logging.getLogger(__name__)
 from core.infra.db.contracts import DbBaseModel
 from core.infra.utils import Utils
 from core.tables.stock.adj_factor_events.schema import schema as _schema
+
+logger = logging.getLogger(__name__)
 
 
 CSV_PREFERRED_COLUMNS = [
@@ -27,7 +28,7 @@ CSV_PREFERRED_COLUMNS = [
 
 
 class DataAdjFactorEventModel(DbBaseModel):
-    """复权因子事件表 Model（表名 data_adj_factor_event）"""
+    """复权因子事件表 Model（表名 sys_data_adj_factor_events）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

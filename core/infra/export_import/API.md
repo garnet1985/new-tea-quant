@@ -57,7 +57,7 @@ manifest, blob = ExportImport.archive.create(
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.0`
-- **描述：** 解压 zip（Path 或 bytes）到目录，返回根路径与 manifest
+- **描述：** 解压 zip（Path 或 bytes）到目录，返回根路径与 manifest；成员路径逃出目标目录时抛 `ValueError`（防 zip-slip）
 
 ---
 

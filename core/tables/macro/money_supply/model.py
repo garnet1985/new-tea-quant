@@ -1,5 +1,5 @@
 """
-data_money_supply 表 Model
+sys_data_money_supply 表 Model
 
 货币供应量（原 price_indexes 拆分）。
 """
@@ -10,7 +10,7 @@ from core.tables.macro.money_supply.schema import schema as _schema
 
 
 class DataMoneySupplyModel(DbBaseModel):
-    """货币供应量表 Model（表名 data_money_supply）"""
+    """货币供应量表 Model（表名 sys_data_money_supply）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

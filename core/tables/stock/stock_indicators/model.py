@@ -1,5 +1,5 @@
 """
-data_stock_indicators 表 Model
+sys_data_stock_indicators 表 Model
 
 股票日度基本面指标（原 daily_basic），与 K 线表分离。
 """
@@ -10,7 +10,7 @@ from core.tables.stock.stock_indicators.schema import schema as _schema
 
 
 class DataStockIndicatorsModel(DbBaseModel):
-    """股票指标表 Model（表名 data_stock_indicators）"""
+    """股票指标表 Model（表名 sys_data_stock_indicators）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

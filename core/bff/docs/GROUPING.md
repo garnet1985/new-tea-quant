@@ -17,6 +17,7 @@ HTTP 路径与响应契约以 FED 各页 `API.md`（有则）及本目录 [`rout
 | strategy | `APIs/strategy/`（`routes/` + `helpers/`） | `/api/v1/strategy/*` |
 | tag | `APIs/tag/`（`routes/` + `helpers/`） | `/api/v1/tags/*`、`/api/v1/tag/*` |
 | post_process | `APIs/post_process/` | `/api/v1/post-process/*` |
+| series_relation | `APIs/series_relation/` | `/api/v1/series-relations/*` |
 
 ## settings 消歧
 

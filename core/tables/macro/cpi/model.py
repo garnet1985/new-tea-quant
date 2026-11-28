@@ -1,5 +1,5 @@
 """
-data_cpi 表 Model
+sys_data_cpi 表 Model
 
 消费者价格指数（原 price_indexes 拆分）。
 """
@@ -10,7 +10,7 @@ from core.tables.macro.cpi.schema import schema as _schema
 
 
 class DataCpiModel(DbBaseModel):
-    """CPI 表 Model（表名 data_cpi）"""
+    """CPI 表 Model（表名 sys_data_cpi）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

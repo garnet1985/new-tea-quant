@@ -1,6 +1,8 @@
 # 策略域 BFF：`routes/` 编排
 
-**版本：** 0.2.1
+**模块：** `bff` · **版本：** `0.2.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 FED 侧尚无独立 `strategy*/API.md`（原 `strategyWorkbenchPage/mocks/API.md` 已移除）；本文件为策略 HTTP 路由与编排的当前 SSOT，字段语义以工作台 / 设计页前端消费为准。
 
@@ -18,7 +20,7 @@ core/bff/APIs/strategy/
     settings/               # V2-04 / V2-09
     version/                # V2-01/03/08 + cache
     folder/                 # 打开策略目录
-    runner/                 # V2-05/06* + scan 薄壳；进度落盘在 strategy core
+    runner/                 # V2-05/06b + scan 薄壳；进度落盘在 strategy core
     attribution/            # A1-00/01/02/04 战役归因（sea/spa/soa）
 ```
 
@@ -45,7 +47,6 @@ core/bff/APIs/strategy/
 | V2-04 | GET | `/v1/strategy/settings/{portfolio,sampling,simulation,risk-control,market-rules}` | `routes/settings/` |
 | V2-05 | POST | `/v1/strategy/<strategy_key_or_name>/<step>/run` | `routes/runner/` |
 | V2-06b | GET | `/v1/strategy/<strategy_key_or_name>/run/progress` | `routes/runner/` |
-| V2-06 | GET | `/v1/strategy/<strategy_key_or_name>/<step>/progress` | `routes/runner/` |
 | V2-07 | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>` | `routes/report/` — 含 ``report``。portfolio ``capitalMetrics`` 另附完整 ``eventCurveLabels/Values``、``eventDrawdownValues``、``tradeEvents``（买卖点；来自 ``equity_curve.json`` / ``trades.json``，非 ≤80 抽稀序列） |
 | V2-07b | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>/ref` | `routes/report/` |
 | V2-07c | GET | `/v1/strategy/<strategy_key_or_name>/report/<step>/<version_id>/stock/<stock_id>` | `routes/report/` |

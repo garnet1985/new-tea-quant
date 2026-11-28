@@ -74,16 +74,31 @@ class BundleArchive:
 
         if isinstance(source, (bytes, bytearray)):
             with zipfile.ZipFile(io.BytesIO(source), mode="r") as zf:
-                zf.extractall(dest_dir)
+                BundleArchive._safe_extractall(zf, dest_dir)
         else:
             path = Path(source)
             if not path.is_file():
                 raise FileNotFoundError(f"bundle archive not found: {path}")
             with zipfile.ZipFile(path, mode="r") as zf:
-                zf.extractall(dest_dir)
+                BundleArchive._safe_extractall(zf, dest_dir)
 
         manifest = BundleManifestIO.read(dest_dir / BundleManifestIO.FILENAME)
         return dest_dir, manifest
+
+    @staticmethod
+    def _safe_extractall(zf: zipfile.ZipFile, dest_dir: Path) -> None:
+        """解压并拒绝 zip-slip（成员路径不得逃出 ``dest_dir``）。"""
+        dest_root = dest_dir.resolve()
+        for info in zf.infolist():
+            name = str(info.filename or "")
+            if not name or name.startswith("/") or name.startswith("\\"):
+                raise ValueError(f"unsafe zip member path: {name!r}")
+            target = (dest_dir / name).resolve()
+            try:
+                target.relative_to(dest_root)
+            except ValueError as exc:
+                raise ValueError(f"zip member escapes destination: {name!r}") from exc
+        zf.extractall(dest_dir)
 
     @staticmethod
     def _populate_staging_tree(

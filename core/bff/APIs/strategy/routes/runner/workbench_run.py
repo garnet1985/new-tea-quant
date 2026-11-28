@@ -1,4 +1,4 @@
-"""Workbench async run for UI (V2-05 / V2-06 / V2-06b).
+"""Workbench async run for UI (V2-05 / V2-06b).
 
 Runs ``Strategy.simulate`` in a daemon thread; progress via strategy
 ``PipelineProgress`` (core module owns weighting + disk).
@@ -194,44 +194,6 @@ class WorkbenchRunLauncher:
         out.setdefault("run_id", out.get("pipeline_id") or jid)
         out.setdefault("job_id", out.get("pipeline_id") or jid)
         out.setdefault("phase", out.get("status"))
-        return out
-
-    @classmethod
-    def get_step_progress(
-        cls,
-        *,
-        strategy_name: str,
-        normalized_step: str,
-        job_id: str,
-    ) -> Optional[Dict[str, Any]]:
-        """V2-06 legacy: path step must match pipeline_name."""
-        env = cls.get_run_progress(strategy_name=strategy_name, job_id=job_id)
-        if not env:
-            return None
-        step = str(normalized_step or "").strip()
-        if str(env.get("pipeline_name") or "").strip() != step:
-            return None
-        jid = str(job_id or "").strip()
-        status = str(env.get("status") or "").strip().lower()
-        try:
-            pct = float(env.get("progress") or 0.0)
-        except (TypeError, ValueError):
-            pct = 0.0
-        out: Dict[str, Any] = {
-            "progress": round(pct, 2),
-            "status": status or "running",
-            "job_id": jid,
-        }
-        result = env.get("result") if isinstance(env.get("result"), dict) else {}
-        if status == "completed":
-            out["is_success"] = True
-            vid = result.get("version_id")
-            if vid:
-                out["version_id"] = str(vid)
-        elif status in ("failed", "cancelled"):
-            out["is_success"] = False
-            if env.get("error"):
-                out["reason"] = str(env.get("error"))
         return out
 
     @classmethod

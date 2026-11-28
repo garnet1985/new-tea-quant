@@ -55,7 +55,7 @@ def post_strategy_attribute_run(strategy_key_or_name: str, step: str):
     """启动本层归因。"""
     attr = attr_impl.lazy_load()
     payload = json_payload()
-    raw_force = payload.get("force_refresh", payload.get("is_force", False))
+    raw_force = payload.get("force_refresh", False)
     force_refresh = raw_force if isinstance(raw_force, bool) else bool(raw_force)
     try:
         out = attr.submit_run(

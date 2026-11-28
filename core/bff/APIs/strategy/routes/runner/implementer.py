@@ -75,24 +75,6 @@ class StrategyRunnerImplementer:
             strategy_name=name, job_id=job_id
         )
 
-    def get_step_progress(
-        self,
-        *,
-        strategy_key_or_name: str,
-        step: str,
-        job_id: str,
-    ) -> Optional[Dict[str, Any]]:
-        assert self._WorkbenchRunLauncher is not None
-        name = Strategy.resolve(strategy_key_or_name)
-        norm = StrategyRunnerImplementer.normalize_step(step)
-        if norm is None:
-            raise ValueError("step 须为 enum / price / portfolio")
-        return self._WorkbenchRunLauncher.get_step_progress(
-            strategy_name=name,
-            normalized_step=norm,
-            job_id=job_id,
-        )
-
     def scan_page_context(self) -> Dict[str, Any]:
         assert self._get_scan_page_context is not None
         return self._get_scan_page_context()

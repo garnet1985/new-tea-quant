@@ -68,22 +68,26 @@ flowchart TB
 
 ## 数据流
 
-**子类发现**
+```mermaid
+flowchart LR
+  subgraph subclasses["子类发现"]
+    S1["Discovery.discover.subclasses"] --> S2[DiscoveryConfig]
+    S2 --> S3["ClassDiscovery.discover"]
+    S3 --> S4["子包 import + 筛选"]
+    S4 --> S5["dict key to class"]
+  end
 
-```text
-Discovery.discover.subclasses(...)
-  → DiscoveryConfig
-  → ClassDiscovery.discover(base_module_path)
-  → 子包 import + 子类筛选
-  → {key: class}
-```
+  subgraph find_in_tree["按 key 定位文件"]
+    F1["Discovery.file.find_in_tree"] --> F2["直达 base/key/file"]
+    F2 --> F3["或 rglob **/key/file"]
+    F3 --> F4["Path or None"]
+  end
 
-**按 key 定位配置文件**
-
-```text
-Discovery.file.find_in_tree(base, key, filename)
-  → 直达 base/key/filename 或 rglob **/key/filename
-  → Path | None
+  subgraph py_load["受信 Python 加载"]
+    P1["load_python_namespace"] --> P2["exec 命名空间"]
+    P3["load_python_config"] --> P1
+    P2 --> P4["提取 var_name"]
+  end
 ```
 
 ---

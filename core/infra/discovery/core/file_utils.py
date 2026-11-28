@@ -90,7 +90,7 @@ class FileUtils:
         while depth < max_depth:
             file_path = current_dir / filename
             if file_path.exists() and file_path.is_file():
-                logger.debug(f"找到文件: {file_path}")
+                logger.debug("找到文件: %s", file_path)
                 return file_path
 
             # 移动到父目录
@@ -100,7 +100,7 @@ class FileUtils:
             current_dir = parent
             depth += 1
 
-        logger.debug(f"向上搜索未找到文件: {filename}")
+        logger.debug("向上搜索未找到文件: %s", filename)
         return None
 
     @staticmethod
@@ -117,10 +117,10 @@ class FileUtils:
 
             if filename in files:
                 file_path = Path(root) / filename
-                logger.debug(f"找到文件: {file_path}")
+                logger.debug("找到文件: %s", file_path)
                 return file_path
 
-        logger.debug(f"向下搜索未找到文件: {filename}")
+        logger.debug("向下搜索未找到文件: %s", filename)
         return None
 
     @staticmethod
@@ -132,11 +132,11 @@ class FileUtils:
     ) -> Union[str, Dict[str, Any], bytes, None]:
         """加载单个文件内容（自动识别JSON/YAML/文本）"""
         if not file_path.exists():
-            logger.debug(f"文件不存在: {file_path}")
+            logger.debug("文件不存在: %s", file_path)
             return None
 
         if not file_path.is_file():
-            logger.warning(f"路径不是文件: {file_path}")
+            logger.warning("路径不是文件: %s", file_path)
             return None
 
         if auto_detect_format:
@@ -158,13 +158,13 @@ class FileUtils:
         """加载文本文件"""
         try:
             content = file_path.read_text(encoding=encoding)
-            logger.debug(f"成功加载文本文件: {file_path}")
+            logger.debug("成功加载文本文件: %s", file_path)
             return content
         except UnicodeDecodeError as e:
-            logger.warning(f"文本编码错误: {file_path}, {e}")
+            logger.warning("文本编码错误: %s, %s", file_path, e)
             return None
         except Exception as e:
-            logger.error(f"加载文本文件失败: {file_path}, {e}")
+            logger.error("加载文本文件失败: %s, %s", file_path, e)
             return None
 
     @staticmethod
@@ -173,13 +173,13 @@ class FileUtils:
         try:
             with file_path.open('r', encoding='utf-8') as f:
                 data = json.load(f)
-            logger.debug(f"成功加载JSON文件: {file_path}")
+            logger.debug("成功加载JSON文件: %s", file_path)
             return data
         except json.JSONDecodeError as e:
-            logger.warning(f"JSON格式错误: {file_path}, {e}")
+            logger.warning("JSON格式错误: %s, %s", file_path, e)
             return None
         except Exception as e:
-            logger.error(f"加载JSON文件失败: {file_path}, {e}")
+            logger.error("加载JSON文件失败: %s, %s", file_path, e)
             return None
 
     @staticmethod
@@ -250,14 +250,14 @@ class FileUtils:
                 # 文本数据直接写入
                 file_path.write_text(content, encoding=encoding)
             else:
-                logger.warning(f"不支持的内容类型: {type(content)}")
+                logger.warning("不支持的内容类型: %s", type(content))
                 return False
 
-            logger.debug(f"成功保存文件: {file_path}")
+            logger.debug("成功保存文件: %s", file_path)
             return True
 
         except Exception as e:
-            logger.error(f"保存文件失败: {file_path}, {e}")
+            logger.error("保存文件失败: %s, %s", file_path, e)
             return False
 
     @staticmethod
@@ -266,10 +266,10 @@ class FileUtils:
         try:
             with file_path.open('w', encoding=encoding) as f:
                 json.dump(data, f, indent=2, ensure_ascii=False)
-            logger.debug(f"成功保存JSON文件: {file_path}")
+            logger.debug("成功保存JSON文件: %s", file_path)
             return True
         except Exception as e:
-            logger.error(f"保存JSON文件失败: {file_path}, {e}")
+            logger.error("保存JSON文件失败: %s, %s", file_path, e)
             return False
 
     @staticmethod

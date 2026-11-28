@@ -1,5 +1,5 @@
 """
-data_corporate_finance 表 Model
+sys_data_corporate_finance 表 Model
 
 企业财务数据。
 """
@@ -9,7 +9,7 @@ from core.tables.stock.corporate_finance.schema import schema as _schema
 
 
 class DataCorporateFinanceModel(DbBaseModel):
-    """企业财务表 Model（表名 data_corporate_finance）"""
+    """企业财务表 Model（表名 sys_data_corporate_finance）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

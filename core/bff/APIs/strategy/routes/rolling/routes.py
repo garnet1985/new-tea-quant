@@ -54,7 +54,7 @@ def post_strategy_rolling_run(strategy_key_or_name: str):
     """启动滚动对照。"""
     rolling = rolling_impl.lazy_load()
     payload = json_payload()
-    raw_force = payload.get("force_refresh", payload.get("is_force", False))
+    raw_force = payload.get("force_refresh", False)
     force_refresh = raw_force if isinstance(raw_force, bool) else bool(raw_force)
     try:
         out = rolling.submit_run(

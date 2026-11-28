@@ -1,6 +1,8 @@
 # Tag 控制台 BFF：`routes` 编排
 
-**版本：** 0.1.0
+**模块：** `bff` · **版本：** `0.2.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 契约与字段语义以 [`core/ui/fed/src/pages/tagPage/API.md`](../../../ui/fed/src/pages/tagPage/API.md) 为准。
 

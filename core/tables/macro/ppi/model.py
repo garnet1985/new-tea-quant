@@ -1,5 +1,5 @@
 """
-data_ppi 表 Model
+sys_data_ppi 表 Model
 
 生产者价格指数（原 price_indexes 拆分）。
 """
@@ -10,7 +10,7 @@ from core.tables.macro.ppi.schema import schema as _schema
 
 
 class DataPpiModel(DbBaseModel):
-    """PPI 表 Model（表名 data_ppi）"""
+    """PPI 表 Model（表名 sys_data_ppi）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

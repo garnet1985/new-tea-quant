@@ -72,6 +72,15 @@ cfg = Discovery.file.find_in_tree(
 - **引入版本：** `0.2.1`
 - **描述：** 按格式加载；JSON/文本失败返回 `None`；YAML 需已安装 `pyyaml`，缺失则抛 `RuntimeError`
 
+#### parse_yaml_text
+
+`Discovery.file.parse_yaml_text(text: str) -> Any | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 解析 YAML **文本**（如 markdown frontmatter）；失败返回 `None`；缺 `pyyaml` 抛 `RuntimeError`
+
 #### load_file_content
 
 `Discovery.file.load_file_content(path, *, encoding="utf-8", auto_detect_format=True) -> str | dict | bytes | None`
@@ -81,6 +90,15 @@ cfg = Discovery.file.find_in_tree(
 - **引入版本：** `0.2.1`
 - **描述：** 加载文件；可按后缀自动识别 JSON/YAML/文本
 
+#### load_python_namespace
+
+`Discovery.file.load_python_namespace(path, *, module_name="__main__") -> dict | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 对**受信** Python 文件 `exec` 并返回完整命名空间（如 userspace `tool.py`）；勿用于不可信输入
+
 #### load_python_config
 
 `Discovery.file.load_python_config(path, var_name="settings") -> dict | None`
@@ -88,7 +106,7 @@ cfg = Discovery.file.find_in_tree(
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.1`
-- **描述：** 对**受信** Python 配置文件 `exec` 后提取指定变量（须为 mapping）；勿用于不可信输入
+- **描述：** 对**受信** Python 配置文件 `exec` 后提取指定变量（内部先走 `load_python_namespace`）；勿用于不可信输入
 
 #### save_file_content / save_json / save_yaml
 

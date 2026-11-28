@@ -51,7 +51,7 @@ terms:
     definition: |
       安装时目标路径已存在怎么办：reject（有冲突就失败）、skip_existing（跳过已有）、
       overwrite（覆盖）。预检与真正安装都按同一策略解释。
-    in_code: "ExportImport.install(..., conflict_policy=...)；contracts.ConflictPolicy"
+    in_code: "ExportImport.install.install(archive, userspace_root, policy)；contracts.ConflictPolicy"
     aliases: []
     avoid: []
 
@@ -59,7 +59,7 @@ terms:
     definition: |
       安装前冲突预检结果：ok、conflicts、skipped、to_install 等，让调用方在写盘前知道
       会碰什么。真正安装是另一步；预检本身不改 userspace。
-    in_code: "ExportImport.install 预检路径；contracts.PreflightResult"
+    in_code: "ExportImport.install.preflight(...)；contracts.PreflightResult"
     aliases:
       - "ConflictItem"
       - "ConflictChecker"

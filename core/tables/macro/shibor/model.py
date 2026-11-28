@@ -1,5 +1,5 @@
 """
-data_shibor 表 Model
+sys_data_shibor 表 Model
 
 上海银行间同业拆放利率。
 """
@@ -9,7 +9,7 @@ from core.tables.macro.shibor.schema import schema as _schema
 
 
 class DataShiborModel(DbBaseModel):
-    """Shibor 表 Model（表名 data_shibor）"""
+    """Shibor 表 Model（表名 sys_data_shibor）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

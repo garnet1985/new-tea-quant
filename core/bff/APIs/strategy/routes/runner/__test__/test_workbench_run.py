@@ -1,4 +1,4 @@
-"""Tests for workbench run launcher (V2-05 / V2-06)."""
+"""Tests for workbench run launcher (V2-05 / V2-06b)."""
 
 from __future__ import annotations
 
@@ -49,23 +49,6 @@ def test_pipeline_progress_roundtrip_via_launcher():
     assert env["pipeline_name"] == "price"
     assert env["result"]["version_id"] == "v3"
     assert "load" in [x["name"] for x in env["completed_steps"]]
-
-    step = WorkbenchRunLauncher.get_step_progress(
-        strategy_name="demo/x",
-        normalized_step="price",
-        job_id="job1",
-    )
-    assert step["status"] == "completed"
-    assert step["version_id"] == "v3"
-
-    assert (
-        WorkbenchRunLauncher.get_step_progress(
-            strategy_name="demo/x",
-            normalized_step="enum",
-            job_id="job1",
-        )
-        is None
-    )
 
 
 @patch(

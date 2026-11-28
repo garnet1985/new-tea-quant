@@ -181,6 +181,24 @@ class TestApi(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result, 'plain text')
 
+    def test_file_parse_yaml_text(self):
+        """parse_yaml_text 解析 YAML 字符串"""
+        result = Discovery.file.parse_yaml_text("a: 1\nb: two\n")
+        self.assertEqual(result, {"a": 1, "b": "two"})
+        self.assertIsNone(Discovery.file.parse_yaml_text(": bad: yaml: [["))
+
+    def test_file_load_python_namespace(self):
+        """load_python_namespace 返回完整命名空间"""
+        test_file = self.temp_path / "tool.py"
+        test_file.write_text(
+            "VALUE = 7\ndef run():\n    return VALUE\n",
+            encoding="utf-8",
+        )
+        ns = Discovery.file.load_python_namespace(test_file, module_name="tool")
+        self.assertIsNotNone(ns)
+        self.assertEqual(ns["VALUE"], 7)
+        self.assertEqual(ns["run"](), 7)
+
     def test_file_load_python_config_success(self):
         """load_python_config 成功加载 Python 配置"""
         test_file = self.temp_path / "settings.py"

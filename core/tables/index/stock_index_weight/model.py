@@ -1,5 +1,5 @@
 """
-data_stock_index_indicator_weight 表 Model
+sys_data_index_weight 表 Model
 
 股指成分股权重。
 """
@@ -9,7 +9,7 @@ from core.tables.index.stock_index_weight.schema import schema as _schema
 
 
 class DataStockIndexWeightModel(DbBaseModel):
-    """股指成分股权重表 Model（表名 data_stock_index_weight）"""
+    """股指成分股权重表 Model（表名 sys_data_index_weight）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

@@ -1,6 +1,6 @@
 # BFF 架构
 
-**模块：** `bff` · **版本：** `0.2.1`
+**模块：** `bff` · **版本：** `0.2.2`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -26,11 +26,12 @@ core/bff/
   static_ui.py           # 生产模式挂载 core/ui/fed/build
   shared/                # response / request / file_ops（无业务域知识）
   APIs/
-    platform/            # health, runtime, setup, app_settings, assistant
+    platform/            # health, runtime, setup, app_settings, ai, agent
     data/                # sources, contracts
     strategy/            # routes/ + helpers/
     tag/                 # routes/ + helpers/
     post_process/        # adapters / processors catalog + mutate
+    series_relation/     # catalog + run / results
   docs/
 ```
 
@@ -38,12 +39,31 @@ core/bff/
 
 ```mermaid
 flowchart TB
-  FED[FED / UI] --> BFF[Flask BFF]
-  BFF --> Routes[APIs routes]
-  Routes --> Impl[implementer]
-  Impl --> Helpers[helpers DTO]
-  Impl --> Modules[modules / infra facades]
-  BFF --> Static[static FED build]
+  subgraph clients [Clients]
+    FED[FED / React]
+  end
+  subgraph bff [core/bff]
+    App[app.py blueprints]
+    Shared[shared envelope]
+    subgraph domains [APIs by domain]
+      Plat[platform]
+      Data[data]
+      Strat[strategy]
+      Tag[tag]
+      PP[post_process]
+      SR[series_relation]
+    end
+  end
+  subgraph core [Core execution]
+    Mod[modules facades]
+    Inf[infra services]
+  end
+  FED -->|/api| App
+  App --> Shared
+  App --> domains
+  Plat & Data & Strat & Tag & PP & SR --> Mod
+  Plat & Data & Strat & Tag & PP & SR --> Inf
+  App --> Static[static_ui FED build]
 ```
 
 ## 分层
@@ -75,6 +95,7 @@ flowchart TB
 ## 相关文档
 
 - [`../README.md`](../README.md)
+- [`USER_GUIDE.md`](USER_GUIDE.md)
 - [`GROUPING.md`](GROUPING.md) — 业务域与 URL
 - [`ORCHESTRATION.md`](ORCHESTRATION.md) — 路由编排索引
 - [`routes/`](routes/) — 各域路由细节

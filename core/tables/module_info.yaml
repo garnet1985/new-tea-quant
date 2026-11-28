@@ -1,5 +1,5 @@
 name: tables
-version: 0.4.2
+version: 0.4.3
 compatible_core_versions: ">=0.5.0"
 description: "数据表定义：统一 schema.py 发现与注册，按领域（stock/industry/macro/calendar/index/tag/system）组织。"
 # 站点文档（可选；Drupal title / display title）
@@ -7,6 +7,10 @@ site_title: ""
 site_display_title: ""
 dependencies: []
 changelog:
+  - version: "0.4.3"
+    changes:
+      - 模型 docstring 与 schema.name（sys_*）对齐；adj_factor_events 导入顺序与 system_cache 小清理
+      - 补齐模块文档（README、API、ARCHITECTURE、USER_GUIDE、TEST_CASES、test_api 契约检查）
   - version: "0.4.2"
     changes:
       - 行业改为申万 2021，表定义放在 core/tables/industry（sw_meta / sw_stock_map / sw_kline）

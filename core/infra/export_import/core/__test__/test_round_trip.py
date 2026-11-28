@@ -131,3 +131,17 @@ def test_overwrite_replaces_existing_tree(tmp_path: Path):
     assert '"name": "demo"' in (
         dst_us / "strategies" / "demo" / "settings.py"
     ).read_text(encoding="utf-8")
+
+
+def test_extract_rejects_zip_slip(tmp_path: Path):
+    import io
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, mode="w") as zf:
+        zf.writestr("../escape.txt", b"nope")
+        zf.writestr("manifest.json", b'{"format_version":1,"entries":[]}')
+    dest = tmp_path / "out"
+    dest.mkdir()
+    with pytest.raises(ValueError, match="escapes|unsafe"):
+        ExportImport.archive.extract(buf.getvalue(), dest_dir=dest)

@@ -62,23 +62,22 @@ flowchart TB
 
 ## 数据流
 
-**导出**
+```mermaid
+flowchart LR
+  subgraph export_flow["导出"]
+    E1["ArtifactSpec list"] --> E2[ArtifactCollector]
+    E2 --> E3[RuntimeExcludes]
+    E3 --> E4["zip + manifest.json"]
+    E4 --> E5["bytes or Path"]
+  end
 
-```text
-ArtifactSpec[]
-  → ArtifactCollector（RuntimeExcludes 过滤）
-  → zip + manifest.json
-  → bytes | Path
-```
-
-**安装**
-
-```text
-archive
-  → extract → manifest
-  → ConflictChecker.preflight（policy）
-  → BundleInstaller 落盘到 userspace_root
-  → InstallResult
+  subgraph install_flow["安装"]
+    I1[archive] --> I2["extract 含 zip-slip 校验"]
+    I2 --> I3[manifest]
+    I3 --> I4["ConflictChecker.preflight"]
+    I4 --> I5["BundleInstaller 落盘"]
+    I5 --> I6[InstallResult]
+  end
 ```
 
 ---

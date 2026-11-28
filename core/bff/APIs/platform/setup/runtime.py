@@ -18,7 +18,9 @@ from core.infra.setup.core.shared.step_errors import setup_failure_message
 from core.infra.setup.core.shared import setup_session
 from core.bff.shared.client_log import log_degraded
 
-REPO_ROOT = Path(__file__).resolve().parents[5]
+
+def _repo_root() -> Path:
+    return ProjectContext.path.get_project_root()
 STATE_FILE = setup_session.STATE_FILE
 # 这些步骤会在子进程里打开 DuckDB；BFF 若仍握着同一文件会 Conflicting lock。
 _STEPS_NEED_EXCLUSIVE_DUCKDB = frozenset({"db_connection", "import_data"})
@@ -46,13 +48,14 @@ class SetupRuntimeManager:
         return {"status": "ok", "message": self._ml_extras_payload()}
 
     def install_ml_extras(self) -> Dict[str, Any]:
-        script = REPO_ROOT / "core" / "infra" / "setup" / "core" / "steps" / "resolve_ml_deps" / "install.py"
+        repo = _repo_root()
+        script = repo / "core" / "infra" / "setup" / "core" / "steps" / "resolve_ml_deps" / "install.py"
         if not script.is_file():
             return self._error("SETUP_ML_EXTRAS_MISSING", f"脚本不存在: {script}")
         started = time.monotonic()
         proc = subprocess.run(
             [sys_executable(), str(script)],
-            cwd=str(REPO_ROOT),
+            cwd=str(repo),
             capture_output=True,
             text=True,
         )
@@ -140,8 +143,9 @@ class SetupRuntimeManager:
                 },
             }
 
+        repo = _repo_root()
         script = (
-            REPO_ROOT
+            repo
             / "core"
             / "infra"
             / "setup"
@@ -156,7 +160,7 @@ class SetupRuntimeManager:
         started = time.monotonic()
         proc = subprocess.run(
             [sys_executable(), str(script)],
-            cwd=str(REPO_ROOT),
+            cwd=str(repo),
             capture_output=True,
             text=True,
         )
@@ -398,7 +402,7 @@ class SetupRuntimeManager:
             if not script_rel:
                 self._set_step_state(state, step_id, self.STATUS_FAILED, "缺少 scriptEntry")
                 return False, "缺少 scriptEntry", "缺少 scriptEntry"
-            script = (REPO_ROOT / script_rel).resolve()
+            script = (_repo_root() / script_rel).resolve()
             if not script.is_file():
                 missing = f"脚本不存在: {script_rel}"
                 self._set_step_state(state, step_id, self.STATUS_FAILED, missing)
@@ -420,7 +424,7 @@ class SetupRuntimeManager:
 
             proc = subprocess.run(
                 [sys_executable(), str(script)],
-                cwd=str(REPO_ROOT),
+                cwd=str(_repo_root()),
                 env=env,
                 capture_output=True,
                 text=True,

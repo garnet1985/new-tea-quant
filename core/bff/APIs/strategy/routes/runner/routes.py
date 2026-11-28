@@ -29,7 +29,7 @@ def get_strategy_run_progress(strategy_key_or_name: str):
     """
     GET /api/v1/strategy/:strategy_key_or_name/run/progress?job_id=
 
-    V2-06b：整次 run 编排进度。须注册在 ``…/<step>/progress`` 之前。
+    V2-06b：整次 run 编排进度。
     """
     runner = runner_impl.lazy_load()
     q_job = (request.args.get("job_id") or "").strip()
@@ -78,7 +78,7 @@ def post_strategy_step_run(strategy_key_or_name: str, step: str):
         if body_id != path_id:
             return error("strategy_name 与路径不一致", 400)
 
-    raw_force = payload.get("force_refresh", payload.get("is_force", False))
+    raw_force = payload.get("force_refresh", False)
     force_refresh = raw_force if isinstance(raw_force, bool) else bool(raw_force)
     expected_rev = SettingsOccupancy.expected_rev_from_request(
         payload,
@@ -134,35 +134,6 @@ def post_strategy_step_run(strategy_key_or_name: str, step: str):
             }
         )
     return ok({"is_triggered": False, "reason": out.get("reason", "未知错误")})
-
-
-@strategy_api_bp.route(
-    f"{API_BASE_PATH}/<path:strategy_key_or_name>/<step>/progress",
-    methods=["GET"],
-)
-def get_strategy_step_progress(strategy_key_or_name: str, step: str):
-    """
-    GET /api/v1/strategy/:strategy_key_or_name/:step/progress?job_id=
-
-    V2-06：legacy 单步进度；新 UI 优先 V2-06b。
-    """
-    runner = runner_impl.lazy_load()
-    q_job = (request.args.get("job_id") or "").strip()
-    if not q_job:
-        return error("缺少必填 query 参数 job_id", 400)
-    try:
-        payload = runner.get_step_progress(
-            strategy_key_or_name=strategy_key_or_name,
-            step=step,
-            job_id=q_job,
-        )
-    except ValueError as exc:
-        return error(str(exc), 400)
-    except FileNotFoundError as exc:
-        return error(str(exc), 404)
-    if payload is None:
-        return error("任务不存在或与路径不匹配", 404)
-    return ok(payload)
 
 
 @strategy_api_bp.route(f"{API_BASE_PATH}/scan/context", methods=["GET"])

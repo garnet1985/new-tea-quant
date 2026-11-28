@@ -1,5 +1,5 @@
 """
-data_pmi 表 Model
+sys_data_pmi 表 Model
 
 采购经理人指数（原 price_indexes 拆分）。
 """
@@ -10,7 +10,7 @@ from core.tables.macro.pmi.schema import schema as _schema
 
 
 class DataPmiModel(DbBaseModel):
-    """PMI 表 Model（表名 data_pmi）"""
+    """PMI 表 Model（表名 sys_data_pmi）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

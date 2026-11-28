@@ -1,5 +1,5 @@
 """
-data_lpr 表 Model
+sys_data_lpr 表 Model
 
 贷款基础利率。
 """
@@ -9,7 +9,7 @@ from core.tables.macro.lpr.schema import schema as _schema
 
 
 class DataLprModel(DbBaseModel):
-    """LPR 表 Model（表名 data_lpr）"""
+    """LPR 表 Model（表名 sys_data_lpr）"""
 
     def __init__(self, db=None):
         super().__init__(_schema["name"], db)

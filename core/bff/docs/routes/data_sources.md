@@ -1,6 +1,8 @@
 # Data sources BFF
 
-**版本：** 0.1.0
+**模块：** `bff` · **版本：** `0.2.2`
+
+**最低支持核心版本：** `>=0.5.0`
 
 契约见 [`core/ui/fed/src/pages/dataSourcePage/API.md`](../../../ui/fed/src/pages/dataSourcePage/API.md)（有则）。
 

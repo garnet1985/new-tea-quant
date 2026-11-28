@@ -86,10 +86,9 @@ def test_public_progress_uses_the_running_source(tmp_path, monkeypatch):
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
     from core.infra.progress import Progress
-    from core.infra.progress.core import store
     from core.modules.data_source import DataSourceManager
 
-    store.reset()
+    Progress.reset_for_tests()
     Progress.start(
         "data-renew-abc",
         job="renew",
@@ -119,4 +118,4 @@ def test_public_progress_uses_the_running_source(tmp_path, monkeypatch):
     assert body["ratio"] == 0.625
     Progress.clear("data-renew-abc")
     assert DataSourceManager.read_renew_ui_progress()["step_total"] == 0
-    store.reset()
+    Progress.reset_for_tests()

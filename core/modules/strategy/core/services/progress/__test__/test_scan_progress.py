@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from core.infra.progress import Progress
 from core.infra.project_context.core.path_manager import PathManager
 from core.modules.strategy.core.services.progress import ScanProgress
 
@@ -14,11 +15,10 @@ from core.modules.strategy.core.services.progress import ScanProgress
 def progress_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "progress"))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
-    from core.infra.progress.core import store
 
-    store.reset()
+    Progress.reset_for_tests()
     yield tmp_path
-    store.reset()
+    Progress.reset_for_tests()
 
 
 def _isolate_userspace(tmp_path: Path, monkeypatch) -> Path:

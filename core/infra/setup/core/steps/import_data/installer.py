@@ -117,12 +117,8 @@ class SetupDataInstaller:
         return self.ensure_demo_package(force_download=force_download)
 
     def ensure_demo_package(self, *, force_download: bool = False) -> Path:
-        """本地无 zip（或 force）时从官网公开接口下载 ``data_demo.zip``。"""
+        """确保本地有 demo zip；缺包时走已注入的 ``PackageFetcher``（不 import 官网层）。"""
         from core.infra.setup.core.shared.env import NewTeaQuantSetup
-        from core.modules.ntq_external.install_demo import (
-            InstallDemoError,
-            download_install_demo,
-        )
 
         existing = self.discover_data_packages()
         if existing and not force_download:
@@ -135,53 +131,17 @@ class SetupDataInstaller:
             )
             return existing[0]
 
-        from core.infra.setup.core.shared.install_progress import (
-            begin_import_download,
-            begin_import_prepare,
-            fail_import,
-            finish_import_download,
-            tick_import_download,
+        return self._fetch_via_hook(
+            kind="demo",
+            force_download=force_download,
+            running_label="正在下载演示数据包…",
+            done_label="演示数据包已就绪",
         )
-
-        NewTeaQuantSetup.print_check_item(
-            "running",
-            "正在从官网下载演示数据包（公开，无需会员）…",
-        )
-        begin_import_download()
-        try:
-            path = download_install_demo(
-                self.data_dir,
-                force=force_download,
-                on_progress=tick_import_download,
-            )
-            finish_import_download()
-            begin_import_prepare(detail="准备导入…")
-        except InstallDemoError as exc:
-            fail_import(str(exc))
-            hint = (
-                "请检查网络后重跑: python cli.py id\n"
-                "本地联调可设 NTQ_INSTALL_DEMO_URL 指向官网或本机 XAMPP。"
-            )
-            reason = str(exc)
-            if "CERTIFICATE_VERIFY_FAILED" in reason or "certificate verify failed" in reason:
-                hint = (
-                    "本机 Python 缺 CA 证书（macOS 常见）。"
-                    "请确认已安装依赖（含 certifi）后重跑；"
-                    "或执行 Python 安装目录下的 Install Certificates.command。\n"
-                    "也可设 NTQ_INSTALL_DEMO_URL 指向本机已有包。"
-                )
-            raise RuntimeError(
-                f"{CmdLayout.icon.get('error')} 下载演示数据包失败: {exc}\n{hint}"
-            ) from exc
-        NewTeaQuantSetup.print_check_item("done", f"演示数据包已就绪: {path.name}")
-        return path
 
     def ensure_member_package(self, *, force_download: bool = False) -> Path:
-        """本地无齐套分卷（或 force）时凭会员凭证从官网拉取。"""
+        """确保本地会员分卷齐套；缺包时走已注入的 ``PackageFetcher``。"""
         from core.infra.setup.core.shared.env import NewTeaQuantSetup
-        from core.modules.ntq_external.install_member import (
-            InstallMemberError,
-            download_install_member,
+        from core.infra.setup.core.steps.import_data.data_packages import (
             member_parts_complete,
         )
 
@@ -195,6 +155,26 @@ class SetupDataInstaller:
             )
             return self.data_dir
 
+        return self._fetch_via_hook(
+            kind="member",
+            force_download=force_download,
+            running_label="正在下载会员数据包…",
+            done_label="会员数据包已就绪",
+        )
+
+    def _fetch_via_hook(
+        self,
+        *,
+        kind: str,
+        force_download: bool,
+        running_label: str,
+        done_label: str,
+    ) -> Path:
+        from core.infra.setup.core.shared.env import NewTeaQuantSetup
+        from core.infra.setup.core.shared.package_fetch import (
+            get_package_fetcher,
+            missing_package_message,
+        )
         from core.infra.setup.core.shared.install_progress import (
             begin_import_download,
             begin_import_prepare,
@@ -203,26 +183,39 @@ class SetupDataInstaller:
             tick_import_download,
         )
 
-        NewTeaQuantSetup.print_check_item(
-            "running",
-            "正在从官网下载会员数据包（需会员凭证）…",
-        )
+        fetcher = get_package_fetcher()
+        if fetcher is None:
+            msg = missing_package_message(kind, self.data_dir)
+            fail_import(msg)
+            raise RuntimeError(f"{CmdLayout.icon.get('error')} {msg}")
+
+        NewTeaQuantSetup.print_check_item("running", running_label)
         begin_import_download()
         try:
-            path = download_install_member(
+            path = fetcher(
+                kind,
                 self.data_dir,
                 force=force_download,
                 on_progress=tick_import_download,
             )
             finish_import_download()
             begin_import_prepare(detail="准备导入…")
-        except InstallMemberError as exc:
+        except Exception as exc:
             fail_import(str(exc))
+            reason = str(exc)
+            hint = ""
+            if "CERTIFICATE_VERIFY_FAILED" in reason or "certificate verify failed" in reason:
+                hint = (
+                    "\n本机 Python 缺 CA 证书（macOS 常见）。"
+                    "请确认已安装依赖（含 certifi）后重跑；"
+                    "或执行 Python 安装目录下的 Install Certificates.command。"
+                )
             raise RuntimeError(
-                f"{CmdLayout.icon.get('error')} 下载会员数据包失败: {exc}"
+                f"{CmdLayout.icon.get('error')} 下载 {kind} 数据包失败: {exc}{hint}"
             ) from exc
-        NewTeaQuantSetup.print_check_item("done", f"会员数据包已就绪: {path}")
-        return path
+        label = path.name if isinstance(path, Path) and path.is_file() else str(path)
+        NewTeaQuantSetup.print_check_item("done", f"{done_label}: {label}")
+        return Path(path)
 
     def _extract_zips(self, extract_root: Path) -> List[Path]:
         from core.infra.setup.core.shared.env import NewTeaQuantSetup

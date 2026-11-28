@@ -29,7 +29,7 @@ from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
 NewTeaQuantSetup.ensure_venv_for_setup_step(__file__)
 
-from core.infra.project_context.core.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 
 INIT_USERSPACE_DIR = NewTeaQuantSetup.init_userspace_dir
 STATE_FILE = _REPO_ROOT / ".ntq" / "userspace-path.json"
@@ -51,7 +51,7 @@ def _write_userspace_state(userspace_path: Path) -> None:
         "userspacePath": str(userspace_path.resolve()),
     }
     STATE_FILE.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    PathManager.clear_userspace_cache()
+    ProjectContext.cache.clear_userspace_cache()
 
 
 def _is_userspace_structure_ready(target: Path) -> bool:
@@ -131,7 +131,7 @@ def main() -> int:
         conflict_policy = "skip"
     zip_path = _resolve_zip()
     try:
-        target = PathManager.resolve_userspace_target(target_path or None)
+        target = ProjectContext.path.resolve_userspace_target(target_path or None)
     except (ValueError, PermissionError, OSError) as exc:
         raise RuntimeError(f"userspace 路径非法或无权限: {exc}") from exc
     if target.exists():

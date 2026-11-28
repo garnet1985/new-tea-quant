@@ -40,8 +40,9 @@ job_pipeline/
 ├── core/
 │   ├── registry_store.py    # running 槽
 │   ├── queue_store.py       # pending 队列
+│   ├── store_io.py          # 原子写 / runtime 路径
 │   ├── running_lease.py
-│   ├── progress_view.py
+│   ├── progress_view.py     # Progress 摘要；import 读函数可注入
 │   ├── liveness.py
 │   ├── pipeline_constants.py
 │   └── running_reader.py
@@ -59,11 +60,13 @@ job_pipeline/
 flowchart LR
   BFF["BFF launcher / runtime"] --> JP["JobPipeline"]
   FED["FED 管道坞 / Watch"] --> BFF
+  BFF -.->|set_import_progress_reader| JP
   JP --> Reg["registry_store<br/>running 槽"]
   JP --> Que["queue_store<br/>pending"]
   JP --> Live["liveness<br/>pid / stale"]
   JP --> PV["progress_view"]
   PV --> Prog["infra.progress"]
+  PV -.->|可选注入| ImportProg["Setup.runtime.read_import_progress"]
   Reg --> Disk["userspace/.ntq/runtime"]
   Que --> Disk
 ```
@@ -91,6 +94,9 @@ flowchart TD
 
 - `infra.project_context`：定位 `userspace/.ntq/runtime`
 - `infra.progress`：任务快照挂细进度摘要；abandon 时写 fail
+- **不**依赖 `infra.setup`：`import_data` 进度经 `set_import_progress_reader` 由 BFF 注入
+
+**已知产品债：** BFF `strategy_scan` 仍用独立单飞线程（DEC-08），未走本模块队列。
 
 ---
 

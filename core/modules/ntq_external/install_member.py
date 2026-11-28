@@ -12,15 +12,19 @@ from typing import Any, Callable, Dict, List, Optional
 from urllib.error import HTTPError, URLError
 from urllib.request import Request
 
+from core.infra.setup.core.steps.import_data.data_packages import (
+    MEMBER_MANIFEST_NAME,
+    list_member_part_files,
+    member_parts_complete,
+)
+from core.infra.utils.core.net.ssl_context import urlopen_https
 from core.modules.ntq_external.conf.site_target import (
     install_member_meta_url,
     install_member_part_url,
 )
-from core.infra.utils.core.net.ssl_context import urlopen_https
 
 logger = logging.getLogger(__name__)
 
-MEMBER_MANIFEST_NAME = "data_member_3y.manifest.json"
 _DEFAULT_TIMEOUT_SEC = 180
 _USER_AGENT = "NTQ/install-member"
 _CHUNK_SIZE = 64 * 1024
@@ -64,64 +68,6 @@ def fetch_install_member_meta(*, timeout_sec: float = 30.0) -> Dict[str, Any]:
     if not isinstance(parts, list) or not parts:
         raise InstallMemberError("会员包元数据缺少 parts")
     return data
-
-
-def list_member_part_files(dest_dir: Path, meta: Optional[Dict[str, Any]] = None) -> List[Path]:
-    """按 manifest（或目录扫描）列出本地分卷。"""
-    dest_dir = Path(dest_dir)
-    if meta and isinstance(meta.get("parts"), list):
-        out: List[Path] = []
-        for part in meta["parts"]:
-            if not isinstance(part, dict):
-                continue
-            name = str(part.get("file") or "").strip()
-            if not name or "/" in name or "\\" in name or ".." in name:
-                continue
-            out.append(dest_dir / name)
-        return out
-    return sorted(dest_dir.glob("data_member_3y_part*.zip"))
-
-
-def member_parts_complete(dest_dir: Path, meta: Optional[Dict[str, Any]] = None) -> bool:
-    """本地分卷是否齐全且（有 sha 时）校验通过。"""
-    dest_dir = Path(dest_dir)
-    if meta is None:
-        manifest = dest_dir / MEMBER_MANIFEST_NAME
-        if not manifest.is_file():
-            return False
-        try:
-            meta = json.loads(manifest.read_text(encoding="utf-8"))
-        except (OSError, json.JSONDecodeError):
-            return False
-    if not isinstance(meta, dict):
-        return False
-    parts = meta.get("parts")
-    if not isinstance(parts, list) or not parts:
-        return False
-    for part in parts:
-        if not isinstance(part, dict):
-            return False
-        name = str(part.get("file") or "").strip()
-        path = dest_dir / name
-        if not path.is_file():
-            return False
-        expected_sha = str(part.get("sha256") or "").strip().lower()
-        expected_size = part.get("size_bytes")
-        try:
-            size = path.stat().st_size
-        except OSError:
-            return False
-        if expected_size is not None:
-            try:
-                if size != int(expected_size):
-                    return False
-            except (TypeError, ValueError):
-                pass
-        if expected_sha:
-            actual = hashlib.sha256(path.read_bytes()).hexdigest()
-            if actual != expected_sha:
-                return False
-    return True
 
 
 def download_install_member(

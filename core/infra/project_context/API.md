@@ -267,11 +267,14 @@ cfg = ProjectContext.discovery.load_overridable_config(
 | `DiscoveredConfig` | 配置路径发现结果 dataclass |
 | `MergeFn` | 自定义合并函数类型 |
 | `DEFAULT_DUCKDB_DOMAINS` / `DUCKDB_DOMAIN_FILES` / `SUPPORTED_DB_TYPES` | DuckDB 域默认与支持类型 |
+| `DATA_PACKAGE_KINDS` | 静态数据包类型 `demo` / `member` / `full` |
+| `MEMBERSHIP_TOKEN_FILE_NAME` | 会员凭证文件名（与 path API 同源） |
 
 ```python
 from core.infra.project_context import ProjectContext
 
 err = ProjectContext.types.OverridableConfigNotFoundError
+kinds = ProjectContext.types.DATA_PACKAGE_KINDS
 ```
 
 ---
@@ -283,10 +286,14 @@ err = ProjectContext.types.OverridableConfigNotFoundError
 | `OverridableConfigNotFoundError` | 可覆盖配置未找到（`FileNotFoundError` 子类） |
 | `DiscoveredConfig` | 配置路径发现结果 dataclass |
 | `DEFAULT_DUCKDB_DOMAINS` / `DUCKDB_DOMAIN_FILES` / `SUPPORTED_DB_TYPES` | DuckDB 域默认与支持类型 |
+| `DATA_PACKAGE_KINDS` | 静态数据包类型元组 |
+| `MEMBERSHIP_TOKEN_FILE_NAME` | 会员凭证文件名 |
 
 ```python
 from core.infra.project_context.contracts import (
+    DATA_PACKAGE_KINDS,
     DEFAULT_DUCKDB_DOMAINS,
+    MEMBERSHIP_TOKEN_FILE_NAME,
     OverridableConfigNotFoundError,
 )
 ```

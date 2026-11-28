@@ -49,6 +49,7 @@ class TestSetupApi(unittest.TestCase):
             "ensure_cli_install",
             "bind_install_progress_dir",
             "read_import_progress",
+            "set_package_fetcher",
             "import_data_pack",
             "install_ui",
             "check_ui_prerequisites",

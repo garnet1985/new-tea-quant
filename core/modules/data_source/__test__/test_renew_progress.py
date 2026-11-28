@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import pytest
 
+from core.infra.progress import Progress
+
 pytestmark = pytest.mark.force_run
 
 
@@ -11,18 +13,16 @@ pytestmark = pytest.mark.force_run
 def progress_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
-    from core.infra.progress.core import store
     from core.modules.data_source.core.progress import bind_renew_leaf
 
-    store.reset()
+    Progress.reset_for_tests()
     bind_renew_leaf("")
     yield tmp_path
     bind_renew_leaf("")
-    store.reset()
+    Progress.reset_for_tests()
 
 
 def test_each_source_is_one_step(progress_dir, capsys):
-    from core.infra.progress import Progress
     from core.modules.data_source.core.execution_scheduler import DataSourceExecutionScheduler
     from core.modules.data_source.core.progress import SyncProgress
 
@@ -57,7 +57,6 @@ def test_each_source_is_one_step(progress_dir, capsys):
 
 
 def test_aborted_run_marks_the_root_failed(progress_dir):
-    from core.infra.progress import Progress
     from core.modules.data_source.core.execution_scheduler import DataSourceExecutionScheduler
 
     class Handler:

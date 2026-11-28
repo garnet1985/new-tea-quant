@@ -6,29 +6,21 @@ import json
 import logging
 import os
 import threading
-from datetime import datetime, timezone
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Optional
 
 from filelock import FileLock, Timeout
 
 from core.infra.job_pipeline.contracts import JobRunningBusyError, JobStatus, VALID_KINDS
 from core.infra.job_pipeline.core.pipeline_constants import FILE_LOCK_TIMEOUT_SEC
+from core.infra.job_pipeline.core.store_io import atomic_write_json, iso_now, runtime_dir
 
 logger = logging.getLogger(__name__)
 
 _THREAD_LOCK = threading.Lock()
 
-
-def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
-def _runtime_dir() -> Path:
-    from core.infra.project_context import ProjectContext
-
-    return ProjectContext.path.get_userspace_ntq_directory() / "runtime"
+# 测试可 monkeypatch；生产走 store_io.runtime_dir
+_runtime_dir = runtime_dir
 
 
 def registry_path() -> Path:
@@ -40,16 +32,7 @@ def registry_lock_path() -> Path:
 
 
 def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with NamedTemporaryFile(
-        "w",
-        encoding="utf-8",
-        dir=path.parent,
-        delete=False,
-    ) as tmp:
-        tmp.write(json.dumps(payload, ensure_ascii=False, indent=2))
-        tmp_path = Path(tmp.name)
-    os.replace(str(tmp_path), str(path))
+    atomic_write_json(path, payload)
 
 
 def _holder_alive(payload: Dict[str, Any]) -> bool:
@@ -172,7 +155,7 @@ def acquire_running(row: Dict[str, Any]) -> Dict[str, Any]:
         or kind,
         "domains": list(row.get("domains") or []),
         "pid": os.getpid(),
-        "started_at": _iso_now(),
+        "started_at": iso_now(),
     }
 
     with _THREAD_LOCK:

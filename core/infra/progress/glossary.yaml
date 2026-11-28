@@ -84,9 +84,42 @@ terms:
       频道化 job 快照命名空间：路径 progress/{channel}/{file_key}.json，与树形根文件并列。
       用于按业务域分隔一批 job 进度文件。infra 不写死 strategy / tag 等 channel 名——由调用方传入。
       不要把内部 ProgressRecorder 当成公开导出。
+      注意：树形节点的 updated_at 是 unix int；channel 快照的 updated_at 是 ISO UTC 字符串。
     in_code: "Progress.channel...；progress/{channel}/{file_key}.json"
     aliases:
       - "频道"
     avoid:
       - "在 infra 里写死 strategy / tag 等业务 channel 名"
       - "把 ProgressRecorder 当成 infra 公开导出"
+
+  drain:
+    definition: |
+      立刻把内存里尚未落盘的进度树写到磁盘。默认写盘有合并延迟（见 NTQ_PROGRESS_FLUSH_DELAY）；
+      安装子进程或 BFF 轮询前应先 drain，否则另一进程可能读到旧文件。
+    in_code: "Progress.drain()"
+    aliases:
+      - "flush"
+    avoid:
+      - "把 drain 当成业务「完成进度」"
+
+  prune:
+    definition: |
+      启动新根树时顺带清理过期已结束进度文件，运行中的文件保留。阈值与保留天数见 progress_constants。
+    in_code: "store 内 prune；由 Progress.start 触发"
+    aliases: []
+    avoid:
+      - "手删 userspace progress 目录当正式 API"
+
+  NTQ_PROGRESS_DIR:
+    definition: |
+      覆盖进度根目录的环境变量。单测常用临时目录；未设时走 ProjectContext / 默认 tmp。
+    in_code: "os.environ['NTQ_PROGRESS_DIR']；paths.resolve_progress_directory"
+    aliases: []
+    avoid: []
+
+  NTQ_PROGRESS_FLUSH_DELAY:
+    definition: |
+      合并写盘延迟（秒）。设为 0 时 tick 后尽快落盘；默认见 progress_constants。
+    in_code: "os.environ['NTQ_PROGRESS_FLUSH_DELAY']"
+    aliases: []
+    avoid: []

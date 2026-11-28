@@ -17,13 +17,13 @@
 
 ## MachineInfo
 
-**描述：** 机器容量门面类（Facade）— 从 `performance` 字典解析 CPU / 内存预算与可用 worker
+**描述：** 机器容量门面类（Facade）— 从 `performance` 字典解析 CPU / 内存预算与可用 worker；探测磁盘介质
 
 ### types
 
 **描述：** 与 `contracts` 同源的类型挂载点（`MachineCapacity`）
 
-#### get_capacity
+### get_capacity
 
 `MachineInfo.get_capacity(performance: dict) -> MachineCapacity`
 
@@ -40,7 +40,7 @@ capacity = MachineInfo.get_capacity(performance)
 workers = MachineInfo.get_available_workers(capacity)
 ```
 
-#### get_cpu_count
+### get_cpu_count
 
 `MachineInfo.get_cpu_count() -> int`
 
@@ -49,7 +49,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **引入版本：** `0.1.0`
 - **描述：** 逻辑 CPU 数（至少 1）
 
-#### get_reserve_cores
+### get_reserve_cores
 
 `MachineInfo.get_reserve_cores(performance: dict) -> int`
 
@@ -58,7 +58,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **引入版本：** `0.1.0`
 - **描述：** 从 `performance.reserve_cores` 解析预留核（默认 1，非法值回落默认）
 
-#### resolve_memory_budget
+### resolve_memory_budget
 
 `MachineInfo.resolve_memory_budget(performance: dict) -> tuple[float, float]`
 
@@ -67,7 +67,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **引入版本：** `0.1.0`
 - **描述：** 返回 `(budget_mb, floor_mb)`；显式 `memory_budget_mb` 或 `auto`（见 [DECISIONS](./docs/DECISIONS.md)）
 
-#### resolve_memory_floor
+### resolve_memory_floor
 
 `MachineInfo.resolve_memory_floor(performance: dict) -> float`
 
@@ -76,7 +76,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **引入版本：** `0.1.0`
 - **描述：** 机器保留空闲内存底线；显式或 `auto`
 
-#### get_available_workers
+### get_available_workers
 
 `MachineInfo.get_available_workers(capacity: MachineCapacity) -> int`
 
@@ -85,7 +85,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **引入版本：** `0.1.0`
 - **描述：** `cpu_count − reserve_cores`（至少 1）
 
-#### worker_pool_budget_mb
+### worker_pool_budget_mb
 
 `MachineInfo.worker_pool_budget_mb(capacity: MachineCapacity) -> float`
 
@@ -94,7 +94,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **引入版本：** `0.1.0`
 - **描述：** 进程池可用预算；对 `capacity.memory_budget_mb` 夹紧到至少 1 MB
 
-#### parse_max_parallel_jobs_cap
+### parse_max_parallel_jobs_cap
 
 `MachineInfo.parse_max_parallel_jobs_cap(raw) -> int | None`
 
@@ -103,7 +103,7 @@ workers = MachineInfo.get_available_workers(capacity)
 - **引入版本：** `0.1.0`
 - **描述：** 解析并行 job 上限；`None` / `""` / `"null"` / `"auto"` / 非法 → `None`
 
-#### virtual_memory_mb
+### virtual_memory_mb
 
 `MachineInfo.virtual_memory_mb() -> tuple[float | None, float | None]`
 
@@ -112,14 +112,14 @@ workers = MachineInfo.get_available_workers(capacity)
 - **引入版本：** `0.2.0`
 - **描述：** 本机 `(total_mb, available_mb)`；无 psutil 或失败时 `(None, None)`
 
-#### get_disk_type
+### get_disk_type
 
 `MachineInfo.get_disk_type(path: str | Path | None = None) -> str`
 
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.2.1`
-- **描述：** 探测 `path` 所在卷介质，返回 `ssd` / `hdd` / `unknown`（默认 cwd；失败为 `unknown`）
+- **描述：** 探测介质，返回 `ssd` / `hdd` / `unknown`。Linux/macOS 按 `path` 所在卷（默认 cwd）；Windows 汇总本机 `PhysicalDisk.MediaType`（不按 path 分区，见 DEC-03）。失败为 `unknown`。
 - **举例：**
 
 ```python
@@ -135,3 +135,4 @@ kind = MachineInfo.get_disk_type()  # "ssd" | "hdd" | "unknown"
 | 符号 | 说明 | 状态 |
 |------|------|------|
 | `MachineCapacity` | 冻结 dataclass：cpu_count / memory_budget_mb / memory_floor_mb / reserve_cores | `beta` |
+| `DiskType` | `Literal["ssd", "hdd", "unknown"]` | `beta` |

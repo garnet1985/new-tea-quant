@@ -145,6 +145,15 @@ class ImportDataLauncher:
 
             from core.infra.setup import Setup
 
+            try:
+                from core.modules.ntq_external.setup_bridge import (
+                    wire_setup_package_fetcher,
+                )
+
+                wire_setup_package_fetcher()
+            except ImportError:
+                pass
+
             Setup.runtime.import_data_pack(
                 pack_kind=pack_kind,
                 force=force,

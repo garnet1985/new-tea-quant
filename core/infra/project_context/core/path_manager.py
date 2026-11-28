@@ -7,6 +7,11 @@ import os
 import sys
 import types
 
+from core.infra.project_context.contracts import (
+    DATA_PACKAGE_KINDS,
+    MEMBERSHIP_TOKEN_FILE_NAME,
+)
+
 logger = logging.getLogger(__name__)
 
 
@@ -277,8 +282,8 @@ class PathManager:
 
     @staticmethod
     def get_membership_token_file() -> Path:
-        """官网通用凭证：userspace/system/membership/membership_token.txt"""
-        return PathManager.get_membership_directory() / "membership_token.txt"
+        """官网通用凭证：userspace/system/membership/{MEMBERSHIP_TOKEN_FILE_NAME}"""
+        return PathManager.get_membership_directory() / MEMBERSHIP_TOKEN_FILE_NAME
 
     @staticmethod
     def get_default_config_root() -> Path:
@@ -332,9 +337,6 @@ class PathManager:
         """获取临时目录：userspace/.ntq/tmp/"""
         return PathManager.get_userspace_ntq_directory() / "tmp"
 
-    # 静态数据包：demo / member / full（导出、下载、导入共用）
-    DATA_PACKAGE_KINDS = ("demo", "member", "full")
-
     @staticmethod
     def get_packages_root() -> Path:
         """静态数据包根目录：userspace/.ntq/packages/"""
@@ -344,9 +346,9 @@ class PathManager:
     def get_data_package_directory(kind: str = "demo") -> Path:
         """按类型返回数据包目录：userspace/.ntq/packages/{demo|member|full}/。"""
         key = str(kind or "demo").strip().lower() or "demo"
-        if key not in PathManager.DATA_PACKAGE_KINDS:
+        if key not in DATA_PACKAGE_KINDS:
             raise ValueError(
-                f"未知数据包类型: {kind!r}（可选: {', '.join(PathManager.DATA_PACKAGE_KINDS)}）"
+                f"未知数据包类型: {kind!r}（可选: {', '.join(DATA_PACKAGE_KINDS)}）"
             )
         return PathManager.get_packages_root() / key
 

@@ -40,8 +40,28 @@ flowchart LR
   Caller --> MachineInfo
   MachineInfo --> Capacity[get_capacity / resolve_*]
   MachineInfo --> Mem[virtual_memory_mb]
+  MachineInfo --> Disk[get_disk_type]
   MachineInfo --> Const[machine_capacity_constants]
   MachineInfo --> Types[contracts via types]
+```
+
+---
+
+## 数据流
+
+```mermaid
+flowchart TD
+  Perf["performance dict"] --> Cap[get_capacity]
+  Cap --> CPU[get_cpu_count / reserve_cores]
+  Cap --> Floor[resolve_memory_floor]
+  Cap --> Budget[resolve_memory_budget]
+  Floor --> VM[virtual_memory_mb / psutil]
+  Budget --> VM
+  Cap --> Out[MachineCapacity]
+  Out --> Workers[get_available_workers]
+  Out --> PoolMB[worker_pool_budget_mb]
+  Path["path or cwd"] --> Disk[get_disk_type]
+  Disk --> OS["linux sysfs / darwin diskutil / windows PhysicalDisk"]
 ```
 
 ---

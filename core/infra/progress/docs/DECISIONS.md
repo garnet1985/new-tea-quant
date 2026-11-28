@@ -88,7 +88,15 @@
 
 - **采用：** 方案 A
 - **理由：** Facade 只导出 `Progress`；infra 不写业务 channel 名；tag 可直连 `Progress.channel`，不必依赖 strategy。
-- **影响：** strategy 若要包一层约定，放在本模块 `core/`（如 `ProgressRecorder`），不经 infra 包根导出。
+- **影响：** strategy 若要包一层约定，放在**业务模块** `core/`（如 strategy 的 `ProgressRecorder`），不经 infra 包根导出。
+
+---
+
+## DEC-05：测试复位走门面 `reset_for_tests`
+
+- **采用：** `Progress.reset_for_tests()` 委托内部 `store.reset`；跨模块单测不得深导入 `progress.core.store`。
+- **理由：** 包根仍只导出 `Progress`；测试复位是公开契约的一部分（与 `drain` 同级），避免 Facade 侵蚀。
+- **影响：** 生产勿调用；`API.md` 标注「仅单测」。
 
 ---
 

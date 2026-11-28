@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from core.infra.progress import Progress
+
 pytestmark = pytest.mark.force_run
 
 
@@ -14,11 +16,10 @@ pytestmark = pytest.mark.force_run
 def progress_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
-    from core.infra.progress.core import store
 
-    store.reset()
+    Progress.reset_for_tests()
     yield tmp_path
-    store.reset()
+    Progress.reset_for_tests()
 
 
 def test_import_progress_counts_finished_tables_only(progress_dir):

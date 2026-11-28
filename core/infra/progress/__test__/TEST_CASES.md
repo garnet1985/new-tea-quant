@@ -16,7 +16,7 @@
 
 **负责**
 
-- `Progress.start`、`tick`、`finish`、`fail`、`cancel`、`pause`、`resume`、`clear`、`read`、`latest`
+- `Progress.start`、`tick`、`finish`、`fail`、`cancel`、`pause`、`resume`、`clear`、`read`、`latest`、`drain`、`reset_for_tests`
 - `Progress.channel.path` / `write` / `read` / `clear`
 - 有子节点时按 weight 汇总 ratio
 - 包根只导出 `Progress`
@@ -32,7 +32,7 @@
 
 | 用例 | 类型 | 入口 |
 |------|------|------|
-| 门面导出与方法存在 | api | `test_api.py` |
+| 门面导出与方法存在（含 drain） | api | `test_api.py` |
 | 频道快照 write / read / clear | api | `test_api.py` |
 | 频道拒绝非法 channel | api | `test_api.py` |
 | 叶子计数写入 ratio，并打印 detail | api | `test_api.py` |
@@ -42,5 +42,6 @@
 | 暂停和取消保持 ratio | api | `test_api.py` |
 | 缺少节点、对父节点 tick、非法 id | api | `test_api.py` |
 | latest 与 clear | api | `test_api.py` |
+| 跨进程改写同名根后 latest 重载 | api | `test_api.py` |
 | 清理过期的已结束文件，保留运行中的文件 | api | `test_api.py` |
-| 延迟写盘时 read 仍返回最新 ratio | api | `test_api.py` |
+| 延迟写盘时 read 仍返回最新 ratio；drain 落盘 | api | `test_api.py` |

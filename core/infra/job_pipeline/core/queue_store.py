@@ -4,11 +4,8 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 import threading
-from datetime import datetime, timezone
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any, Dict, List, Optional
 
 from filelock import FileLock, Timeout
@@ -17,24 +14,15 @@ from core.infra.job_pipeline.core.pipeline_constants import (
     DEFAULT_MAX_PENDING,
     FILE_LOCK_TIMEOUT_SEC,
 )
+from core.infra.job_pipeline.core.store_io import atomic_write_json, iso_now, runtime_dir
 
 logger = logging.getLogger(__name__)
 
 _LOCK = threading.Lock()
 
 
-def _iso_now() -> str:
-    return datetime.now(timezone.utc).isoformat()
-
-
 def queue_path() -> Path:
-    from core.infra.project_context import ProjectContext
-
-    return (
-        ProjectContext.path.get_userspace_ntq_directory()
-        / "runtime"
-        / "job_pipeline_queue.json"
-    )
+    return runtime_dir() / "job_pipeline_queue.json"
 
 
 def queue_lock_path() -> Path:
@@ -42,16 +30,7 @@ def queue_lock_path() -> Path:
 
 
 def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with NamedTemporaryFile(
-        "w",
-        encoding="utf-8",
-        dir=path.parent,
-        delete=False,
-    ) as tmp:
-        tmp.write(json.dumps(payload, ensure_ascii=False, indent=2))
-        tmp_path = Path(tmp.name)
-    os.replace(str(tmp_path), str(path))
+    atomic_write_json(path, payload)
 
 
 def _read_unlocked(path: Path) -> Dict[str, Any]:
@@ -132,7 +111,7 @@ def enqueue(
                 }
         entry = dict(row)
         entry["status"] = "pending"
-        entry.setdefault("enqueued_at", _iso_now())
+        entry.setdefault("enqueued_at", iso_now())
         pending.append(entry)
         _atomic_write(path, {"pending": pending})
         return {"ok": True, "job": dict(entry)}

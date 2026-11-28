@@ -3,7 +3,7 @@
 推荐::
 
     from core.infra.job_pipeline import JobPipeline
-    from core.infra.job_pipeline.contracts import JobStatus
+    from core.infra.job_pipeline.contracts import JobStatus, JobRunningBusyError, VALID_KINDS
 """
 
 from __future__ import annotations
@@ -11,6 +11,8 @@ from __future__ import annotations
 from typing import Any, Dict, Optional
 
 # 长任务 kind；并行扩容时再拆锁粒度。
+# 注意：``strategy_scan`` 已可占 running 槽（agent），但 BFF 扫描仍用独立单飞线程，
+# 尚未 ``register_handler`` / 入队（见 DECISIONS DEC-07）。
 VALID_KINDS = frozenset(
     {
         "tag_run",
@@ -43,3 +45,10 @@ class JobRunningBusyError(RuntimeError):
         kind = self.existing.get("kind") or "unknown"
         jid = self.existing.get("job_id") or ""
         super().__init__(f"系统任务进行中（{kind}）" + (f" job_id={jid}" if jid else ""))
+
+
+__all__ = [
+    "VALID_KINDS",
+    "JobStatus",
+    "JobRunningBusyError",
+]

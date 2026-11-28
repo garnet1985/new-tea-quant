@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import shutil
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
-from core.infra.project_context.core.path_manager import PathManager
+from core.infra.project_context.contracts import DATA_PACKAGE_KINDS
 
 # 与官网 / 导出约定一致；各类型独立目录，避免混包。
 PACKAGE_ZIP_BY_KIND = {
@@ -20,12 +22,15 @@ PACKAGE_META_BY_KIND = {
     "full": "data_full.meta.json",
 }
 
+# 会员分卷 manifest（本地齐套判定；下载实现可在官网层）。
+MEMBER_MANIFEST_NAME = "data_member_3y.manifest.json"
+
 
 def normalize_package_kind(kind: str = "demo") -> str:
     key = str(kind or "demo").strip().lower() or "demo"
-    if key not in PathManager.DATA_PACKAGE_KINDS:
+    if key not in DATA_PACKAGE_KINDS:
         raise ValueError(
-            f"未知数据包类型: {kind!r}（可选: {', '.join(PathManager.DATA_PACKAGE_KINDS)}）"
+            f"未知数据包类型: {kind!r}（可选: {', '.join(DATA_PACKAGE_KINDS)}）"
         )
     return key
 
@@ -101,10 +106,70 @@ def find_local_package_zip(kind: str = "demo") -> Optional[Path]:
     return zips[0] if zips else None
 
 
+def list_member_part_files(
+    dest_dir: Path, meta: Optional[Dict[str, Any]] = None
+) -> List[Path]:
+    """按 manifest（或目录扫描）列出本地分卷。"""
+    dest_dir = Path(dest_dir)
+    if meta and isinstance(meta.get("parts"), list):
+        out: List[Path] = []
+        for part in meta["parts"]:
+            if not isinstance(part, dict):
+                continue
+            name = str(part.get("file") or "").strip()
+            if not name or "/" in name or "\\" in name or ".." in name:
+                continue
+            out.append(dest_dir / name)
+        return out
+    return sorted(dest_dir.glob("data_member_3y_part*.zip"))
+
+
+def member_parts_complete(
+    dest_dir: Path, meta: Optional[Dict[str, Any]] = None
+) -> bool:
+    """本地分卷是否齐全且（有 sha 时）校验通过。"""
+    dest_dir = Path(dest_dir)
+    if meta is None:
+        manifest = dest_dir / MEMBER_MANIFEST_NAME
+        if not manifest.is_file():
+            return False
+        try:
+            meta = json.loads(manifest.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            return False
+    if not isinstance(meta, dict):
+        return False
+    parts = meta.get("parts")
+    if not isinstance(parts, list) or not parts:
+        return False
+    for part in parts:
+        if not isinstance(part, dict):
+            return False
+        name = str(part.get("file") or "").strip()
+        path = dest_dir / name
+        if not path.is_file():
+            return False
+        expected_sha = str(part.get("sha256") or "").strip().lower()
+        expected_size = part.get("size_bytes")
+        try:
+            size = path.stat().st_size
+        except OSError:
+            return False
+        if expected_size is not None:
+            try:
+                if size != int(expected_size):
+                    return False
+            except (TypeError, ValueError):
+                pass
+        if expected_sha:
+            actual = hashlib.sha256(path.read_bytes()).hexdigest()
+            if actual != expected_sha:
+                return False
+    return True
+
+
 def member_package_present(data_dir: Optional[Path] = None) -> bool:
     """会员分卷是否已在本地齐套。"""
-    from core.modules.ntq_external.install_member import member_parts_complete
-
     folder = Path(data_dir) if data_dir is not None else default_package_dir("member")
     return member_parts_complete(folder)
 
@@ -113,7 +178,7 @@ def describe_data_packages(
     kinds: Optional[Iterable[str]] = None,
 ) -> Dict[str, Any]:
     """给 UI / 设置页的本地缓存摘要。"""
-    selected = list(kinds) if kinds is not None else list(PathManager.DATA_PACKAGE_KINDS)
+    selected = list(kinds) if kinds is not None else list(DATA_PACKAGE_KINDS)
     packages: Dict[str, Any] = {}
     for raw in selected:
         key = normalize_package_kind(raw)
@@ -158,7 +223,7 @@ def clear_static_data_packages() -> int:
 
     root = ProjectContext.path.get_packages_root()
     removed = 0
-    for name in PathManager.DATA_PACKAGE_KINDS:
+    for name in DATA_PACKAGE_KINDS:
         path = root / name
         if not path.exists():
             continue

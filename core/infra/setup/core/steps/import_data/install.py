@@ -36,6 +36,10 @@ def _parse_args() -> argparse.Namespace:
 def main() -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = _parse_args()
+    # 子进程：从父进程环境变量懒加载 fetcher（由 install.py / CLI 写入）
+    from core.infra.setup.core.shared.package_fetch import get_package_fetcher
+
+    get_package_fetcher()
     inst = SetupDataInstaller(table_prefix="")
     inst.run(force=args.force, remove_extract=True)
     return 0

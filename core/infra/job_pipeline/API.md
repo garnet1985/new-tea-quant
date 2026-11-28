@@ -152,3 +152,24 @@
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
 - **描述：** BFF 启动时注册 ``kind → start_now`` 回调；``submit`` / ``advance`` 依赖此表。
+
+### set_import_progress_reader
+
+`JobPipeline.set_import_progress_reader(reader: Callable[[], dict | None] | None) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.1`
+- **描述：** 注入 ``import_data`` 任务的进度读函数（通常 ``Setup.runtime.read_import_progress``）。未注入时管道坞对该 kind 只尝试 Progress 根 ``import``。
+
+---
+
+## contracts（`core.infra.job_pipeline.contracts`）
+
+| 符号 | 说明 | 状态 |
+|------|------|------|
+| `VALID_KINDS` | 允许的 ``kind`` 集合 | `beta` |
+| `JobStatus` | pending / running / completed / failed / cancelled / stale | `beta` |
+| `JobRunningBusyError` | running 槽忙时由 ``running_lease.acquire`` 抛出 | `beta` |
+
+``RunningLease`` 由 ``JobPipeline.running_lease(...)`` 返回（实现类，不经 contracts 再导出）。

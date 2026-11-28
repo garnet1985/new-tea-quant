@@ -92,16 +92,30 @@ def get_site_urls():
     return ok(payload if isinstance(payload, dict) else {})
 
 
-@setup_api_bp.route("/v1/setup/license", methods=["GET"])
-def get_license_acceptance():
+def _license_status_with_site_urls() -> dict:
     from core.infra.setup.core.shared.license_acceptance import status_payload
 
-    return ok(status_payload())
+    body = dict(status_payload())
+    try:
+        from core.modules.ntq_external import site_urls
+
+        urls = site_urls()
+        if isinstance(urls, dict):
+            body["disclaimer_url"] = str(urls.get("disclaimer_url") or "")
+            body["license_url"] = str(urls.get("license_url") or "")
+    except ImportError:
+        pass
+    return body
+
+
+@setup_api_bp.route("/v1/setup/license", methods=["GET"])
+def get_license_acceptance():
+    return ok(_license_status_with_site_urls())
 
 
 @setup_api_bp.route("/v1/setup/license/accept", methods=["POST"])
 def post_license_acceptance():
-    from core.infra.setup.core.shared.license_acceptance import accept, is_accepted, status_payload
+    from core.infra.setup.core.shared.license_acceptance import accept, is_accepted
 
     newly = not is_accepted()
     accept(source="ui")
@@ -112,7 +126,7 @@ def post_license_acceptance():
             Setup.trace.app_start(entry="ui")
         except Exception:
             pass
-    return ok(status_payload())
+    return ok(_license_status_with_site_urls())
 
 
 @setup_api_bp.route("/v1/setup/license/decline", methods=["POST"])

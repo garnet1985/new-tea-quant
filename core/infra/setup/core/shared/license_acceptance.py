@@ -59,10 +59,10 @@ def apply_trace_consent() -> None:
     if not is_accepted():
         return
     try:
-        from core.infra.project_context.core.path_manager import PathManager
+        from core.infra.project_context import ProjectContext
 
         marker = (
-            PathManager.get_userspace_root()
+            ProjectContext.path.get_userspace_root()
             / "system"
             / "config"
             / "database"
@@ -79,23 +79,13 @@ def apply_trace_consent() -> None:
         return
 
 
-def _site_urls() -> dict:
-    """官网页面地址。模块不在时为空，安装流程仍只认本地 LICENSE。"""
-    try:
-        from core.modules.ntq_external import site_urls
-    except ImportError:
-        return {}
-    raw = site_urls()
-    return raw if isinstance(raw, dict) else {}
-
-
 def status_payload() -> dict:
-    urls = _site_urls()
+    """同意状态。官网 URL 由 BFF 等入口补齐，setup 不依赖 ntq_external。"""
     return {
         "accepted": is_accepted(),
         "revision": LICENSE_REVISION,
-        "disclaimer_url": str(urls.get("disclaimer_url") or ""),
-        "license_url": str(urls.get("license_url") or ""),
+        "disclaimer_url": "",
+        "license_url": "",
     }
 
 
@@ -154,19 +144,15 @@ def _stdin_is_tty() -> bool:
 
 
 def _prompt_text() -> str:
-    urls = _site_urls()
-    lines = [
-        "使用 New Tea Quant 前需要同意使用条款。不同意将停止。",
-        "",
-    ]
-    disclaimer = str(urls.get("disclaimer_url") or "").strip()
-    license_url = str(urls.get("license_url") or "").strip()
-    if disclaimer:
-        lines.append(f"使用条款：{disclaimer}")
-    if license_url:
-        lines.append(f"许可证：{license_url}")
-    lines.extend(["本地全文：仓库根目录的 DISCLAIMER.md 与 LICENSE", ""])
-    return "\n".join(lines)
+    # CLI 只提示本地全文；官网 URL 由 BFF status 补齐，避免 setup→ntq_external。
+    return "\n".join(
+        [
+            "使用 New Tea Quant 前需要同意使用条款。不同意将停止。",
+            "",
+            "本地全文：仓库根目录的 DISCLAIMER.md 与 LICENSE",
+            "",
+        ]
+    )
 
 
 def _noninteractive_message() -> str:

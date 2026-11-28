@@ -21,6 +21,12 @@ from core.infra.project_context.core.database_defaults import (
     SUPPORTED_DB_TYPES,
 )
 
+# 静态数据包类型（导出 / 下载 / 导入共用）；勿再深导入 PathManager 取此常量。
+DATA_PACKAGE_KINDS = ("demo", "member", "full")
+
+# 会员凭证文件名；membership 模块通过 contracts 引用，避免与 PathManager 双写字面量。
+MEMBERSHIP_TOKEN_FILE_NAME = "membership_token.txt"
+
 
 class OverridableConfigNotFoundError(FileNotFoundError):
     """core 与 userspace 均未找到有效配置文件。"""
@@ -49,4 +55,6 @@ __all__ = [
     "DEFAULT_DUCKDB_DOMAINS",
     "DUCKDB_DOMAIN_FILES",
     "SUPPORTED_DB_TYPES",
+    "DATA_PACKAGE_KINDS",
+    "MEMBERSHIP_TOKEN_FILE_NAME",
 ]

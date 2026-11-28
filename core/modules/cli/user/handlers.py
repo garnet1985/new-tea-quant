@@ -110,6 +110,14 @@ class UserHandlers:
             from core.infra.setup import Setup
 
             UserHandlers.setup_logging(verbose=args.verbose)
+            try:
+                from core.modules.ntq_external.setup_bridge import (
+                    wire_setup_package_fetcher,
+                )
+
+                wire_setup_package_fetcher()
+            except ImportError:
+                pass
             force = bool(getattr(args, "force", False))
             suffix = " [force]" if force else ""
             print(f"{i('ongoing')} 导入演示数据包{suffix}", flush=True)

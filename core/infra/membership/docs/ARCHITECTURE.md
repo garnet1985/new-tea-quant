@@ -28,9 +28,9 @@ infra/membership/
 ├── membership.py            # Facade：Membership
 ├── membership_constants.py  # 路径与格式正则
 ├── __init__.py              # 导出 Membership
-├── API.md
-├── glossary.yaml
-└── __test__/test_api.py
+├── API.md / glossary.yaml / README.md
+├── docs/                    # ARCHITECTURE · DECISIONS · USER_GUIDE
+└── __test__/                # test_api.py · TEST_CASES.md
 ```
 
 ## 架构图
@@ -44,15 +44,25 @@ flowchart LR
 
 `save` 做格式校验与写盘；`status` / `read` 不向 HTTP 回传明文。
 
-## 数据流（若有）
+## 数据流
 
-无显著数据流——凭证文件每次按需读写，不做缓存。
+```mermaid
+flowchart TD
+  Save[Membership.save] -->|TOKEN_PATTERN| Write[写 token 文件 chmod 600]
+  Read[Membership.read] --> File[membership_token.txt]
+  File -->|合法| Token[明文仅本机]
+  File -->|非法或不存在| None[None]
+  Status[Membership.status] --> Read
+  Status --> Out["configured / invalid / relative path"]
+```
+
+不做缓存；每次按需读写。
 
 ## 依赖（结论）
 
 | 依赖 | 用途 |
 |------|------|
-| `infra.project_context` | 定位凭证文件存储路径 |
+| `infra.project_context` | `ProjectContext.path.get_membership_token_file` |
 
 ## 相关文档
 
@@ -60,3 +70,4 @@ flowchart LR
 - [README.md](../README.md)
 - [公开 API](../API.md)
 - [术语表](../glossary.yaml)
+- [决策](./DECISIONS.md)

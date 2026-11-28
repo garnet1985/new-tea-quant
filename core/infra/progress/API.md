@@ -267,6 +267,16 @@ current = Progress.latest("renew")
 - **描述：** 把内存中尚未落盘的进度快照立刻写盘。默认写盘有合并延迟时，子进程或 BFF 轮询前可主动 flush
 - **返回值：** `None`
 
+### reset_for_tests
+
+`Progress.reset_for_tests() -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.3`
+- **描述：** 清空内存索引与 flush 状态。**仅单测使用**；生产勿调用。跨模块测试应经此门面，勿深导入 `progress.core.store`
+- **返回值：** `None`
+
 ### types
 
 **描述：** `ProgressNode`

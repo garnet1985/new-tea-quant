@@ -8,8 +8,10 @@ import pytest
 
 from core.infra.membership import Membership
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.core.path_manager import PathManager
-from core.infra.setup.core.steps.import_data.import_plan import build_import_plan, resolve_import_pack_kind
+from core.infra.setup.core.steps.import_data.import_plan import (
+    build_import_plan,
+    resolve_import_pack_kind,
+)
 
 pytestmark = pytest.mark.force_run
 
@@ -17,16 +19,18 @@ pytestmark = pytest.mark.force_run
 @pytest.fixture
 def userspace(tmp_path: Path, monkeypatch):
     us = tmp_path / "userspace"
-    (us / "system" / "membership").mkdir(parents=True)
-    monkeypatch.setattr(PathManager, "_userspace_cache", us)
+    token_dir = us / "system" / "membership"
+    token_dir.mkdir(parents=True)
+    token_file = token_dir / "membership_token.txt"
+    monkeypatch.setenv("NTQ_USERSPACE_ROOT", str(us))
     ProjectContext.cache.clear_userspace_cache()
-    monkeypatch.setattr(PathManager, "_userspace_cache", us)
     monkeypatch.setattr(
-        PathManager,
+        ProjectContext.path,
         "get_membership_token_file",
-        staticmethod(lambda: us / "system" / "membership" / "membership_token.txt"),
+        staticmethod(lambda: token_file),
     )
-    return us
+    yield us
+    ProjectContext.cache.clear_userspace_cache()
 
 
 def test_plan_defaults_to_demo_without_token(userspace: Path) -> None:

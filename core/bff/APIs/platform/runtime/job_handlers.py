@@ -20,6 +20,13 @@ def register_job_pipeline_handlers() -> None:
     JobPipeline.register_handler("tag_run", _handle_tag_run)
     JobPipeline.register_handler("data_renew", _handle_data_renew)
     JobPipeline.register_handler("import_data", _handle_import_data)
+    # import_data 进度在 Setup 侧；注入读函数，避免 job_pipeline → setup
+    try:
+        from core.infra.setup import Setup
+
+        JobPipeline.set_import_progress_reader(Setup.runtime.read_import_progress)
+    except Exception:
+        logger.debug("import progress reader not wired", exc_info=True)
 
 
 def _handle_strategy_run(job: Dict[str, Any]) -> Dict[str, Any]:

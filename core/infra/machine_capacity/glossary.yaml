@@ -19,9 +19,9 @@ terms:
 
   MachineCapacity:
     definition: |
-      机器容量快照（冻结 dataclass）：核数、内存预算、floor、可用 worker 等一次探测/解析结果。
-      从 contracts 导入，或经 MachineInfo.types；不要 from core.infra.machine_capacity import MachineCapacity
-      （包根只导出门面）。
+      机器容量快照（冻结 dataclass）：cpu_count、memory_budget_mb、memory_floor_mb、reserve_cores。
+      可用 worker 用 get_available_workers(capacity) 算，不在快照字段里。
+      从 contracts 导入，或经 MachineInfo.types；不要从包根 import MachineCapacity。
     in_code: "contracts.MachineCapacity；MachineInfo.types.MachineCapacity"
     aliases:
       - "容量快照"
@@ -102,9 +102,9 @@ terms:
 
   disk_type:
     definition: |
-      某路径所在卷的介质粗分类：ssd / hdd / unknown。供 IO 密集任务选型；不要把磁盘序列号
-      或设备路径报到 Trace（隐私 / 噪声）。
-    in_code: "MachineInfo.get_disk_type(path) -> ssd|hdd|unknown"
+      介质粗分类：ssd / hdd / unknown（contracts.DiskType）。Linux/macOS 认 path 所在卷；
+      Windows 汇总本机 PhysicalDisk（见 DEC-03）。不要把磁盘序列号或设备路径报到 Trace。
+    in_code: "MachineInfo.get_disk_type(path) -> ssd|hdd|unknown；contracts.DiskType"
     aliases:
       - "get_disk_type"
       - "ssd"

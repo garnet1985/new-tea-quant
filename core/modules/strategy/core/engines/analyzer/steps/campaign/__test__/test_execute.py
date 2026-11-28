@@ -518,7 +518,6 @@ def test_cache_hits_share_one_campaign_bar(tmp_path, monkeypatch) -> None:
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "shared"))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
     from core.infra.progress import Progress
-    from core.infra.progress.core import store
     from core.modules.strategy.core.engines.analyzer.steps.campaign.execute.base import (
         _call_simulate,
     )
@@ -526,7 +525,7 @@ def test_cache_hits_share_one_campaign_bar(tmp_path, monkeypatch) -> None:
         CampaignProgress,
     )
 
-    store.reset()
+    Progress.reset_for_tests()
     cell = AttributionCell(
         index=0,
         overlay={},
@@ -565,4 +564,4 @@ def test_cache_hits_share_one_campaign_bar(tmp_path, monkeypatch) -> None:
     done = Progress.read(progress.root_id)
     assert done["status"] == "completed"
     assert done["ratio"] == 1.0
-    store.reset()
+    Progress.reset_for_tests()

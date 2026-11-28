@@ -123,6 +123,15 @@
 - **引入版本：** `0.2.1`
 - **描述：** UI 向导把进度目录绑到外置 userspace；安装页轮询导入阶段的 phase/ratio/表计数。内部仍用 `install_progress`，外部勿 deep-import
 
+#### set_package_fetcher
+
+`Setup.runtime.set_package_fetcher(fetcher) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** 注册数据包拉取回调（或由环境变量 `NTQ_SETUP_PACKAGE_FETCHER=module:callable` 懒加载）。缺本地包时调用；无 fetcher 则报错。官网实现由入口注入，setup **不**依赖 `ntq_external`
+
 #### import_data_pack
 
 `Setup.runtime.import_data_pack(*, pack_kind="demo", force=False, remove_extract=True) -> int`
@@ -130,7 +139,7 @@
 - **类型：** `static`
 - **状态：** `beta`
 - **引入版本：** `0.4.4`（`import_data_pack`：同轨扩展）
-- **描述：** 导入演示/会员等数据包（`SetupDataInstaller`）。目录为 `userspace/.ntq/packages/{demo|member|…}/`；无 zip 时按 kind 下载；`force` 重新下载并全量重导；BFF `ImportDataLauncher` / CLI `id` 只留壳，勿 deep-import installer
+- **描述：** 导入演示/会员等数据包（`SetupDataInstaller`）。目录为 `userspace/.ntq/packages/{demo|member|…}/`；无 zip 时走已注入 fetcher；`force` 重新拉取并全量重导；BFF / CLI 只留壳，勿 deep-import installer
 
 #### install_ui / check_ui_prerequisites / launch_ui / set_ui_dev_mode
 

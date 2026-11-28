@@ -160,15 +160,27 @@ class RuntimeNamespace:
         return read_import_progress()
 
     @staticmethod
+    def set_package_fetcher(fetcher) -> None:
+        """注册数据包拉取函数（由 CLI/BFF/install 注入；setup 不依赖官网层）。"""
+        from core.infra.setup.core.shared.package_fetch import set_package_fetcher
+
+        set_package_fetcher(fetcher)
+
+    @staticmethod
     def import_data_pack(
         *,
         pack_kind: str = "demo",
         force: bool = False,
         remove_extract: bool = True,
     ) -> int:
-        """导入演示/会员等数据包（``SetupDataInstaller``）；成功返回 ``0``。"""
+        """导入演示/会员等数据包（``SetupDataInstaller``）；成功返回 ``0``。
+
+        缺本地包时调用已注入的 fetcher（或 ``NTQ_SETUP_PACKAGE_FETCHER``）。
+        """
+        from core.infra.setup.core.shared.package_fetch import get_package_fetcher
         from core.infra.setup.core.steps.import_data.installer import SetupDataInstaller
 
+        get_package_fetcher()  # 触发环境变量懒加载
         kind = str(pack_kind or "demo").strip().lower() or "demo"
         SetupDataInstaller(pack_kind=kind, table_prefix="").run(
             force=force,

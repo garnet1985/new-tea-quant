@@ -12,6 +12,7 @@ from .core import liveness
 from .core import queue_store
 from .core import progress_view
 from .core import registry_store
+from .core.progress_view import ImportProgressReader
 from .core.running_lease import RunningLease
 from .core.running_reader import read_running_job
 
@@ -25,6 +26,11 @@ _ADVANCE_LOCK = threading.Lock()
 
 class JobPipeline:
     """长任务登记 / 排队 / 进度视图的唯一对外入口。"""
+
+    @staticmethod
+    def set_import_progress_reader(reader: Optional[ImportProgressReader]) -> None:
+        """注入 ``import_data`` 进度读函数（避免本模块硬依赖 ``infra.setup``）。"""
+        progress_view.set_import_progress_reader(reader)
 
     @staticmethod
     def register_handler(kind: str, handler: Handler) -> None:

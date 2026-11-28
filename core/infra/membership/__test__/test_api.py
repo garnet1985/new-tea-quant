@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from core.infra.membership import Membership
-from core.infra.project_context.core.path_manager import PathManager
+from core.infra.project_context import ProjectContext
 
 
 def test_facade_exported_only() -> None:
@@ -18,7 +18,7 @@ def test_facade_exported_only() -> None:
 
 def test_save_read_clear(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
-        PathManager,
+        ProjectContext.path,
         "get_membership_token_file",
         staticmethod(lambda: tmp_path / "membership_token.txt"),
     )
@@ -45,7 +45,11 @@ def test_save_read_clear(tmp_path: Path, monkeypatch) -> None:
 
 def test_dropped_file_and_invalid_contents(tmp_path: Path, monkeypatch) -> None:
     path = tmp_path / "membership_token.txt"
-    monkeypatch.setattr(PathManager, "get_membership_token_file", staticmethod(lambda: path))
+    monkeypatch.setattr(
+        ProjectContext.path,
+        "get_membership_token_file",
+        staticmethod(lambda: path),
+    )
 
     path.write_text("# comment\n\nntq_" + "cd" * 24 + "\n", encoding="utf-8")
     assert Membership.read() == "ntq_" + "cd" * 24

@@ -68,11 +68,22 @@ terms:
     definition: |
       与 contracts 同源的异常、常量与类型挂载点。优先 contracts 或 ProjectContext.types，
       不要从包根 import 个别异常类当长期习惯。
+      含 DATA_PACKAGE_KINDS、MEMBERSHIP_TOKEN_FILE_NAME 等跨模块常量。
     in_code: "ProjectContext.types.*；contracts"
     aliases:
       - "TypesNamespace"
     avoid:
       - "from core.infra.project_context import OverridableConfigNotFoundError（优先 contracts / types）"
+      - "为取 DATA_PACKAGE_KINDS 深导入 PathManager"
+
+  DATA_PACKAGE_KINDS:
+    definition: |
+      静态数据包类型元组：demo / member / full。导出、下载、导入共用；目录在
+      userspace/.ntq/packages/{kind}/。
+    in_code: "contracts.DATA_PACKAGE_KINDS；ProjectContext.types.DATA_PACKAGE_KINDS"
+    aliases: []
+    avoid:
+      - "从 PathManager 取数据包类型常量（用 contracts）"
 
   userspace_root:
     definition: |

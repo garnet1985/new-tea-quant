@@ -4,9 +4,11 @@ from pathlib import Path
 import json
 
 from core.infra.project_context.contracts import (
+    DATA_PACKAGE_KINDS,
     DEFAULT_DUCKDB_DOMAINS,
     DUCKDB_DOMAIN_FILES,
     DiscoveredConfig,
+    MEMBERSHIP_TOKEN_FILE_NAME,
     MergeFn,
     OverridableConfigNotFoundError,
     SUPPORTED_DB_TYPES,
@@ -22,6 +24,8 @@ class TypesNamespace:
     DEFAULT_DUCKDB_DOMAINS = DEFAULT_DUCKDB_DOMAINS
     DUCKDB_DOMAIN_FILES = DUCKDB_DOMAIN_FILES
     SUPPORTED_DB_TYPES = SUPPORTED_DB_TYPES
+    DATA_PACKAGE_KINDS = DATA_PACKAGE_KINDS
+    MEMBERSHIP_TOKEN_FILE_NAME = MEMBERSHIP_TOKEN_FILE_NAME
 
 
 class PathNamespace:

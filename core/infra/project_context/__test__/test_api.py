@@ -10,8 +10,10 @@ import pytest
 
 from core.infra.project_context import ProjectContext
 from core.infra.project_context.contracts import (
+    DATA_PACKAGE_KINDS,
     DEFAULT_DUCKDB_DOMAINS,
     DUCKDB_DOMAIN_FILES,
+    MEMBERSHIP_TOKEN_FILE_NAME,
     OverridableConfigNotFoundError,
     SUPPORTED_DB_TYPES,
 )
@@ -105,6 +107,15 @@ class TestApi(unittest.TestCase):
         self.assertIn("data", ProjectContext.types.DEFAULT_DUCKDB_DOMAINS)
         self.assertTrue(ProjectContext.types.DUCKDB_DOMAIN_FILES)
         self.assertIn("duckdb", ProjectContext.types.SUPPORTED_DB_TYPES)
+        self.assertEqual(ProjectContext.types.DATA_PACKAGE_KINDS, DATA_PACKAGE_KINDS)
+        self.assertEqual(
+            ProjectContext.types.MEMBERSHIP_TOKEN_FILE_NAME,
+            MEMBERSHIP_TOKEN_FILE_NAME,
+        )
+        self.assertEqual(
+            ProjectContext.path.get_membership_token_file().name,
+            MEMBERSHIP_TOKEN_FILE_NAME,
+        )
 
     def test_path_coerce_strategy_folder(self):
         rel = "demo/example"

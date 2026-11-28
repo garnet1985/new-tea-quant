@@ -28,6 +28,17 @@ if sys.platform == "win32" and sys.stdout.encoding != "utf-8":
 
 from core.infra.setup import Setup
 
+
+def _wire_official_package_fetcher() -> None:
+    """入口组装：官网下载接到 Setup（setup 包内不 import ntq_external）。"""
+    try:
+        from core.modules.ntq_external.setup_bridge import wire_setup_package_fetcher
+
+        wire_setup_package_fetcher()
+    except ImportError:
+        pass
+
+
 _HELP_EPILOG = """
 默认行为
   · 同意使用条款后跑完整 CLI 安装（系统检查 → 依赖 → userspace → 数据库 → 演示数据）
@@ -171,6 +182,7 @@ def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
     Setup.env.to_root_dir()
     Setup.env.ensure_venv(entry_script=Setup.env.repo_root() / "install.py")
+    _wire_official_package_fetcher()
 
     if args.if_needed:
         if not Setup.runtime.needs_install("cli"):

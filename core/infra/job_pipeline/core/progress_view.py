@@ -2,7 +2,18 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+
+ImportProgressReader = Callable[[], Optional[Dict[str, Any]]]
+
+# 可选：由 BFF / setup 注入，避免 job_pipeline → setup 硬依赖
+_import_progress_reader: Optional[ImportProgressReader] = None
+
+
+def set_import_progress_reader(reader: Optional[ImportProgressReader]) -> None:
+    """注册 ``import_data`` 任务的进度读函数（返回与 Setup 导入进度同形的 dict）。"""
+    global _import_progress_reader
+    _import_progress_reader = reader
 
 
 def _safe_id(raw: str) -> str:
@@ -31,9 +42,11 @@ def progress_root_candidates(job: Dict[str, Any]) -> List[str]:
 
     if kind == "tag_run" and resource:
         add(f"tag-{resource}-{jid}")
+    # strategy_scan 写 scan-{key}-{jid}（scan_progress），不是 pipeline-*
+    if kind == "strategy_scan" and resource:
+        add(f"scan-{resource}-{jid}")
     if kind in {
         "strategy_run",
-        "strategy_scan",
         "strategy_attribute",
         "strategy_rolling",
     } and resource:
@@ -87,12 +100,11 @@ def _snapshot_from_progress_node(raw: Dict[str, Any], *, root_id: str) -> Dict[s
 
 def _snapshot_from_import_progress() -> Optional[Dict[str, Any]]:
     """与设置页同一数据源，避免只认 Progress 根 id 时管道空白。"""
-    try:
-        from core.infra.setup import Setup
-    except Exception:
+    reader = _import_progress_reader
+    if reader is None:
         return None
     try:
-        ip = Setup.runtime.read_import_progress()
+        ip = reader()
     except Exception:
         return None
     if not isinstance(ip, dict) or not ip.get("running"):

@@ -56,7 +56,23 @@
 - **已收口：** 安装导入进度对 `Progress` 的 flush 只经 `Progress.drain`；BFF / job_pipeline 读导入摘要经 `Setup.runtime.read_import_progress`，绑 progress 目录经 `Setup.runtime.bind_install_progress_dir`
 - **仍允许（步骤内）：** `core/steps/*/install.py` 与 `core/shared/*` 互引；导出工厂被 devcli 脚本 deep-import（维护者路径，非产品门面）
 - **待收口（产品代码勿扩）：** BFF `SetupRuntimeManager` 仍 deep-import `setup_session`、`pipeline_state`、`db_install_config`、`import_plan`、`data_packages` 及安装进度逐步函数（`open_install` / `begin_install_step` 等）— UI 向导与 setup 紧耦合，下一刀宜增 `Setup.runtime` 子命名空间或 BFF 专用薄适配层，而非继续扩散 deep-import
-- **modules 依赖：** `modules.ntq_external`（官网 demo/member 包与条款 URL）、`modules.data_manager`（演示包导表）；须在 `module_info.yaml` 声明，禁止再引其它 `core.modules.*`
+- **modules 依赖：** 仍声明 `modules.data_manager`（导表）；**不再**依赖 `ntq_external`（见 DEC-06）。
+- **未声明依赖：** `core.orchestrator` 仍 import `core.ui.ports` / `process_cleanup`，`module_info` 未声明（backlog）。
+
+---
+
+## DEC-05：测试隔离走公开路径覆盖
+
+- **采用：** 单测用 `NTQ_USERSPACE_ROOT` + `ProjectContext.cache.clear_userspace_cache`（及必要时 mock `ProjectContext.path.*`），不深导入 `PathManager`。
+- **理由：** 与 project_context 门面纪律一致；0.x 不为测试保留内部缓存钩子。
+
+---
+
+## DEC-06：数据包下载由入口注入，setup 不依赖 ntq_external
+
+- **采用：** `Setup.runtime.set_package_fetcher` / 环境变量 `NTQ_SETUP_PACKAGE_FETCHER=module:callable`；缺本地包且无 fetcher 时明确报错。官网实现在 `ntq_external.setup_bridge`，由 `install.py` / CLI / BFF 接线。
+- **理由：** infra 不得依赖官网层；删掉 `ntq_external` 后仍可用预置 zip 完成导入。会员分卷齐套判定下沉到 `data_packages.member_parts_complete`。
+- **影响：** 条款 URL 由 BFF 补齐；trace endpoint 注册改由入口 / 导入 `ntq_external` 完成，setup 只发事件。
 
 ---
 

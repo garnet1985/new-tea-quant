@@ -22,7 +22,11 @@ class TestMachineCapacityApi(unittest.TestCase):
         self.assertTrue(hasattr(MachineInfo, "types"))
 
     def test_types_machine_capacity(self) -> None:
+        from core.infra.machine_capacity import contracts
+
         self.assertIs(MachineInfo.types.MachineCapacity, MachineCapacity)
+        self.assertTrue(hasattr(contracts, "DiskType"))
+        self.assertIs(MachineInfo.types.DiskType, contracts.DiskType)
 
     def test_get_capacity_explicit_budget(self) -> None:
         self.assertGreaterEqual(MachineInfo.get_cpu_count(), 1)

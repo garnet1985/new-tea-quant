@@ -8,7 +8,6 @@ import pytest
 
 from core.infra.progress import Progress
 from core.infra.progress.contracts import ProgressNode
-from core.infra.progress.core import store
 
 pytestmark = pytest.mark.force_run
 
@@ -17,9 +16,9 @@ pytestmark = pytest.mark.force_run
 def progress_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
-    store.reset()
+    Progress.reset_for_tests()
     yield tmp_path
-    store.reset()
+    Progress.reset_for_tests()
 
 
 def test_package_exports_only_progress() -> None:
@@ -37,6 +36,7 @@ def test_package_exports_only_progress() -> None:
     assert callable(Progress.read)
     assert callable(Progress.latest)
     assert callable(Progress.drain)
+    assert callable(Progress.reset_for_tests)
     assert Progress.types.Node is ProgressNode
     assert callable(Progress.channel.path)
     assert callable(Progress.channel.write)

@@ -17,11 +17,11 @@ pytestmark = pytest.mark.force_run
 def progress_dir(tmp_path, monkeypatch):
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "progress"))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
-    from core.infra.progress.core import store
+    from core.infra.progress import Progress
 
-    store.reset()
+    Progress.reset_for_tests()
     yield tmp_path
-    store.reset()
+    Progress.reset_for_tests()
 
 
 class _FakePipeline:

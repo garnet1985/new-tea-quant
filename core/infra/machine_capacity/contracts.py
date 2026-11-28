@@ -13,6 +13,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
+
+DiskType = Literal["ssd", "hdd", "unknown"]
 
 
 @dataclass(frozen=True)
@@ -25,4 +28,4 @@ class MachineCapacity:
     reserve_cores: int
 
 
-__all__ = ["MachineCapacity"]
+__all__ = ["DiskType", "MachineCapacity"]

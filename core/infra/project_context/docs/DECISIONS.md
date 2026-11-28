@@ -142,6 +142,16 @@
 
 ---
 
+## DEC-07：数据包类型与会员文件名进 contracts
+
+**是什么：** `DATA_PACKAGE_KINDS`、`MEMBERSHIP_TOKEN_FILE_NAME` 放在 `contracts.py`（并挂 `ProjectContext.types`）；setup / membership 经 contracts 或 Facade 取用，生产代码不再深导入 `PathManager` 仅为常量。
+
+**为什么选它：** 消除「读一个元组就必须穿透 PathManager」；membership 已依赖 project_context，文件名可单真源。
+
+**影响：** 不在 `PathManager` 上留兼容别名；测试侧 PathManager mock 逐步改 Facade（backlog）。
+
+---
+
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)

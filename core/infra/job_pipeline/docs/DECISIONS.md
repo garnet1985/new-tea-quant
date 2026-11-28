@@ -119,6 +119,32 @@
 
 ---
 
+## DEC-08：`strategy_scan` 占槽但未入 BFF 队列
+
+**是什么：** `VALID_KINDS` 含 `strategy_scan`；agent 可用 `running_lease(kind=strategy_scan)`。BFF `scanner_run` 仍用进程内单飞线程，**未** `register_handler` / `submit` 入队。
+
+**为什么暂留：** 扫描异步壳与其它 launcher 尚未统一；迁入管道是产品迁移，非本模块小清理。
+
+**影响：** 扫描与其它长任务可能各占一套互斥（lease vs 本地 `_ACTIVE_JOB_ID`）；后续应并入 `JobPipeline.submit`。
+
+---
+
+## DEC-09：`import_data` 进度经注入读函数，不硬依赖 setup
+
+**是什么：** `progress_view` 不再 import `Setup`；BFF `register_job_pipeline_handlers` 调用 `JobPipeline.set_import_progress_reader(Setup.runtime.read_import_progress)`。
+
+**为什么选它：** 避免 `infra.job_pipeline → infra.setup`；setup 也不反向依赖 job_pipeline。
+
+---
+
+## DEC-10：`strategy_scan` 进度根 id 为 `scan-*`
+
+**是什么：** `progress_root_candidates` 对 `strategy_scan` 推断 `scan-{resource}-{jid}`；`strategy_run` / `attribute` / `rolling` 仍用 `pipeline-{resource}-{jid}`。
+
+**为什么选它：** 与 `strategy.scan_progress._root_id` 对齐；原先误猜 `pipeline-*` 会导致任务表挂不上扫描树进度。
+
+---
+
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)

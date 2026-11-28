@@ -42,6 +42,7 @@ def test_facade_importable() -> None:
         "recover",
         "abandon",
         "register_handler",
+        "set_import_progress_reader",
     ):
         assert callable(getattr(JobPipeline, name))
 

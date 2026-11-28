@@ -126,7 +126,7 @@ class MigrationRunner:
 
         Args:
             pre_mirror_snapshot: 镜像前写入的 JSON 路径
-            repo_root: 用于定位 ``core/tables``；省略时用 ``PathManager``
+            repo_root: 用于定位 ``core/tables``；省略时用 ``ProjectContext``
             tables_dir: 显式指定 schema 目录（覆盖 ``repo_root/core/tables``）
             apply: ``True`` 时执行 DDL；``False`` 仅生成 plan
             against_database: ``True`` 时连库 introspection 并裁剪 plan

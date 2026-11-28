@@ -122,5 +122,10 @@ class Progress:
         """把尚未落盘的进度快照立刻写盘（安装下载等子进程轮询前可主动 flush）。"""
         _store.drain()
 
+    @staticmethod
+    def reset_for_tests() -> None:
+        """清空内存索引与 flush 状态。仅单测使用；生产勿调用。"""
+        _store.reset()
+
 
 __all__ = ["Progress"]

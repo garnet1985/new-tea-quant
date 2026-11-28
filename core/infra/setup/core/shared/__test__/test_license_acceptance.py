@@ -92,10 +92,13 @@ def test_already_accepted_does_not_prompt(acceptance_file, monkeypatch):
 
 
 def test_apply_grants_only_after_userspace_and_license(acceptance_file, tmp_path, monkeypatch):
+    from core.infra.project_context import ProjectContext
+
     userspace = tmp_path / "userspace"
     monkeypatch.setattr(
-        "core.infra.project_context.core.path_manager.PathManager.get_userspace_root",
-        lambda: userspace,
+        ProjectContext.path,
+        "get_userspace_root",
+        staticmethod(lambda: userspace),
     )
     granted = []
     decided = {"value": False}

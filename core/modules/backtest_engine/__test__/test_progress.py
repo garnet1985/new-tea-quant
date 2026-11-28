@@ -77,9 +77,8 @@ def test_attached_round_counts_toward_the_campaign(tmp_path, monkeypatch) -> Non
     monkeypatch.setenv("NTQ_PROGRESS_DIR", str(tmp_path / "shared"))
     monkeypatch.setenv("NTQ_PROGRESS_FLUSH_DELAY", "0")
     from core.infra.progress import Progress
-    from core.infra.progress.core import store
 
-    store.reset()
+    Progress.reset_for_tests()
     root = "attribute-demo-enumerate"
     steps = []
     for index in (1, 2):
@@ -114,4 +113,4 @@ def test_attached_round_counts_toward_the_campaign(tmp_path, monkeypatch) -> Non
         weight_total = sum(_PHASE_WEIGHTS.values())
         expected = (1 + _PHASE_WEIGHTS[RunPhase.PREP] / weight_total) / 2
         assert reporter.percent == expected * 100
-    store.reset()
+    Progress.reset_for_tests()

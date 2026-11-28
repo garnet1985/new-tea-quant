@@ -7,7 +7,6 @@ from pathlib import Path
 import pytest
 
 from core.infra.project_context import ProjectContext
-from core.infra.project_context.core.path_manager import PathManager
 from core.infra.setup.core.steps.import_data import data_packages as dp
 
 pytestmark = pytest.mark.force_run
@@ -17,10 +16,10 @@ pytestmark = pytest.mark.force_run
 def userspace(tmp_path: Path, monkeypatch):
     us = tmp_path / "userspace"
     us.mkdir()
-    monkeypatch.setattr(PathManager, "_userspace_cache", us)
+    monkeypatch.setenv("NTQ_USERSPACE_ROOT", str(us))
     ProjectContext.cache.clear_userspace_cache()
-    monkeypatch.setattr(PathManager, "_userspace_cache", us)
-    return us
+    yield us
+    ProjectContext.cache.clear_userspace_cache()
 
 
 def test_require_package_dir_by_kind(userspace: Path) -> None:

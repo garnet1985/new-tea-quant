@@ -71,11 +71,17 @@ flowchart TB
 
   subgraph modules [modules deps]
     DM[data_manager]
-    Ext[ntq_external]
+  end
+
+  subgraph entry [组装点非 setup 依赖]
+    Ext[ntq_external.setup_bridge]
   end
 
   InstallPy --> facade
   CliBff --> facade
+  InstallPy -.->|注入 fetcher| Ext
+  CliBff -.->|注入 fetcher| Ext
+  Ext -.->|PackageFetcher| Runtime
   Env --> Shared
   Runtime --> Orch
   Runtime --> Shared
@@ -89,7 +95,6 @@ flowchart TB
   Shared --> Prog
   Shared --> PC
   Steps --> DM
-  Steps --> Ext
   Shared --> Tr
   Steps --> Ut
 ```

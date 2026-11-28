@@ -38,6 +38,16 @@
 
 ---
 
+## DEC-03：D3：Windows `get_disk_type` 不按 path 选卷
+
+**是什么：** Linux/macOS 按 `path` 所在挂载点推断介质；Windows 用 `Get-PhysicalDisk.MediaType` 汇总本机盘，**忽略** `path`。
+
+**为什么：** Win 上按卷映射到 PhysicalDisk 要多跳 WMI，收益低；当前调用方（trace 等）只需粗分 ssd/hdd/unknown。
+
+**影响：** 混盘机器上 Windows 可能返回 `unknown` 或偏向多数介质；若以后要按数据目录精确选盘，再补卷→磁盘映射。
+
+---
+
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)

@@ -13,13 +13,13 @@ dependencies:
   - infra.trace
   - infra.utils
   - modules.data_manager
-  - modules.ntq_external
 changelog:
   - version: "0.2.1"
     changes:
       - 声明 infra.progress / modules.data_manager 依赖；InstallProfileName 单一来源（contracts）
       - 安装导入进度 flush 改走 Progress.drain；门面新增 bind_install_progress_dir / read_import_progress
       - API / ARCHITECTURE / glossary 补 license 与编排路径；DEC-04 记录穿透引用边界
+      - 去掉对 modules.ntq_external 的硬依赖；数据包下载经入口注入 PackageFetcher（DEC-06）
   - version: "0.2.0"
     changes:
       - 目录收口为 steps｜shared｜orchestrator；取消独立 core/scripts/

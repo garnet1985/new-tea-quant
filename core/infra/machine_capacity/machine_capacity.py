@@ -13,7 +13,7 @@ import subprocess
 from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
-from core.infra.machine_capacity.contracts import MachineCapacity
+from core.infra.machine_capacity.contracts import DiskType, MachineCapacity
 from core.infra.machine_capacity.machine_capacity_constants import (
     AUTO_FLOOR_AVAILABLE_FRACTION,
     AUTO_FLOOR_MIN_MB,
@@ -28,13 +28,12 @@ from core.infra.machine_capacity.machine_capacity_constants import (
 
 logger = logging.getLogger(__name__)
 
-DiskType = str  # "ssd" | "hdd" | "unknown"
-
 
 class TypesNamespace:
     """与 ``contracts`` 同源的类型挂载点。"""
 
     MachineCapacity = MachineCapacity
+    DiskType = DiskType
 
 
 class MachineInfo:

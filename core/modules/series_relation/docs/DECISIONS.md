@@ -1,6 +1,6 @@
 # Series Relation — 设计与决策
 
-**模块：** `modules.series_relation` · **版本：** `0.1.0`
+**模块：** `modules.series_relation` · **版本：** `0.2.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -46,7 +46,7 @@ settings = {
         # 回测产物源：只负责引入序列；和谁比由本 list 组合决定
         {
             "source": "strategy_sim",
-            "strategy_key": "demo/regression/rsi/rsi_v1_baseline",  # 推荐 meta.key；也可用相对路径（别名 strategy）
+            "strategy_key": "demo/regression/rsi/rsi_v1_baseline",
             # version 省略 → latest；钉死某次则写 "2"
             "layer": "portfolio",            # portfolio | price
             "metric": "equity",              # portfolio.equity | price.cum_exit_roi

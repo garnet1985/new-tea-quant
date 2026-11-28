@@ -36,6 +36,7 @@ def test_package_exports_only_progress() -> None:
     assert callable(Progress.clear)
     assert callable(Progress.read)
     assert callable(Progress.latest)
+    assert callable(Progress.drain)
     assert Progress.types.Node is ProgressNode
     assert callable(Progress.channel.path)
     assert callable(Progress.channel.write)
@@ -276,5 +277,5 @@ def test_read_sees_tick_before_delayed_flush(progress_dir, monkeypatch) -> None:
     Progress.tick("slow", 1, 2, detail="回测 1/2")
     assert not (progress_dir / "slow.json").exists()
     assert Progress.read("slow")["ratio"] == 0.5
-    store.drain()
+    Progress.drain()
     assert json.loads((progress_dir / "slow.json").read_text(encoding="utf-8"))["ratio"] == 0.5

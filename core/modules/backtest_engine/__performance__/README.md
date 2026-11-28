@@ -1,6 +1,6 @@
 # 回测引擎 — 性能测试（`__performance__/`）
 
-**模块：** `modules.backtest_engine` · **版本：** `0.2.0`
+**模块：** `modules.backtest_engine` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 

@@ -52,78 +52,25 @@ def web_search(arguments: Dict[str, Any] | None = None) -> Dict[str, Any]:
 def _via_member_knowledge_brief(query: str, count: int) -> Optional[Dict[str, Any]]:
     """会员通道：一次远端 knowledge_brief（搜+总结）。无凭证则 None。"""
     try:
+        from core.infra.ai.contracts import AiError
         from core.modules.ntq_external.ai import member_channel
     except ImportError:
         return None
-    token = member_channel.member_token()
-    if not token:
+    if not member_channel.member_token():
         return None
-    base = member_channel.member_base_url().rstrip("/")
-    body = json.dumps(
-        {
-            "messages": [{"role": "user", "content": query}],
-            "temperature": 0.2,
-            "max_tokens": 1200,
-            "ntq": {"phase": "act", "intent": "knowledge_brief"},
-        },
-        ensure_ascii=False,
-    ).encode("utf-8")
-    request = urllib.request.Request(
-        base + "/chat/completions",
-        data=body,
-        headers={
-            "User-Agent": _USER_AGENT,
-            "Content-Type": "application/json; charset=utf-8",
-            "Accept": "application/json",
-            "Authorization": f"Bearer {token}",
-        },
-        method="POST",
-    )
     try:
-        with urlopen_https(
-            request, timeout=float(WEB_SEARCH_TIMEOUT_SECONDS) + 25.0
-        ) as resp:
-            raw = resp.read().decode("utf-8", errors="replace")
-    except urllib.error.HTTPError as exc:
-        detail = ""
-        try:
-            detail = exc.read().decode("utf-8", errors="replace")[:240]
-        except Exception:
-            detail = ""
-        return {
-            "ok": False,
-            "via": "ntq",
-            "error": f"远端知识简报 HTTP {exc.code}"
-            + (f"：{detail}" if detail else ""),
-        }
-    except urllib.error.URLError as exc:
-        return {
-            "ok": False,
-            "via": "ntq",
-            "error": f"无法连接远端知识简报：{exc.reason}",
-        }
-    except TimeoutError:
-        return {"ok": False, "via": "ntq", "error": "远端知识简报超时"}
-    except Exception as exc:
-        return {"ok": False, "via": "ntq", "error": f"远端知识简报失败：{exc}"}
+        result = member_channel.complete(
+            [{"role": "user", "content": query}],
+            max_tokens=1200,
+            temperature=0.2,
+            timeout_seconds=float(WEB_SEARCH_TIMEOUT_SECONDS) + 25.0,
+            extra_body={"ntq": {"phase": "act", "intent": "knowledge_brief"}},
+        )
+    except AiError as exc:
+        return {"ok": False, "via": "ntq", "error": str(exc)}
 
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        return {"ok": False, "via": "ntq", "error": "远端响应无法解析"}
-    if not isinstance(data, dict):
-        return {"ok": False, "via": "ntq", "error": "远端响应格式异常"}
-    if isinstance(data.get("error"), dict):
-        msg = str(data["error"].get("message") or data["error"])
-        return {"ok": False, "via": "ntq", "error": msg}
-
-    brief = ""
-    choices = data.get("choices")
-    if isinstance(choices, list) and choices:
-        msg = choices[0].get("message") if isinstance(choices[0], dict) else None
-        if isinstance(msg, dict):
-            brief = str(msg.get("content") or "").strip()
-    ntq = data.get("ntq") if isinstance(data.get("ntq"), dict) else {}
+    brief = str(result.reply or "").strip()
+    ntq = result.ntq if isinstance(result.ntq, dict) else {}
     knowledge = ntq.get("knowledge") if isinstance(ntq.get("knowledge"), dict) else {}
     citations = knowledge.get("citations") if isinstance(knowledge.get("citations"), list) else []
     results: List[Dict[str, Any]] = []

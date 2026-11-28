@@ -1,5 +1,5 @@
 name: infra.updater
-version: 0.1.0
+version: 0.1.1
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "应用升级：编排源码、数据迁移脚本注册表、post-upgrade 收尾、同步 userspace updater。"
@@ -9,6 +9,9 @@ site_display_title: "自动升级 - Updater 模块"
 dependencies:
   - infra.utils
 changelog:
+  - version: "0.1.1"
+    changes:
+      - ARCHITECTURE 补全职责边界、模块结构图与 Mermaid；DECISIONS 增加 DEC-02（预生产 / 后续重做范围）
   - version: "0.1.0"
     changes:
       - 初始化模块，完成基础功能

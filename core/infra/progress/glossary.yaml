@@ -1,5 +1,5 @@
 # Progress 术语表
-# Version: 0.2.1
+# Version: 0.2.3
 # Compatible-Core: >=0.6.0
 #
 # 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
@@ -12,7 +12,7 @@ terms:
       进度文件 Facade：一次任务一棵 JSON 进度树（或频道化 job 快照），供 CLI / BFF / 安装脚本
       同一套读取。短时间多次 tick 会合并写盘。不管「全局是否允许再开长任务」——那是 JobPipeline；
       本模块回答「这个任务内部做到哪了」。
-    in_code: "from core.infra.progress import Progress；start / tick / complete / read / channel"
+    in_code: "from core.infra.progress import Progress；start / tick / finish / read / channel"
     aliases: []
     avoid:
       - "把 Progress 当成「谁在跑」的管道真相源"

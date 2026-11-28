@@ -1,6 +1,6 @@
 # Job Pipeline — 架构
 
-**模块：** `infra.job_pipeline` · **版本：** `0.1.0`
+**模块：** `infra.job_pipeline` · **版本：** `0.1.1`
 
 **最低支持核心版本：** `>=0.6.0`
 
@@ -43,6 +43,7 @@ job_pipeline/
 │   ├── running_lease.py
 │   ├── progress_view.py
 │   ├── liveness.py
+│   ├── pipeline_constants.py
 │   └── running_reader.py
 └── docs/
     ├── ARCHITECTURE.md
@@ -71,12 +72,17 @@ flowchart LR
 
 ## 数据流
 
-```text
-Run 按钮 → BFF 校验 → JobPipeline.submit
-  → 空闲：handler(start_now) + running_lease
-  → 忙：enqueue(pending)
-  → finally：notify_job_finished → advance
-读面：GET /runtime/pipeline → recover → get_running_job / list_jobs
+```mermaid
+flowchart TD
+  Run[Run 按钮] --> BFF[BFF 校验]
+  BFF --> Submit[JobPipeline.submit]
+  Submit -->|空闲| Handler[handler + running_lease]
+  Submit -->|忙| Enq[enqueue pending]
+  Handler --> Fin[launcher finally]
+  Fin --> Notify[notify_job_finished]
+  Notify --> Adv[advance]
+  Read[GET /runtime/pipeline] --> Rec[recover]
+  Rec --> View[get_running_job / list_jobs]
 ```
 
 ---

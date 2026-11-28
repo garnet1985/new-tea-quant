@@ -112,13 +112,10 @@ def run_relation(
             "date_max": dates[-1] if dates else "",
         }
         if source == SOURCE_STRATEGY_SIM:
-            sk = str(
-                item.get("strategy_key") or item.get("strategy") or ""
-            )
+            sk = str(item.get("strategy_key") or "")
             meta_item.update(
                 {
                     "strategy_key": sk,
-                    "strategy": sk,
                     "version": str(item.get("version") or "latest"),
                     "resolved_version": str(resolved.get("resolved_version") or ""),
                     "layer": str(item.get("layer") or ""),

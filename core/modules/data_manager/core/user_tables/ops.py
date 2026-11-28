@@ -8,8 +8,11 @@ import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
-from core.infra.db.core.table_kind import TABLE_KINDS, validate_table_identity
-from core.infra.db.contracts import SchemaManager
+from core.infra.db.contracts import (
+    TABLE_KINDS,
+    SchemaManager,
+    validate_table_identity,
+)
 from core.infra.project_context import ProjectContext
 
 _IGNORE = shutil.ignore_patterns("__pycache__", "*.pyc", ".DS_Store", "README.md")

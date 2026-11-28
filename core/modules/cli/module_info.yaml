@@ -13,6 +13,7 @@ dependencies:
   - infra.db
   - infra.trace
   - infra.setup
+  - infra.updater
   - infra.cmd_layout
   - infra.utils
   - modules.strategy

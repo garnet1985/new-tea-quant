@@ -1,6 +1,6 @@
 # Database — 架构
 
-**模块：** `infra.db` · **版本：** `0.3.2`
+**模块：** `infra.db` · **版本：** `0.4.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -66,12 +66,15 @@ core/infra/db/
 
 ```mermaid
 flowchart LR
-  Caller --> Db
-  Caller --> Contracts
+  Caller["调用方<br/>modules / bff / userspace"] --> Db["Db 门面"]
+  Caller --> Contracts["contracts<br/>DbBaseModel / Field / …"]
   Db --> DatabaseManager
   Contracts --> DatabaseManager
-  DatabaseManager --> Engine
+  DatabaseManager --> Engine["Engine<br/>mysql | pgsql | duckdb"]
   DatabaseManager --> SchemaManager
+  Engine --> Connector
+  Engine --> TableOp["table_operator"]
+  Engine --> DuckExtras["duckdb: WritePipeline<br/>worker_pool / wal"]
 ```
 
 ---

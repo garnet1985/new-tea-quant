@@ -2,14 +2,13 @@
 
 from __future__ import annotations
 
-import re
 from typing import Optional
 
+from core.infra.membership.membership_constants import (
+    RELATIVE_PATH,
+    TOKEN_PATTERN,
+)
 from core.infra.project_context import ProjectContext
-
-TOKEN_FILE_NAME = "membership_token.txt"
-RELATIVE_PATH = f"userspace/system/membership/{TOKEN_FILE_NAME}"
-TOKEN_PATTERN = re.compile(r"^ntq_[0-9a-f]{48}$")
 
 
 class Membership:

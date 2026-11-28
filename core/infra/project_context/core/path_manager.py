@@ -566,20 +566,6 @@ class PathManager:
         """指定供应商目录：.../llm_providers/{provider_id}/"""
         return PathManager.get_llm_providers_directory() / provider_id
 
-    # 旧名兼容（曾为 extensions/ai/providers）
-    @staticmethod
-    def get_ai_providers_directory() -> Path:
-        return PathManager.get_llm_providers_directory()
-
-    @staticmethod
-    def get_ai_provider_directory(provider_id: str) -> Path:
-        return PathManager.get_llm_provider_directory(provider_id)
-
-    @staticmethod
-    def get_ai_root() -> Path:
-        """兼容旧名：现等于 llm_providers 根。"""
-        return PathManager.get_llm_providers_directory()
-
     # ========== extensions: Agent（modules.agent） ==========
 
     @staticmethod

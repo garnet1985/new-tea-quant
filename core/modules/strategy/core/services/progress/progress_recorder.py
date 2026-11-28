@@ -24,26 +24,26 @@ class ProgressRecorder:
     @classmethod
     def for_strategy_workbench_run(
         cls,
-        strategy_name: str,
+        strategy_key: str,
         run_id: str,
         *,
         channel: str = "strategy-workbench-run",
     ) -> "ProgressRecorder":
         """单 job 工作台编排进度：``{strategy}__{run_id}.json``。"""
-        sn = str(strategy_name).strip()
+        sn = str(strategy_key).strip()
         jid = str(run_id).strip()
         return cls(channel, f"{sn}__{jid}")
 
     @classmethod
     def for_scanner_run(
         cls,
-        strategy_name: str,
+        strategy_key: str,
         run_id: str,
         *,
         channel: str = "strategy-scan",
     ) -> "ProgressRecorder":
         """机会扫描异步任务进度：``{strategy}__{job_id}.json``。"""
-        sn = str(strategy_name).strip()
+        sn = str(strategy_key).strip()
         jid = str(run_id).strip()
         return cls(channel, f"{sn}__{jid}")
 

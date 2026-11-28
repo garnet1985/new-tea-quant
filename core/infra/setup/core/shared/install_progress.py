@@ -98,8 +98,6 @@ def clear_import_progress() -> None:
 
 def begin_import_prepare(*, detail: str = "准备导入…") -> None:
     """解压 / 建连之前的占位，避免步骤已开始却长时间无文案。"""
-    from core.infra.progress.core import store as progress_store
-
     node = _child_id(IMPORT_ID, PREPARE_STEP)
     Progress.start(
         IMPORT_ID,
@@ -115,14 +113,12 @@ def begin_import_prepare(*, detail: str = "准备导入…") -> None:
         detail=str(detail or "准备导入…"),
         log=False,
     )
-    progress_store.drain()
+    Progress.drain()
 
 
 def begin_import_download(*, total_bytes: Optional[int] = None) -> None:
     """官网拉演示包：进度树先挂 download 一步，供 UI 显示下载进度。"""
     global _last_download_tick_at, _last_download_parts_done
-    from core.infra.progress.core import store as progress_store
-
     _last_download_tick_at = 0.0
     _last_download_parts_done = -1
     node = _child_id(IMPORT_ID, DOWNLOAD_STEP)
@@ -142,7 +138,7 @@ def begin_import_download(*, total_bytes: Optional[int] = None) -> None:
         log=False,
     )
     # 子进程立刻落盘，BFF 轮询才能马上读到 downloading。
-    progress_store.drain()
+    Progress.drain()
 
 
 def tick_import_download(
@@ -189,10 +185,8 @@ def tick_import_download(
 
 
 def finish_import_download() -> None:
-    from core.infra.progress.core import store as progress_store
-
     _quiet(lambda: Progress.finish(_child_id(IMPORT_ID, DOWNLOAD_STEP)))
-    progress_store.drain()
+    Progress.drain()
 
 
 def open_import(table_names: Iterable[str], *, done_names: Iterable[str] = ()) -> None:
@@ -211,13 +205,11 @@ def open_import(table_names: Iterable[str], *, done_names: Iterable[str] = ()) -
         steps.append({"id": node_id, "label": name})
     if not steps:
         return
-    from core.infra.progress.core import store as progress_store
-
     Progress.start(IMPORT_ID, job="import", label="导入数据", steps=steps)
     for name in ordered:
         if name in done:
             Progress.finish(_child_id(IMPORT_ID, name))
-    progress_store.drain()
+    Progress.drain()
 
 
 def begin_import_table(table_name: str) -> None:

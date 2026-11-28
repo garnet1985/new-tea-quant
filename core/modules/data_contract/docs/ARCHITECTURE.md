@@ -1,6 +1,6 @@
 # Data Contract 架构文档
 
-**模块：** `modules.data_contract` · **版本：** `0.4.3`
+**模块：** `modules.data_contract` · **版本：** `0.4.4`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -11,6 +11,7 @@
 ```text
 modules.data_contract/
 ├── __init__.py              # 仅 ContractIssuer（Facade）
+├── data_contract.py         # Facade 实现入口（re-export ContractIssuer）
 ├── contracts.py             # DATA_KEY / 基类 / 专用子类（无 Issuer）
 ├── core/
 │   ├── discovery/           # ContractIssuer 实现
@@ -32,6 +33,21 @@ modules.data_contract/
 
 ---
 
+## 架构图
+
+```mermaid
+flowchart TB
+  Caller --> Issuer[ContractIssuer]
+  Issuer --> Disc[discovery]
+  Disc --> Decl[declaration + loader]
+  Issuer --> Base[BaseDataContract]
+  Base --> Load[BaseDataContractLoader]
+  Load --> DM[data_manager]
+  Base --> PIT[until as_of]
+```
+
+---
+
 ## 数据流（若有）
 
 ```mermaid
@@ -46,8 +62,8 @@ flowchart LR
 
 ## 职责与边界（结论）
 
-**In scope：** DATA_KEY 白名单、签发、loader 取数、时序 `until`  
-**Out of scope：** DB schema/SQL（`data_manager`）；策略/标签编排
+**负责：** DATA_KEY 白名单、签发、loader 取数、时序 `until`、userspace 契约脚手架  
+**不负责：** DB schema/SQL（`data_manager`）；策略/标签编排与回测调度
 
 ---
 

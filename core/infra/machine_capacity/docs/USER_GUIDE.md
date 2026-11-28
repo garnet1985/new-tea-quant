@@ -1,6 +1,6 @@
 # Machine Capacity — 用户指南
 
-**模块：** `infra.machine_capacity` · **版本：** `0.2.1`
+**模块：** `infra.machine_capacity` · **版本：** `0.2.2`
 
 **最低支持核心版本：** `>=0.5.0`
 

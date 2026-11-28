@@ -1,4 +1,4 @@
-"""ContractPool - 发现和管理 Contract Declarations。"""
+"""ContractIssuer 实现 — discovery、签发与 userspace 契约操作。"""
 from __future__ import annotations
 
 import importlib
@@ -20,34 +20,7 @@ _USER_CONTRACT_TEMPLATE_DIRS = frozenset({"contract_example"})
 
 
 class ContractIssuer:
-    """Contract Issuer - 发现和管理 Contract Declarations。
-
-    职责：
-    1. 发现系统 contract（data_contracts/*/declaration.py）
-    2. 发现用户 contract（用户空间）
-    3. 检查必要文件和继承关系
-    4. 建立 key → declaration 映射
-
-    检查内容：
-    - declaration.py 文件必须存在
-    - loader.py 文件必须存在
-    - loader 必须继承 BaseDataContractLoader
-    - meta 必须包含必要字段（key, type, scope；per_entity 另需 list_data_key）
-
-    使用方式：
-        # 方式1：实例方式（传统）
-        issuer = ContractIssuer()
-        issuer.discover()  # 发现系统和用户 contract
-        contract = issuer.get_contract("stock.kline.daily")
-        contract.fill_in_data(runtime={...})
-        
-        # 方式2：静态方式（推荐，简化API）
-        contract = ContractIssuer.issue("stock.list")
-        stock_list = contract.data
-        
-        contract = ContractIssuer.issue("stock.kline.daily", entity_ids=["600000.SH"])
-        kline = contract.data
-    """
+    """发现系统与 userspace 契约声明，签发并物化 ``BaseDataContract`` 实例。"""
 
     # 类属性（用于issue静态方法）
     _discovered: bool = False
@@ -433,7 +406,7 @@ class ContractIssuer:
                     data_key_imported = True
             else:
                 # 系统：检查是否导入 SYS_DATA_KEY
-                if 'SYS_DATA_KEY' in source_content or 'SystemDataKeys' in source_content:
+                if 'SYS_DATA_KEY' in source_content:
                     data_key_imported = True
             
             # 如果没有导入 DATA_KEY，给出提示

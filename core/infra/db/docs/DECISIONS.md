@@ -1,6 +1,6 @@
 # Database — 设计与决策
 
-**模块：** `infra.db` · **版本：** `0.3.2`
+**模块：** `infra.db` · **版本：** `0.4.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -144,6 +144,15 @@
 - **仍开放**：
   - Tag 等多场景与 Collector 的完整对接（若产品仍需要独立 Collector 叙事）。
 - **详见**：[engines/ARCHITECTURE.md §8](../core/engines/ARCHITECTURE.md)、[storage-domains.md](./storage-domains.md)
+
+---
+
+## DEC-13：决策 13：包根只导出 `Db`，类型走 `contracts`
+
+- **决策**：`from core.infra.db import Db` 为唯一包根导出；`DbBaseModel` / `Field` / `DatabaseManager` / `TABLE_*` 等一律 `from core.infra.db.contracts import …`。不在包根做兼容再导出。跨模块行为经 `Db.*` 门面，不把 `core/` 深路径当作公开 API。
+- **理由**：0.x 无兼容负担；userspace / core tables 已走 contracts；路径与再导出层只会模糊边界。
+- **影响**：调用方须改 import；脚手架 / 文档示例统一 contracts。
+- **实现**：`__init__.py` 仅 `__all__ = ["Db"]`；`contracts.py` 增补 `TABLE_KINDS` 等；去掉 `ensure_data_manager_restored` 别名。
 
 ---
 

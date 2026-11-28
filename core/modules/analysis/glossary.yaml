@@ -1,5 +1,5 @@
 # Analysis 术语表
-# Version: 0.1.0
+# Version: 0.1.1
 # Compatible-Core: >=0.5.0
 #
 # 目的：解释本模块代码中会出现的英文概念。当前为骨架：词条先固定边界，方法未定时不假装已有术语。
@@ -8,9 +8,9 @@
 terms:
   Analysis:
     definition: |
-      回测完成后解释 inputs 与 outputs 关系的模块 Facade。当前为骨架，无行为 API。
-      不要把 strategy 的 simulate 报告、price_factor 层、或未建的 factor 模块当成本模块。
-    in_code: "from core.modules.analysis import Analysis（骨架）"
+      无 I/O 的统计/ML 工具箱 Facade。公开入口为 Analysis.Classical / Analysis.ML namespace；
+      业务读盘与报告在 strategy analyzer，不要把本模块当成「读 simulations 的解释服务」。
+    in_code: "from core.modules.analysis import Analysis；Analysis.Classical.quantile_buckets"
     aliases:
       - "分析模块"
     avoid:

@@ -1,6 +1,6 @@
 # Database API 文档
 
-**模块：** `infra.db` · **版本：** `0.3.2`
+**模块：** `infra.db` · **版本：** `0.4.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -45,6 +45,15 @@ from core.infra.db import Db
 
 db = Db.manager.get_default()
 ```
+
+#### peek_default
+
+`Db.manager.peek_default() -> DatabaseManager | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.4.0`
+- **描述：** 返回已存在的默认实例；不存在则 ``None``（不自动 initialize）
 
 #### create
 
@@ -192,7 +201,6 @@ db = Db.manager.create(cfg)
 | `recover_after_interrupt(data_mgr=None)` | 中断后恢复 |
 | `set_holder_resolver(resolver)` | 注册应用层 holder 解析（通常由 DataManager 注册；infra 不 import modules） |
 | `ensure_holder_restored(data_mgr=None)` | 恢复 pool 后主进程 holder/DB（duck-type）；应用层首选 `DataManager.ensure_restored_after_worker_pool` |
-| `ensure_data_manager_restored(data_mgr=None)` | 兼容旧名 → `ensure_holder_restored` |
 | `wait_pool_children_done(*, timeout_sec=15)` | 等待子进程结束 |
 | `wait_for_main_end(*, timeout_sec=30)` | 等待主进程 suspend 结束 |
 | `is_main_active()` | 主进程是否处于 suspend |
@@ -200,6 +208,7 @@ db = Db.manager.create(cfg)
 | `database_config_read_only()` | 只读域配置副本 |
 | `release_worker_db_handles(data_mgr=None)` | 释放 worker 侧句柄 |
 | `release_all_main_handles(data_mgr)` | 关闭主进程全部 DuckDB 连接（spawn 前） |
+| `release_all_process_handles(data_mgr=None)` | 关闭当前进程内全部 DuckDB 连接（含子进程安装前 BFF 让出文件锁） |
 
 - **状态：** `beta`
 - **引入版本：** `0.5.0`
@@ -289,5 +298,6 @@ with Db.duckdb.worker_pool.maybe_scope(
 | `DbEngineAbc`, `DbTableAbc` | Engine / 表操作抽象 | `beta` |
 | `EngineConfigMeta` | Engine 配置元信息 | `beta` |
 | `BatchOperation`, `BatchWriteQueue` | 批量写入 | `beta` |
+| `TABLE_KINDS`, `TABLE_OWNERS`, `validate_table_identity` | 表身份（kind / owner） | `beta` |
 
 `DatabaseManager` 实例方法（查询 / 建表等）签名以代码与 [ARCHITECTURE.md](./docs/ARCHITECTURE.md) 为准。

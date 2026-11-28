@@ -1,6 +1,6 @@
 # Market Profile — 快速开始
 
-**模块：** `modules.market_profile` · **版本：** `0.2.0`
+**模块：** `modules.market_profile` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 

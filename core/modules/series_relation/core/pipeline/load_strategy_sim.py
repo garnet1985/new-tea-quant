@@ -28,9 +28,7 @@ def load_strategy_sim_points(
     resolve_folder=None,
 ) -> Tuple[List[Tuple[str, float]], Dict[str, Any]]:
     """返回 ``(points, resolved_meta)``；失败抛 ``StrategySimLoadError``。"""
-    strategy_key = str(
-        item.get("strategy_key") or item.get("strategy") or ""
-    ).strip()
+    strategy_key = str(item.get("strategy_key") or "").strip()
     version = str(item.get("version") or "").strip() or "latest"
     layer = str(item.get("layer") or "").strip()
     metric = str(item.get("metric") or "").strip()
@@ -65,7 +63,6 @@ def load_strategy_sim_points(
 
     meta = {
         "strategy_key": strategy_key,
-        "strategy": strategy_key,
         "version": version,
         "resolved_version": resolved_vid,
         "layer": layer,

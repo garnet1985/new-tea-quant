@@ -1,6 +1,6 @@
-# Adapter 架构文档
+# Post Process — 架构
 
-**模块：** `modules.post_process` · **版本：** `0.3.2`
+**模块：** `modules.post_process` · **版本：** `0.3.3`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -12,11 +12,11 @@
 策略 Scanner 在 present 阶段通过 `PostProcessDispatcher` 调用本模块门面。
 
 ```text
-Adapter (Facade)
+post_process.py (PostProcess Facade)
   ├── build_session_report / validate_session
-  ├── list/validate/load Component
-  └── list/validate/load/run PostProcess
-contracts
+  ├── list/validate/load adapter
+  └── list/validate/load/run PostProcessor
+contracts.py
   ├── Opportunity / StrategyScanReport / ScanSessionReport
   └── BaseAdapter
 core/
@@ -27,7 +27,7 @@ core/
 
 ```mermaid
 flowchart LR
-  Scanner[strategy Scanner] --> Facade[PostProcess / Adapter]
+  Scanner[strategy Scanner] --> Facade[PostProcess]
   Facade --> Protocol[session report protocol]
   Facade --> Components[Component load]
   Facade --> PP[PostProcess run]

@@ -16,7 +16,7 @@ from typing import Any, Dict
 
 
 class TraceDefaults:
-    """内置默认；勿在别处再硬编码同一套数字 / URL。"""
+    """内置 tunables 默认；上报地址由发送端登记，勿在此硬编码。"""
 
     TIMEOUT_SEC: float = 2.0
     QUEUE_MAX: int = 100

@@ -1,6 +1,6 @@
 # 测试用例 — `infra.project_context`
 
-**模块：** `infra.project_context` · **版本：** `0.2.1`
+**模块：** `infra.project_context` · **版本：** `0.2.2`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -15,6 +15,6 @@
 
 | 文件 | 说明 |
 |------|------|
-| `test_api.py` | 公开 API 契约 smoke（`force_run`） |
+| `test_api.py` | 公开 API 契约 smoke（`force_run`）；含 `test_path_no_removed_ai_compat_aliases` |
 
 内部 Manager 行为测试见 `core/__test__/`（`test_path_manager.py`、`test_config_manager.py`、`test_discovery_manager.py`、`test_project_context_manager.py`）。

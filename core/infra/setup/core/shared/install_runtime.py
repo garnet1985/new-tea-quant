@@ -17,14 +17,13 @@ import sys
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Literal, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from core.system import system_meta
+from core.infra.setup.contracts import InstallProfileName
 from core.infra.setup.core.shared.env import NewTeaQuantSetup
 
 logger = logging.getLogger(__name__)
-
-InstallProfileName = Literal["ui", "cli"]
 
 REPO_ROOT = NewTeaQuantSetup.repo_root
 STATE_FILE = REPO_ROOT / ".ntq" / "install-state.json"

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar, Token
 from typing import Iterator, Optional, Sequence
 
-from core.modules.backtest_engine.core.shared.progress import attach_round, phase_steps
+from core.modules.backtest_engine.contracts import attach_round, phase_steps
 from core.modules.strategy.core.enums import SimulateKind
 
 from ..plan import AttributionTask

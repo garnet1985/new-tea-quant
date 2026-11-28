@@ -23,6 +23,18 @@ _PHASE_WEIGHTS = {
 }
 
 
+def phase_probe_percent_range() -> tuple[int, int]:
+    """PREP+PLAN 权重对应的 0–100 进度区间（调度探针 CLI 提示）。"""
+    weight_total = sum(_PHASE_WEIGHTS.values()) or 1
+    probe_from = round(100 * _PHASE_WEIGHTS[RunPhase.PREP] / weight_total)
+    probe_to = round(
+        100
+        * (_PHASE_WEIGHTS[RunPhase.PREP] + _PHASE_WEIGHTS[RunPhase.PLAN])
+        / weight_total
+    )
+    return probe_from, probe_to
+
+
 def phase_steps(parent_id: str) -> list:
     """一轮回测里的四个阶段。权重沿用单次回测。"""
     return [
@@ -241,5 +253,6 @@ __all__ = [
     "RunProgressSnapshot",
     "RunProgressReporter",
     "attach_round",
+    "phase_probe_percent_range",
     "phase_steps",
 ]

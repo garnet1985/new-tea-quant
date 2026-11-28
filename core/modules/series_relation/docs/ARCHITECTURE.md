@@ -1,6 +1,6 @@
 # SeriesRelation — 架构
 
-**模块：** `modules.series_relation` · **版本：** `0.1.0`
+**模块：** `modules.series_relation` · **版本：** `0.2.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -17,22 +17,20 @@
 
 ## 模块结构图
 
-| 路径 | 层 | 职责 |
-|------|----|------|
-| `series_relation.py` | 对外 | Facade：`list_infos` / `validate` / `run` |
-| `contracts.py` | 契约 | `DiscoveredRelation` 等公开类型 |
-| `core/settings.py` | 配置 | 字段校验：`entity`、`max_series`、`transform`、`rolling` |
-| `core/discovery.py` | 发现 | 从 data_source 目录与 strategy 产物寻找候选序列 |
-| `core/pipeline/load_series.py` | 加载 | 按 `data_key` / `field` 取时间序列 |
-| `core/pipeline/load_strategy_sim.py` | 加载 | 读 strategy 产物的组合净值 / 价格累计 |
-| `core/pipeline/normalize.py` | 归一化 | zscore 或起点归一 |
-| `core/pipeline/transform.py` | 变换 | `none` / `returns` / `diff` |
-| `core/pipeline/analyze.py` | 分析 | 两两指标、滚动稳定性、平实结论文本 |
-| `core/pipeline/cli_report.py` | 输出 | CLI 报告文本 |
-| `core/engines/` | 引擎 | 配对计算的具体实现 |
-| `__test__/` | 测试 | 模块公开契约 |
+```text
+series_relation/
+├── series_relation.py       # Facade
+├── contracts.py             # DiscoveredRelation
+├── core/
+│   ├── constants.py
+│   ├── settings/relation_settings.py
+│   ├── discovery/
+│   ├── persist/
+│   └── pipeline/            # load / normalize / transform / analyze / runner
+└── __test__/test_api.py
+```
 
-依赖方向：`series_relation.py` → `core/`；`core/pipeline/` → `core/engines/`、`core/settings.py`；反向不成立。
+依赖方向：`series_relation.py` → `core/`；`core/pipeline/` → `core/settings` 与 engines；反向不成立。
 
 ## 架构图
 
@@ -40,41 +38,35 @@
 flowchart TB
   Caller --> Facade[SeriesRelation]
   Facade --> Disc[discovery]
-  Facade --> Pipe[pipeline]
+  Facade --> Pipe[pipeline runner]
   Pipe --> Load[load_series / load_strategy_sim]
   Pipe --> Norm[normalize / transform]
   Pipe --> Analyze[analyze pairwise]
-  Analyze --> Engines[core/engines]
   Analyze --> Out[results summary / findings]
 ```
 
-## 数据流（若有）
+## 数据流
 
-```
-settings.yaml
-  → discovery（data_source 候选 + strategy 产物）
-  → load_series / load_strategy_sim
-  → 日期并集对齐
-  → normalize（zscore / 起点归一）
-  → transform（none / returns / diff）
-  → analyze.pairwise_summary
-      ├─ 逐对：corr / lag / beta / shape_ok
-      └─ 滚动：mean / recent / sign_flips / stability
-  → results/<key>/summary.json
-                / findings.md
-                / series.json
-                / meta.json
+```mermaid
+flowchart LR
+  S[settings] --> D[discovery]
+  D --> L[load_series / load_strategy_sim]
+  L --> A[日历并集对齐]
+  A --> N[normalize / transform]
+  N --> P[analyze pairwise]
+  P --> R[summary / series / meta / report]
 ```
 
 ## 依赖（结论）
 
 | 依赖 | 用途 |
 |------|------|
-| `modules.data_source` | `data_key` 声明与序列读取 |
+| `modules.data_manager` | `data_key` 声明与序列读取 |
+| `modules.data_contract` | 声明查找 |
 | `modules.strategy` | 回测产物的净值与价格累计 |
-| `infra` 配置 | 输出目录与日历 |
+| `infra.project_context` / `infra.discovery` | 输出目录与发现 |
 
-被依赖方：`cli`（`srel` 子命令）、BFF（`/v1/series-relations/*`）、UI（`seriesRelationPage`）。
+被依赖方：`cli`（`srel`）、BFF（`/v1/series-relations/*`）、UI（`seriesRelationPage`）。
 
 `userspace/extensions/series_relation/<key>/results/` 下：
 
@@ -84,9 +76,10 @@ settings.yaml
 | `series.json` | 日历并集与各序列归一化点 |
 | `findings.md` | 面向人的解释与配对结论 |
 | `meta.json` | 跑批信息与指纹 |
+| `report.txt` | CLI 人读短报告 |
 
-- `best_lag_days` 在**归一化水平值**上扫描 ±20 天。水平值自相关强，相关系数曲线接近平坦，峰值位置对噪声敏感；滞后结论只能作参考，不宜单独作为交易依据。改用去趋势收益率的互相关后才能提升可信度。
-- 序列有缺口时按并集对齐，各序列只在自身有值的点参与计算；重叠样本不足时 `reliable=False`，指标不应当作结论。
+- `best_lag_days` 在**归一化水平值**上扫描 ±20 天；滞后结论只能作参考。
+- 序列有缺口时按并集对齐；重叠样本不足时 `reliable=False`。
 - `relation` 的符号只描述统计方向，与基本面因果无关。
 
 ## 相关文档

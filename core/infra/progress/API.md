@@ -1,6 +1,6 @@
 # Progress API 文档
 
-**模块：** `infra.progress` · **版本：** `0.2.1`
+**模块：** `infra.progress` · **版本：** `0.2.3`
 
 **最低支持核心版本：** `>=0.6.0`
 
@@ -256,6 +256,16 @@ root = Progress.read("run-1:daily")
 ```python
 current = Progress.latest("renew")
 ```
+
+### drain
+
+`Progress.drain() -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.3`
+- **描述：** 把内存中尚未落盘的进度快照立刻写盘。默认写盘有合并延迟时，子进程或 BFF 轮询前可主动 flush
+- **返回值：** `None`
 
 ### types
 

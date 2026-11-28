@@ -1,6 +1,6 @@
 # Project Context 架构文档
 
-**模块：** `infra.project_context` · **版本：** `0.2.1`
+**模块：** `infra.project_context` · **版本：** `0.2.2`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -47,16 +47,56 @@
 ```
 
 ```mermaid
-flowchart LR
-  Caller --> PC[ProjectContext]
-  PC --> Path[path]
-  PC --> Config[config]
-  PC --> Meta[meta]
-  PC --> Cache[cache]
-  PC --> Disc[discovery]
-  Path --> PathMgr[PathManager]
-  Config --> ConfigMgr[ConfigManager]
-  Disc --> DiscMgr[DiscoveryManager]
+flowchart TB
+  subgraph public["公开面"]
+    Caller["调用方（modules / infra / BFF）"]
+    PC["ProjectContext"]
+    Ctx["contracts.py"]
+    Caller --> PC
+    Caller -.->|异常 / DuckDB 常量| Ctx
+    PC --> Types["types（与 contracts 同源）"]
+    Types -.-> Ctx
+  end
+
+  subgraph ns["静态命名空间"]
+    Path["path"]
+    Config["config"]
+    Meta["meta"]
+    Cache["cache"]
+    Disc["discovery"]
+    PC --> Path
+    PC --> Config
+    PC --> Meta
+    PC --> Cache
+    PC --> Disc
+  end
+
+  subgraph core["core/（内部）"]
+    PathMgr["PathManager"]
+    ConfigMgr["ConfigManager"]
+    DiscMgr["DiscoveryManager"]
+    Merge["ConfigMergePolicies"]
+    Path --> PathMgr
+    Config --> ConfigMgr
+    Config --> Merge
+    Disc --> DiscMgr
+    DiscMgr --> ConfigMgr
+    Meta --> PathMgr
+    Cache --> PathMgr
+  end
+
+  subgraph data["磁盘布局（只读）"]
+    DC["core/default_config"]
+    UC["userspace/config"]
+    US["userspace 语义目录"]
+    PathMgr --> US
+    ConfigMgr --> DC
+    ConfigMgr --> UC
+    DiscMgr --> DC
+    DiscMgr --> UC
+  end
+
+  Meta -.->|可选| SysMeta["core.system meta"]
 ```
 
 配置发现：

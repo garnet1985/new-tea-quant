@@ -1452,18 +1452,9 @@ class Strategy:
     @staticmethod
     def describe_enumerate_progress_hint() -> str:
         """CLI 枚举进度提示：探针区间占 PREP+PLAN 权重。"""
-        from core.modules.backtest_engine.core.shared.progress import (
-            RunPhase,
-            _PHASE_WEIGHTS,
-        )
+        from core.modules.backtest_engine.contracts import phase_probe_percent_range
 
-        weight_total = sum(_PHASE_WEIGHTS.values()) or 1
-        probe_from = round(100 * _PHASE_WEIGHTS[RunPhase.PREP] / weight_total)
-        probe_to = round(
-            100
-            * (_PHASE_WEIGHTS[RunPhase.PREP] + _PHASE_WEIGHTS[RunPhase.PLAN])
-            / weight_total
-        )
+        probe_from, probe_to = phase_probe_percent_range()
         return (
             f"进度: {probe_from}%→{probe_to}% 为调度探针，之后按 batch 推进；"
             "完成后输出结果摘要"

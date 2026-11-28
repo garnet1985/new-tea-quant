@@ -359,7 +359,7 @@ class Indicator:
         if ctx is None:
             return []
 
-        from core.modules.indicator.core.field_naming import compute_params
+        from .field_naming import compute_params
 
         results: List[BatchIndicatorResult] = []
         for name, configs in indicators_cfg.items():

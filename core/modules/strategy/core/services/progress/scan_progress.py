@@ -31,7 +31,7 @@ class ScanProgress:
     def seed(self, *, demo: bool, force: bool, run_post_process: bool = True) -> None:
         self._recorder().record(
             {
-                "strategy_name": self.strategy_key,
+                "strategy_key": self.strategy_key,
                 "run_id": self.job_id,
                 "phase": "queued",
                 "status": "queued",
@@ -46,7 +46,7 @@ class ScanProgress:
         base = self._load()
         base.update(
             {
-                "strategy_name": self.strategy_key,
+                "strategy_key": self.strategy_key,
                 "run_id": self.job_id,
                 "phase": "running",
                 "status": "running",
@@ -66,7 +66,7 @@ class ScanProgress:
         base = self._load()
         base.update(
             {
-                "strategy_name": self.strategy_key,
+                "strategy_key": self.strategy_key,
                 "run_id": self.job_id,
                 "phase": "running",
                 "status": "running",
@@ -83,7 +83,7 @@ class ScanProgress:
         base = self._load()
         base.update(
             {
-                "strategy_name": self.strategy_key,
+                "strategy_key": self.strategy_key,
                 "run_id": self.job_id,
                 "phase": "failed",
                 "status": "failed",
@@ -118,7 +118,7 @@ class ScanProgress:
             packed_report["opportunities"] = self.opportunity_rows(opportunities)
         base.update(
             {
-                "strategy_name": self.strategy_key,
+                "strategy_key": self.strategy_key,
                 "run_id": self.job_id,
                 "phase": "completed",
                 "status": "completed",
@@ -175,7 +175,7 @@ class ScanProgress:
         disk = ProgressRecorder.for_scanner_run(sn, jid).get_progress()
         if not isinstance(disk, dict) or not disk:
             return None
-        stored = str(disk.get("strategy_name") or "").strip()
+        stored = str(disk.get("strategy_key") or "").strip()
         if stored and sn and stored != sn:
             return None
         return disk

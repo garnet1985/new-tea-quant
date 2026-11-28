@@ -1,5 +1,5 @@
 # Database 术语表
-# Version: 0.3.2
+# Version: 0.4.0
 # Compatible-Core: >=0.5.0
 #
 # 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
@@ -21,7 +21,7 @@ terms:
   contracts:
     definition: |
       跨模块类型契约面（contracts.py）：只导出类型 / 类 / 常量，不导出行为工厂。
-      DatabaseManager、Field、DbBaseModel、BatchWriteQueue 等从这里或 Db.*.types 取。
+      DatabaseManager、Field、DbBaseModel、BatchWriteQueue、TABLE_KINDS 等从这里导入。
     in_code: "from core.infra.db.contracts import ..."
     aliases:
       - "contracts.py"

@@ -1,6 +1,6 @@
 # 模块元数据
 name: infra.discovery
-version: "0.2.1"
+version: "0.2.2"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "发现模块：自动发现一些带有特征的文件/类/文件夹的模块，用来服务于用户自定义的功能文件和类。"
@@ -9,6 +9,10 @@ site_title: "发现模块 (Discovery)"
 site_display_title: "主动发现和探测 - Discovery模块"
 dependencies: []
 changelog:
+  - version: "0.2.2"
+    changes:
+      - 抽取 DEFAULT_SKIP_MODULES 至 discovery_constants；删除未调用的 FileDiscovery.discover_with_metadata
+      - API.md 引入版本与 module_info 对齐；ARCHITECTURE 以 Mermaid 为 SSOT
   - version: "0.2.1"
     changes:
       - 标准化模块，标准化文档以及对外API

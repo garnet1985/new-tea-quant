@@ -1,6 +1,6 @@
 # Data Manager — 用户指南
 
-**模块：** `modules.data_manager` · **版本：** `0.2.3`
+**模块：** `modules.data_manager` · **版本：** `0.2.4`
 
 **最低支持核心版本：** `>=0.5.0`
 

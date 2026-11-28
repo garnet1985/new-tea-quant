@@ -1,6 +1,6 @@
 # SeriesRelation API 文档
 
-**模块：** `modules.series_relation` · **版本：** `0.1.0`
+**模块：** `modules.series_relation` · **版本：** `0.2.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -72,7 +72,7 @@
 - **返回：** `{success, key, output_dir, series_count, calendar_len, report}`；失败时 `{success: false, error}`（装载硬失败，如缺回测层）
 - **序列源（`series[]` 每项）：**
   - **契约**：`data_key` + `field`（[+ `entity_id`]）；默认 `transform=none`
-  - **回测**：`source: "strategy_sim"` + `strategy_key`（推荐 `meta.key`；也可用相对路径；别名 `strategy`）+ `layer` + `metric`；`version` 默认 `latest`；默认 `transform=returns`
+  - **回测**：`source: "strategy_sim"` + `strategy_key`（`meta.key` 或相对路径）+ `layer` + `metric`；`version` 默认 `latest`；默认 `transform=returns`
     - Phase1 metric：`portfolio.equity`（`equity_curve.json`）；`price.cum_exit_roi`（按平仓日累加已实现 ROI，可选 `entity_id` 单票）
     - `portfolio.equity` 禁止 `entity_id`；缺层/空点硬失败，不静默换更旧 version
 - **分析（`summary.pairwise`）核心三问（白话 + 括号内指标）：**

@@ -1,6 +1,6 @@
 # Data Contract — 概念与运作
 
-**模块：** `modules.data_contract` · **版本：** `0.4.3`
+**模块：** `modules.data_contract` · **版本：** `0.4.4`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -17,18 +17,14 @@
 3. **物化**：`fill_in_data`（或 `issue(..., fill_in_data=True)`）调 loader 写入 `data`。GLOBAL 一次 `load`；PER_ENTITY 按 `entity_ids` 单载或 `load_batch`。
 4. **PIT（仅 TIME_SERIES）**：`until(as_of=...)` 推进可见上界，避免未来函数。NON_TIME_SERIES 无此步。
 
-```text
-declaration(meta) ──issue──► contract(meta/runtime/specific)
-                                    │
-                              fill_in_data
-                                    │
-                                    ▼
-                              data 已填充
-                                    │
-                    （若 TIME_SERIES）until(as_of)
-                                    │
-                                    ▼
-                              可见窗口受 PIT 约束
+```mermaid
+flowchart TB
+  Decl[declaration meta] --> Issue[ContractIssuer.issue]
+  Issue --> Handle[contract meta/runtime/specific]
+  Handle --> Fill[fill_in_data]
+  Fill --> Data[data 已填充]
+  Data --> Until[until as_of]
+  Until --> Pit[可见窗口受 PIT 约束]
 ```
 
 ---

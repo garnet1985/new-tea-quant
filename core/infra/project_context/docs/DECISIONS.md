@@ -1,6 +1,6 @@
 # Project Context — 设计与决策
 
-**模块：** `infra.project_context` · **版本：** `0.2.1`
+**模块：** `infra.project_context` · **版本：** `0.2.2`
 
 **最低支持核心版本：** `>=0.5.0`
 

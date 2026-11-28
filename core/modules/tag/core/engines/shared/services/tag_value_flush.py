@@ -13,9 +13,7 @@ import json
 import logging
 from typing import Any, Dict, List, Optional
 
-from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
-    TagDbUnavailable,
-)
+from core.modules.data_manager.contracts import TagDbUnavailable
 from core.modules.tag.core.engines.shared.services.report_save_buffer import (
     TagReportSaveBuffer,
 )

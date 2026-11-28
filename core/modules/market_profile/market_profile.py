@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Market Profile Proxy — 对外统一入口（实现位于 ``core/market_profile.py``）。"""
+"""Market Profile 门面 — ``MarketRulesProxy``。"""
 
 from __future__ import annotations
 
@@ -49,11 +49,7 @@ class MarketRulesProxy:
         return self._mounted
 
     def set_market(self, profile_id: str) -> None:
-        """挂载当前市场。
-
-        Raises:
-            ValueError: 市场不存在
-        """
+        """挂载当前市场。"""
         self._mounted = self._ensure(profile_id)
 
     def get_market(self, profile_id: str) -> MarketBaseRules:

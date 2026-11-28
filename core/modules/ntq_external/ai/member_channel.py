@@ -96,7 +96,7 @@ def complete(
 
 
 def fetch_member_quota() -> Optional[dict]:
-    """会员通道额度。优先读猫粮余额；旧版每日次数字段仍兼容。"""
+    """会员通道额度（猫粮余额 / token_balance）。"""
     token = member_token()
     if not token:
         return None
@@ -142,15 +142,7 @@ def fetch_member_quota() -> Optional[dict]:
             "limit": max(round(balance, 2), 1),
             "used": 0,
         }
-    try:
-        limit = int(data.get("limit"))
-        remaining = int(data.get("remaining"))
-    except (TypeError, ValueError):
-        return None
-    if limit < 1:
-        return None
-    remaining = max(0, min(remaining, limit))
-    return {"limit": limit, "remaining": remaining, "used": limit - remaining}
+    return None
 
 
 def fetch_member_usage(limit: int = 40) -> Optional[dict]:

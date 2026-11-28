@@ -1,5 +1,5 @@
 # NtqExternal 术语表
-# Version: 0.1.1
+# Version: 0.2.1
 # Compatible-Core: >=0.6.0
 #
 # 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
@@ -8,9 +8,9 @@
 terms:
   NtqExternal:
     definition: |
-      NTQ 与官网之间的客户端 Facade：提供页面地址、用本地会员凭证查资料与 AI 通道、
-      提交软反馈、登记 infra.trace 的 ingest 地址。不落盘会员资料；不做支付/账号注册流程。
-    in_code: "from core.modules.ntq_external import NtqExternal（及子门面）"
+      NTQ 与官网之间的客户端模块：包根公开面为 site_urls / register_trace_endpoint；
+      子包与模块级入口承载会员资料、AI 通道、反馈等。不落盘会员资料；不做支付/账号注册流程。
+    in_code: "ntq_external.py；from core.modules.ntq_external import site_urls, register_trace_endpoint"
     aliases:
       - "官网客户端"
       - "ntq_external"
@@ -33,7 +33,7 @@ terms:
     definition: |
       给其他模块的官网页面地址集合：免责声明、许可、联系、注册、文档等。
       是「多个页面 URL」，不是 base_url 本身。
-    in_code: "NtqExternal.site_urls / 等价 API"
+    in_code: "site.py site_urls()；ntq_external.py"
     aliases:
       - "官网地址"
       - "页面地址集合"

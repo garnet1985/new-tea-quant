@@ -13,11 +13,14 @@ from typing import Any, Dict, List, Optional
 
 from filelock import FileLock, Timeout
 
+from core.infra.job_pipeline.core.pipeline_constants import (
+    DEFAULT_MAX_PENDING,
+    FILE_LOCK_TIMEOUT_SEC,
+)
+
 logger = logging.getLogger(__name__)
 
 _LOCK = threading.Lock()
-_LOCK_TIMEOUT_SEC = 5.0
-DEFAULT_MAX_PENDING = 8
 
 
 def _iso_now() -> str:
@@ -70,7 +73,7 @@ def _read_unlocked(path: Path) -> Dict[str, Any]:
 def _with_locks(fn):
     """进程内锁 + filelock，保证跨进程串行改队列。"""
     with _LOCK:
-        lock = FileLock(str(queue_lock_path()), timeout=_LOCK_TIMEOUT_SEC)
+        lock = FileLock(str(queue_lock_path()), timeout=FILE_LOCK_TIMEOUT_SEC)
         try:
             with lock:
                 return fn()

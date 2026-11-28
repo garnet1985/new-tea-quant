@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from core.modules.backtest_engine.core.shared.jobs import BacktestJob
+from core.modules.backtest_engine.contracts import BacktestJob
 from core.modules.strategy.core.services.artifacts import (
     ENTITY_IDS_FILE,
     RUNTIME_ENV_FILE,

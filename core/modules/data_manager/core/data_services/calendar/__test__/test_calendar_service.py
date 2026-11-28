@@ -104,9 +104,7 @@ def test_get_next_trading_date_raises_when_calendar_has_no_later_open_day():
 
 
 def test_tag_next_trading_date_uses_calendar():
-    from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
-        TagDataService,
-    )
+    from core.modules.data_manager.contracts import TagDataService
 
     dm = MagicMock()
     dm.calendar.get_next_trading_date.return_value = "20240103"

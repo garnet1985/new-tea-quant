@@ -1,6 +1,6 @@
 # Analysis（`modules.analysis`）
 
-**模块：** `modules.analysis` · **版本：** `0.1.0`
+**模块：** `modules.analysis` · **版本：** `0.1.1`
 
 **最低支持核心版本：** `>=0.5.0`
 

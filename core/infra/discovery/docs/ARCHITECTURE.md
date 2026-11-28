@@ -1,6 +1,6 @@
 # Discovery — 架构
 
-**模块：** `infra.discovery` · **版本：** `0.2.1`
+**模块：** `infra.discovery` · **版本：** `0.2.2`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -34,6 +34,7 @@ core/infra/discovery/
 ├── API.md / QUICKSTART.md / glossary.yaml / module_info.yaml
 ├── core/                 # 实现
 │   ├── namespaces.py
+│   ├── discovery_constants.py
 │   ├── file_utils.py
 │   ├── file_discovery.py
 │   ├── class_discovery.py
@@ -47,30 +48,27 @@ core/infra/discovery/
 
 ## 架构图
 
-```text
-调用方
-  → Discovery（门面）
-       ├── file        → FileUtils
-       ├── discover    → FileDiscovery / ClassDiscovery / ModuleDiscovery
-       └── class_discovery → ClassDiscovery + DiscoveryConfig
-```
-
 ```mermaid
-flowchart LR
-  Caller --> Discovery
-  Discovery --> FileNS[file]
-  Discovery --> DiscoverNS[discover]
-  Discovery --> ClassNS[class_discovery]
+flowchart TB
+  Caller["调用方<br/>modules / bff / infra.ai"] --> Facade[Discovery]
+  Facade --> FileNS[file]
+  Facade --> DiscoverNS[discover]
+  Facade --> ClassNS[class_discovery]
   FileNS --> FileUtils
   DiscoverNS --> FileDiscovery
   DiscoverNS --> ClassDiscovery
   DiscoverNS --> ModuleDiscovery
   ClassNS --> ClassDiscovery
+  Caller -.->|类型注解| Contracts[contracts]
 ```
+
+跨模块契约类型走 `contracts`；运行时扫描统一走 `Discovery` 命名空间。
 
 ---
 
-## 数据流（若有）
+## 数据流
+
+**子类发现**
 
 ```text
 Discovery.discover.subclasses(...)
@@ -78,6 +76,14 @@ Discovery.discover.subclasses(...)
   → ClassDiscovery.discover(base_module_path)
   → 子包 import + 子类筛选
   → {key: class}
+```
+
+**按 key 定位配置文件**
+
+```text
+Discovery.file.find_in_tree(base, key, filename)
+  → 直达 base/key/filename 或 rglob **/key/filename
+  → Path | None
 ```
 
 ---

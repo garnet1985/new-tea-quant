@@ -1,10 +1,10 @@
 # NtqExternal — 用户指南
 
-**模块：** `modules.ntq_external` · **版本：** `0.1.1`
+**模块：** `modules.ntq_external` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.6.0`
 
-`NtqExternal 是 NTQ 本地与官网的唯一对接点——查会员资料、走官网 AI 通道、提交反馈都从这里走。`  
+本模块是 NTQ 本地与官网的唯一对接点——查会员资料、走官网 AI 通道、提交反馈都从这里走。  
 相关：[README.md](../README.md) · [API.md](../API.md) · [ARCHITECTURE.md](./ARCHITECTURE.md)
 
 ---

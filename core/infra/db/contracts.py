@@ -17,6 +17,7 @@ from core.infra.db.core.engines import (
 from core.infra.db.core.engines.shared.fields import Field
 from core.infra.db.core.schema_manager import SchemaManager
 from core.infra.db.core.storage_registry import STORAGE_DOMAINS, StorageRegistry
+from core.infra.db.core.table_kind import TABLE_KINDS, TABLE_OWNERS, validate_table_identity
 from core.infra.db.core.table_queriers.db_base_model import DbBaseModel
 from core.infra.db.core.table_queriers.services import BatchOperation, BatchWriteQueue
 
@@ -32,4 +33,7 @@ __all__ = [
     "Field",
     "BatchOperation",
     "BatchWriteQueue",
+    "TABLE_KINDS",
+    "TABLE_OWNERS",
+    "validate_table_identity",
 ]

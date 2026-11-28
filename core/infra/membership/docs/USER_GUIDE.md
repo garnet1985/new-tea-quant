@@ -1,6 +1,6 @@
 # Membership — 用户指南
 
-**模块：** `infra.membership` · **版本：** `0.1.0`
+**模块：** `infra.membership` · **版本：** `0.1.1`
 
 **最低支持核心版本：** `>=0.5.3`
 

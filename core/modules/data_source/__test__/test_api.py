@@ -30,6 +30,8 @@ class TestDataSourceApi(unittest.TestCase):
             "list_renew_targets",
             "format_renew_targets_help",
             "execute",
+            "task_catalog",
+            "sources_needing_renew",
         ):
             self.assertTrue(callable(getattr(mgr, name)), name)
         self.assertTrue(callable(DataSourceManager.format_renew_targets_help))
@@ -43,6 +45,7 @@ class TestDataSourceApi(unittest.TestCase):
         self.assertTrue(
             callable(DataSourceManager.ensure_calendar_real_world_fetcher_registered)
         )
+        self.assertTrue(callable(DataSourceManager.clear_finished_runs))
         self.assertTrue(callable(DataSourceManager.discover_mappings))
         self.assertTrue(callable(mgr.discover_mappings))
         self.assertTrue(callable(mgr.discover_config))
@@ -56,6 +59,7 @@ class TestDataSourceApi(unittest.TestCase):
             BaseProvider,
             DataSourceConfig,
             NormalizationHelper,
+            ProviderError,
             UpdateMode,
         )
 
@@ -67,6 +71,18 @@ class TestDataSourceApi(unittest.TestCase):
         self.assertTrue(ApiConfig is not None)
         self.assertTrue(hasattr(NormalizationHelper, "apply_field_mapping"))
         self.assertEqual(UpdateMode.INCREMENTAL.value, "incremental")
+        self.assertTrue(issubclass(ProviderError, Exception))
+
+    def test_clear_finished_runs_delegates(self):
+        from core.modules.data_source import DataSourceManager
+
+        with patch(
+            "core.modules.data_source.core.service.run_status.clear_finished_runs",
+            return_value=["run-abc"],
+        ) as clear:
+            removed = DataSourceManager.clear_finished_runs()
+        clear.assert_called_once_with(parent=None)
+        self.assertEqual(removed, ["run-abc"])
 
     def test_resolve_renew_target_empty_raises(self):
         from core.modules.data_source import DataSourceManager

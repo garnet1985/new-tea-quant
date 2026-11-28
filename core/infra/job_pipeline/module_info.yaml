@@ -1,5 +1,5 @@
 name: infra.job_pipeline
-version: "0.1.0"
+version: "0.1.1"
 compatible_core_versions: ">=0.6.0"
 package: core.infra
 description: "长任务执行管道：任务登记表、串行队列与任务级进度摘要。细进度仍用 infra.progress。"
@@ -9,6 +9,10 @@ dependencies:
   - infra.project_context
   - infra.progress
 changelog:
+  - version: "0.1.1"
+    changes:
+      - 抽取 pipeline_constants（锁超时、队列上限、stale 阈值）
+      - ARCHITECTURE 数据流改为 Mermaid
   - version: "0.1.0"
     changes:
       - 初始化模块骨架与设计文档

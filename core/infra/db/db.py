@@ -23,6 +23,11 @@ class ManagerNamespace:
         return DatabaseManager.get_default(auto_init=auto_init)
 
     @staticmethod
+    def peek_default() -> Optional[DatabaseManager]:
+        """返回已存在的默认实例；不存在则 ``None``（不自动 initialize）。"""
+        return DatabaseManager.peek_default()
+
+    @staticmethod
     def set_default(manager: DatabaseManager) -> None:
         DatabaseManager.set_default(manager)
 
@@ -172,11 +177,6 @@ class DuckdbWorkerPoolNamespace:
         return DuckdbWorkerPool.ensure_holder_restored(data_mgr)
 
     @staticmethod
-    def ensure_data_manager_restored(data_mgr: Any = None) -> Any:
-        """兼容旧名 → ensure_holder_restored。"""
-        return DuckdbWorkerPoolNamespace.ensure_holder_restored(data_mgr)
-
-    @staticmethod
     def wait_pool_children_done(*, timeout_sec: float = 15.0) -> None:
         from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
@@ -220,6 +220,13 @@ class DuckdbWorkerPoolNamespace:
         from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
 
         DuckdbWorkerPool.release_all_main_db_handles(data_mgr)
+
+    @staticmethod
+    def release_all_process_handles(data_mgr: Any = None) -> None:
+        """关闭当前进程内全部 DuckDB 连接（含子进程安装前 BFF 让出文件锁）。"""
+        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+
+        DuckdbWorkerPool.release_all_process_duckdb_handles(data_mgr)
 
 
 class DuckdbWalNamespace:

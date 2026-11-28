@@ -1,7 +1,7 @@
 # 存储域（Storage Domain）设计
 
 **状态：** 已实现（v1）  
-**版本对齐：** 模块 `0.5.0`  
+**版本对齐：** 模块 `0.4.0`  
 **关联：** DuckDB 嵌入式后端、`StorageRegistry`、`Db.duckdb` / WritePipeline
 
 ---

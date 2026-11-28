@@ -9,6 +9,7 @@ from core.modules.backtest_engine.core.shared.progress import (
     RunProgressReporter,
     _PHASE_WEIGHTS,
     attach_round,
+    phase_probe_percent_range,
     phase_steps,
 )
 

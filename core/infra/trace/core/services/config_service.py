@@ -23,7 +23,6 @@ class TraceConfigService:
 
     @staticmethod
     def load() -> TraceConfig:
-        TraceEndpointService.ensure()
         base = TraceDefaults.as_dict()
         overlay = TraceConfigService._load_userspace_overrides()
         merged = {**base, **overlay}

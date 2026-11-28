@@ -128,6 +128,15 @@ def install_timing_fields(
     return body
 
 
+def _register_trace_endpoint_if_available() -> None:
+    try:
+        from core.modules.ntq_external.track import register_trace_endpoint
+
+        register_trace_endpoint()
+    except ImportError:
+        pass
+
+
 class SetupTrace:
     """Setup / runtime Trace helpers（静态 API，勿实例化）。"""
 
@@ -151,6 +160,7 @@ class SetupTrace:
         skipped: Optional[Any] = None,
     ) -> None:
         try:
+            _register_trace_endpoint_if_available()
             from core.infra.trace import Trace
 
             body: dict[str, Any] = {
@@ -180,6 +190,7 @@ class SetupTrace:
         extra: Optional[Mapping[str, Any]] = None,
     ) -> None:
         try:
+            _register_trace_endpoint_if_available()
             from core.infra.trace import Trace
 
             step_id = str(step or "").strip()[:64]
@@ -217,6 +228,7 @@ class SetupTrace:
         and should only call this for strategy/tag run commands.
         """
         try:
+            _register_trace_endpoint_if_available()
             from core.infra.trace import Trace
 
             body: dict[str, Any] = {"entry": entry}

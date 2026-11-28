@@ -25,7 +25,7 @@ _DEFAULT_TIMEOUT_SEC = 180
 _USER_AGENT = "NTQ/install-member"
 _CHUNK_SIZE = 64 * 1024
 
-# on_progress(done_bytes, total_bytes, *, parts_done=0, parts_total=0)；旧版两参回调仍兼容。
+# on_progress(done_bytes, total_bytes, *, parts_done=0, parts_total=0)
 ProgressCallback = Callable[..., None]
 
 
@@ -167,15 +167,12 @@ def download_install_member(
     def _emit(done: int, total: Optional[int], completed_parts: int) -> None:
         if on_progress is None:
             return
-        try:
-            on_progress(
-                done,
-                total,
-                parts_done=completed_parts,
-                parts_total=parts_total,
-            )
-        except TypeError:
-            on_progress(done, total)
+        on_progress(
+            done,
+            total,
+            parts_done=completed_parts,
+            parts_total=parts_total,
+        )
 
     for part in parts:
         if not isinstance(part, dict):

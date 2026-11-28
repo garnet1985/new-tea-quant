@@ -1,5 +1,5 @@
 name: modules.indicator
-version: "0.2.0"
+version: "0.2.1"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "技术指标计算模块：使用pandas-ta-classic包提供技术指标计算服务，支持计算多种技术指标。"
@@ -8,6 +8,9 @@ site_title: "指标模块 (Indicator)"
 site_display_title: "指标计算 - Indicator 模块"
 dependencies: []
 changelog:
+  - version: "0.2.1"
+    changes:
+      - compute_batch 使用包内相对导入 field_naming（避免冗长绝对路径）
   - version: "0.2.0"
     changes:
       - 标准化模块，标准化文档以及对外API

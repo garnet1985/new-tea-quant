@@ -34,6 +34,10 @@ class UserRunner:
     @staticmethod
     def main(argv: list[str] | None = None) -> int:
         UserRunner._setup_warnings()
+        try:
+            import core.modules.ntq_external  # noqa: F401 — registers trace ingest URL
+        except ImportError:
+            pass
 
         raw = list(argv if argv is not None else sys.argv[1:])
         if UserAbbrev.is_help_argv(raw):

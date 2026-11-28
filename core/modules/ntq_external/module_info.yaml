@@ -1,5 +1,5 @@
 name: modules.ntq_external
-version: "0.2.0"
+version: "0.2.1"
 compatible_core_versions: ">=0.6.0"
 package: core.modules
 description: "NTQ 官网客户端：会员 AI、反馈，以及 trace 的官网发送端。"
@@ -12,6 +12,11 @@ dependencies:
   - infra.trace
   - infra.ai
 changelog:
+  - version: "0.2.1"
+    changes:
+      - 新增 ntq_external.py 包根 Facade；文档版本与 module_info 对齐
+      - 去掉 fetch_member_quota 旧版 limit/remaining 形状与 install_member 两参进度回调兼容
+      - ai 包导出 fetch_member_usage
   - version: "0.2.0"
     changes:
       - member_channel.complete：官网会员补全（经 AiChannel.complete_http）

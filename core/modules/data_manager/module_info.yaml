@@ -1,5 +1,5 @@
 name: modules.data_manager
-version: "0.2.3"
+version: "0.2.4"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据管理模块：提供统一的数据访问门面，支持对不同数据源的访问和查询。"
@@ -13,6 +13,11 @@ dependencies:
   - infra.utils
   - infra.cmd_layout
 changelog:
+  - version: "0.2.4"
+    changes:
+      - contracts：导出 TagDataService / TagDbUnavailable / normalize_delist_date；收口跨模块 deep-import
+      - __test__/test_api：DuckDB pool 契约改走 Db.duckdb.worker_pool；领域属性测补 sw
+      - API.md：领域表补 sw；文档版本与 module_info 同步
   - version: "0.2.3"
     changes:
       - ListService.filter_ids：多维度 include/exclude 股票池过滤（策略 data.stock_list_filter）

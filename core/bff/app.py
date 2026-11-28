@@ -105,6 +105,10 @@ def _register_shutdown_hooks() -> None:
 def _start_trace_drain() -> None:
     """Lazy-start usage trace background drain (must not be a top-level import)."""
     try:
+        try:
+            import core.modules.ntq_external  # noqa: F401 — registers trace ingest URL
+        except ImportError:
+            pass
         from core.infra.trace import Trace
 
         Trace.start_background_drain()

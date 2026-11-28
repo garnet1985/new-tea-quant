@@ -1,6 +1,6 @@
 # Data Source API 文档
 
-**模块：** `modules.data_source` · **版本：** `0.4.0`
+**模块：** `modules.data_source` · **版本：** `0.4.1`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -75,6 +75,21 @@
 - **状态：** `beta`
 - **描述：** Renew UI 任务栏与 Progress 投影（实现在 `service/renew_ui`）。BFF launcher 只拼 JobPipeline/`_ACTIVE` 壳，勿 deep-import `run_status` / Progress
 
+### clear_finished_runs
+
+`DataSourceManager.clear_finished_runs(parent=None) -> list[str]`（staticmethod）
+
+- **状态：** `beta`
+- **描述：** 删除已结束的 `run-*` 状态目录（`renew --clear-logs`）。正在跑的目录保留；返回已删目录名列表
+
+### task_catalog / sources_needing_renew
+
+`DataSourceManager.task_catalog(*, force=False) -> list[dict]`  
+`DataSourceManager.sources_needing_renew() -> list[str]`
+
+- **状态：** `beta`
+- **描述：** CLI `renew list --json` 任务清单；BFF / agent 判断哪些源尚需 renew（依赖序）
+
 ### scaffold_user_handler / write_user_handler_files / apply_mapping_entry / validate_user_handler
 
 `DataSourceManager.scaffold_user_handler(*, key, hooks_class_name=None) -> dict`（staticmethod）  
@@ -124,9 +139,11 @@ mgr.renew(table_name="stock_klines", force=True)
 |------|------|
 | `BaseProvider` | 外部 API Provider 基类 |
 | `BaseHandler` | 数据源 Handler 基类 |
+| `DataSourceHooks` | Handler 生命周期钩子基类（userspace 子类化） |
 | `ApiJob` / `ApiJobBundle` | 抓取 job 契约 |
 | `DataSourceConfig` / `ApiConfig` | handler config 契约 |
 | `NormalizationHelper` | handler 规范化工具模块（`apply_field_mapping` / `result_to_records` 等） |
 | `UpdateMode` | renew 模式枚举 |
+| `ProviderError` | Provider 调用统一异常（`BaseProvider.handle_error`） |
 
 Handler 阶段钩子以实现为准；生产 / userspace 代码勿 deep-import `service/` / `catalog/`。跨模块请用 `DataSourceManager`（含 freshness / sample pool / provider / catalog 辅助）与 `contracts`。

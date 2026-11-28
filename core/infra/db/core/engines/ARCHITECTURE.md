@@ -1,7 +1,7 @@
 # Database Engines 架构（定案）
 
 **状态：** 已定案，**运行时已挂载**  
-**对齐模块版本：** `0.5.0`  
+**对齐模块版本：** `0.4.0`  
 **定位：** engines 子目录实现说明；模块总览以 [`docs/ARCHITECTURE.md`](../../docs/ARCHITECTURE.md) 为准。
 
 本文档记录 `core/infra/db/core/engines/` 的结构与职责边界。`DatabaseManager` 通过 `EngineFactory.create` / 公开 `Db.engine.create` 挂载唯一 Engine。

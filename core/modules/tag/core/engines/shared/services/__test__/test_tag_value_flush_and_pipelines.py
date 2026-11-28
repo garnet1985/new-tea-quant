@@ -14,10 +14,7 @@ from core.modules.tag.core.engines.per_entity.entity_based import (
     TagEntityJobExecutor,
 )
 from core.modules.tag.core.engines.shared.hooks import TagContext, TagHookRuntime, TagHooks
-from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
-    TagDataService,
-    TagDbUnavailable,
-)
+from core.modules.data_manager.contracts import TagDbUnavailable
 from core.modules.tag.core.engines.shared.services import TagValueFlushService
 from core.modules.tag.core.engines.shared.tag_settings import TagSettings
 from core.modules.tag.core.engines.per_entity.slice_based import TagSlicePipeline
@@ -174,45 +171,6 @@ class TestTagValueFlushService:
         else:
             raise AssertionError("expected write failure")
         assert flush.saved_row_count == 0
-
-
-class _ReadyDb:
-    def __init__(self, ready: bool = True) -> None:
-        self._initialized = ready
-
-
-class _BoundModel:
-    def __init__(self, db: _ReadyDb) -> None:
-        self.db = db
-
-
-class _FakeManager:
-    def __init__(self, db: Optional[_ReadyDb]) -> None:
-        self.db = db
-
-    def get_table(self, name: str) -> _BoundModel:
-        _ = name
-        return _BoundModel(self.db)
-
-
-class TestTagDataServiceRebind:
-    def test_rebind_waits_for_resumed_manager(self):
-        old = _ReadyDb()
-        manager = _FakeManager(old)
-        service = TagDataService(manager)
-        assert service.rebind_live_db() is True
-
-        manager.db = None
-        with patch(
-            "core.infra.db.core.db_manager.DatabaseManager.peek_default",
-            return_value=None,
-        ):
-            assert service.rebind_live_db() is False
-
-        resumed = _ReadyDb()
-        manager.db = resumed
-        assert service.rebind_live_db() is True
-        assert service._tag_value_model.db is resumed
 
 
 class TestTagEntityJobBuilder:

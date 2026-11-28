@@ -1,6 +1,6 @@
 # 测试用例 — `modules.ntq_external`
 
-**模块：** `modules.ntq_external` · **版本：** `0.1.1`
+**模块：** `modules.ntq_external` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.6.0`
 
@@ -38,7 +38,7 @@
 | Case（pytest 函数名） | 文件 | 说明 |
 |----------------------|------|------|
 | `test_root_exports` | `test_api.py` | 包根 `__all__` 仅为两个函数且可调用 |
-| `test_site_urls_shape` | `test_api.py` | 4 个页面地址 + 5 个文档地址齐全，均以 `http` 开头 |
+| `test_site_urls_shape` | `test_api.py` | 5 个页面地址 + 5 个文档地址齐全，均以 `http` 开头 |
 | `test_register_trace_endpoint` | `test_api.py` | 返回 `None`，不抛异常 |
 | `test_feedback_surface` | `test_api.py` | `Feedback` 的 7 个方法可调用 |
 
@@ -61,4 +61,6 @@
 
 | Case（pytest 函数名） | 文件 | 说明 |
 |----------------------|------|------|
-| `test_guest_profile_shape` | `test_member_profile.py`（待补） | `signed_in=False`、`reason="missing"`，不含凭证字段 |
+| `test_missing_token_offers_register` | `test_member_profile.py` | `signed_in=False`、`reason="missing"`，不含凭证字段 |
+| `test_rejected_token_offers_register` | `test_member_profile.py` | `reason=rejected` |
+| `test_profile_returns_name_avatar_points` | `test_member_profile.py` | 已登录字段归一化 |

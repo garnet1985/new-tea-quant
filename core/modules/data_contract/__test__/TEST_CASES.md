@@ -1,6 +1,6 @@
 # 测试用例 — `modules.data_contract`
 
-**模块：** `modules.data_contract` · **版本：** `0.4.3`
+**模块：** `modules.data_contract` · **版本：** `0.4.4`
 
 **最低支持核心版本：** `>=0.5.0`
 

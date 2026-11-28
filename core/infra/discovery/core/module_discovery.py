@@ -6,9 +6,9 @@ import logging
 import importlib
 import pkgutil
 
-logger = logging.getLogger(__name__)
+from .discovery_constants import DEFAULT_SKIP_MODULES
 
-DEFAULT_SKIP_MODULES: frozenset[str] = frozenset({"__pycache__", "__init__"})
+logger = logging.getLogger(__name__)
 
 
 class ModuleDiscovery:

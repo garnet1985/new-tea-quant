@@ -67,9 +67,9 @@ class TagDataService(BaseDataService):
         dm = self.data_manager
         db = getattr(dm, "db", None) if dm is not None else None
         if db is None or not getattr(db, "_initialized", False):
-            from core.infra.db.core.db_manager import DatabaseManager
+            from core.infra.db import Db
 
-            db = DatabaseManager.peek_default()
+            db = Db.manager.peek_default()
         if db is None or not getattr(db, "_initialized", False):
             return False
         value_model = getattr(self, "_tag_value_model", None)

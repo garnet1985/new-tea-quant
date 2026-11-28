@@ -1,5 +1,5 @@
 name: infra.export_import
-version: 0.2.0
+version: "0.2.1"
 compatible_core_versions: ">=0.5.0"
 package: core.infra
 description: "导入导出模块：打包，压缩等等对批量或者单个文件的操作模块，主要服务于文件导入导出功能。"
@@ -8,6 +8,10 @@ site_title: "导入导出模块 (Export / Import)"
 site_display_title: "打包释放基础功能 - Export / Import 模块"
 dependencies: []
 changelog:
+  - version: "0.2.1"
+    changes:
+      - 门面 archive/install/types 改为实例挂载（与 Discovery 一致）；删除空 core/__init__
+      - ARCHITECTURE 补全 Mermaid 数据流
   - version: "0.2.0"
     changes:
       - 标准化模块，标准化文档以及对外API

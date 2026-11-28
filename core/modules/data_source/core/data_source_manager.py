@@ -59,7 +59,7 @@ class DataSourceManager:
 
     def sources_needing_renew(self) -> List[str]:
         """按依赖顺序返回当前需要更新的数据源。已经跟上的不在里面。"""
-        from core.modules.data_manager.core.data_manager import DataManager
+        from core.modules.data_manager import DataManager
         from core.modules.data_source.core.service.run_status import ordered_source_keys
 
         self._flush_cache()
@@ -692,6 +692,13 @@ class DataSourceManager:
         from core.modules.data_source.core.service.renew_ui import read_renew_ui_progress
 
         return read_renew_ui_progress()
+
+    @staticmethod
+    def clear_finished_runs(parent: Optional[Path] = None) -> List[str]:
+        """删掉已结束的运行目录；返回被删目录名。正在跑的那次留下。"""
+        from core.modules.data_source.core.service.run_status import clear_finished_runs
+
+        return clear_finished_runs(parent=parent)
 
     # ------------------------------------------------------------------
     # Userspace handler 用例（脚手架 / 写文件 / mapping / 校验）

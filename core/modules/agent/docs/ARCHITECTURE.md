@@ -1,6 +1,6 @@
 # Agent — 架构
 
-**模块：** `modules.agent` · **版本：** `0.1.0`
+**模块：** `modules.agent` · **版本：** `0.1.2`
 
 **最低支持核心版本：** `>=0.6.0`
 
@@ -62,16 +62,28 @@ core/modules/agent/
 
 ```mermaid
 flowchart TB
-  User[用户话] --> Agent
-  Agent --> Prov[resolve_provider]
-  Prov --> Nav[navigator.route]
+  User[用户话] --> Facade[Agent.run]
+  Facade --> Pipe[pipeline]
+  Pipe --> Prov[resolve_provider]
+  Pipe --> Sess[session_store]
+  Pipe --> Nav[navigator.route]
+  Nav --> Clf[classifier]
+  Clf --> Comp[complete_result]
+  Comp -->|provider ntq| Member[member_channel]
+  Comp -->|自备 provider| AiCh[AiChannel.complete]
+  Member --> Http[infra.ai complete_http]
   Nav --> Guide[guider]
   Nav --> Work[worker]
-  Guide --> AI[infra.ai / ntq_external]
-  Work --> AI
-  Work --> Tools[本机 tools]
-  Nav -->|present?| Present[present complete]
-  Present --> AI
+  Guide --> Ask[ask]
+  Work --> Ask
+  Ask --> Comp
+  Work --> Tools[tool_runner]
+  Nav --> Present[present]
+  Present --> Comp
+  Prompt[prompt_loader] --> Guide
+  Prompt --> Work
+  Prompt --> Clf
+  Policy[policy_bind] --> Prompt
 ```
 
 本地负责分流与工具；仅 `provider=ntq` 时补全出站走官网。细节见 [PROVIDER_AND_NAVIGATOR.md](./PROVIDER_AND_NAVIGATOR.md)。

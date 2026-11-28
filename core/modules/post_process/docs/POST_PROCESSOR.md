@@ -1,10 +1,10 @@
 # 后续处理（PostProcess）
 
-**模块：** `modules.post_process` · **版本：** `0.3.2`
+**模块：** `modules.post_process` · **版本：** `0.3.3`
 
 **最低支持核心版本：** `>=0.5.0`
 
-**状态：** 已落地（`modules.post_process` 0.3.2）  
+**状态：** 已落地（`modules.post_process` 0.3.3）  
 
 扫描结果经 adapter 规范化为 [`ScanSessionReport`](./PROTOCOL.md) 之后，交给用户声明的 **后续处理（PostProcess）**：一组**彼此独立**的 component，各自消费同一份标准协议。
 

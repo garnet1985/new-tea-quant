@@ -14,10 +14,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Any, Dict, List, Optional, Tuple
 
+from core.infra.utils import Utils
 from core.modules.data_manager import DataManager
-from core.modules.data_manager.core.data_services.stock.sub_services.tag_service import (
-    TagDataService,
-)
 from core.modules.tag.core.engines.global_based.constants import GLOBAL_ENTITY_ID
 from core.modules.tag.core.engines.shared.tag_settings.data_settings import DataSettings
 from core.modules.tag.core.services.discovery import DiscoveryService
@@ -522,7 +520,9 @@ def _yyyymmdd(value: Any) -> Optional[str]:
     if value is None or value == "":
         return None
     try:
-        return TagDataService._normalize_date_to_yyyymmdd(value)
+        if isinstance(value, str):
+            return Utils.date.normalize_str(value)
+        return Utils.date.normalize(value)
     except Exception:
         text = str(value).strip().replace("-", "")
         if len(text) >= 8 and text[:8].isdigit():

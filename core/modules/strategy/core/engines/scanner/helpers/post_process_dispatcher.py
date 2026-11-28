@@ -42,14 +42,17 @@ class PostProcessDispatcher:
         )
         try:
             out = PostProcess.run_enabled_post_processors(session)
-            if isinstance(out, dict):
-                return {
-                    "ran": list(out.get("ran") or []),
-                    "ui": dict(out.get("ui") or {}),
-                    "skipped": bool(out.get("skipped")),
-                }
-            # 兼容旧返回 List[str]
-            return {"ran": list(out or []), "ui": {}, "skipped": False}
+            if not isinstance(out, dict):
+                logger.error(
+                    "[PostProcessDispatcher] 期望 dict，实际 %s",
+                    type(out).__name__,
+                )
+                return {"ran": [], "ui": {}, "skipped": False}
+            return {
+                "ran": list(out.get("ran") or []),
+                "ui": dict(out.get("ui") or {}),
+                "skipped": bool(out.get("skipped")),
+            }
         except Exception as exc:
             logger.error(
                 "[PostProcessDispatcher] enabled post_processors 失败: %s",

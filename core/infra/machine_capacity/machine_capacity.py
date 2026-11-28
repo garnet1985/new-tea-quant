@@ -14,6 +14,17 @@ from pathlib import Path
 from typing import Any, Dict, Optional, Tuple, Union
 
 from core.infra.machine_capacity.contracts import MachineCapacity
+from core.infra.machine_capacity.machine_capacity_constants import (
+    AUTO_FLOOR_AVAILABLE_FRACTION,
+    AUTO_FLOOR_MIN_MB,
+    AUTO_FLOOR_TOTAL_FRACTION,
+    DEFAULT_RESERVE_CORES,
+    DEFAULT_WORKER_MEMORY_FRACTION,
+    FALLBACK_BUDGET_MB,
+    FALLBACK_MEMORY_FLOOR_MB,
+    MAX_BUDGET_MB,
+    MIN_BUDGET_MB,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -29,17 +40,17 @@ class TypesNamespace:
 class MachineInfo:
     """New Tea Quant（NTQ）机器容量门面类（Facade）。"""
 
-    types = TypesNamespace
+    types = TypesNamespace()
 
-    DEFAULT_WORKER_MEMORY_FRACTION: float = 0.85
-    FALLBACK_MEMORY_FLOOR_MB: float = 2048.0
-    FALLBACK_BUDGET_MB: float = 4096.0
-    MIN_BUDGET_MB: float = 256.0
-    MAX_BUDGET_MB: float = 16384.0
-    AUTO_FLOOR_TOTAL_FRACTION: float = 0.15
-    AUTO_FLOOR_AVAILABLE_FRACTION: float = 0.5
-    AUTO_FLOOR_MIN_MB: float = 1024.0
-    DEFAULT_RESERVE_CORES: int = 1
+    DEFAULT_WORKER_MEMORY_FRACTION = DEFAULT_WORKER_MEMORY_FRACTION
+    FALLBACK_MEMORY_FLOOR_MB = FALLBACK_MEMORY_FLOOR_MB
+    FALLBACK_BUDGET_MB = FALLBACK_BUDGET_MB
+    MIN_BUDGET_MB = MIN_BUDGET_MB
+    MAX_BUDGET_MB = MAX_BUDGET_MB
+    AUTO_FLOOR_TOTAL_FRACTION = AUTO_FLOOR_TOTAL_FRACTION
+    AUTO_FLOOR_AVAILABLE_FRACTION = AUTO_FLOOR_AVAILABLE_FRACTION
+    AUTO_FLOOR_MIN_MB = AUTO_FLOOR_MIN_MB
+    DEFAULT_RESERVE_CORES = DEFAULT_RESERVE_CORES
 
     @staticmethod
     def get_capacity(performance: Dict[str, Any]) -> MachineCapacity:

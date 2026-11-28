@@ -1,6 +1,6 @@
 # Discovery API 文档
 
-**模块：** `infra.discovery` · **版本：** `0.2.1`
+**模块：** `infra.discovery` · **版本：** `0.2.2`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -29,7 +29,7 @@
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 自 `start_dir` 查找文件名；可选向上搜索父目录
 - **举例：**
 
@@ -46,7 +46,7 @@ p = Discovery.file.find_file(Path("."), "settings.json", search_parents=True)
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.4.0`
+- **引入版本：** `0.2.1`
 - **描述：** 在目录树中按「目录名 = `key`」定位 `{key}/{filename}`（先直达 `base/{key}/{filename}`，再递归 `**/{key}/{filename}`）。用于 userspace 可任意建分组文件夹的场景（如 handlers / strategies 嵌套）。`key` / `filename` 须为单路径段。
 - **举例：**
 
@@ -69,7 +69,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 按格式加载；JSON/文本失败返回 `None`；YAML 需已安装 `pyyaml`，缺失则抛 `RuntimeError`
 
 #### load_file_content
@@ -78,7 +78,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 加载文件；可按后缀自动识别 JSON/YAML/文本
 
 #### load_python_config
@@ -87,7 +87,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 对**受信** Python 配置文件 `exec` 后提取指定变量（须为 mapping）；勿用于不可信输入
 
 #### save_file_content / save_json / save_yaml
@@ -98,7 +98,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 写入文件；成功返回 `True`；YAML 需 `pyyaml`
 
 ---
@@ -115,7 +115,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 在目录树中批量发现文件或目录；`files_by_suffix` 的 `suffix` 须含点（如 `.json`）
 
 #### subclasses
@@ -124,7 +124,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 在基础包下按模式发现 `base_class` 的子类，返回 `{key: class}`
 
 #### objects
@@ -133,7 +133,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 在一级子模块中收集同名模块属性
 
 ---
@@ -148,7 +148,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 构造 `DiscoveryConfig`（见 contracts）
 
 #### create
@@ -157,7 +157,7 @@ cfg = Discovery.file.find_in_tree(
 
 - **类型：** `static`
 - **状态：** `beta`
-- **引入版本：** `0.3.0`
+- **引入版本：** `0.2.1`
 - **描述：** 构造可缓存的 `ClassDiscovery` 实例（`discover` / `clear_cache` 等）
 
 #### discover_class_by_path

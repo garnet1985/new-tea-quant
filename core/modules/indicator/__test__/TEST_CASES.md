@@ -1,6 +1,6 @@
 # 测试用例 — `modules.indicator`
 
-**模块：** `modules.indicator` · **版本：** `0.2.0`
+**模块：** `modules.indicator` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 

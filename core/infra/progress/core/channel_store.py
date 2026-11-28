@@ -9,11 +9,12 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Optional
+
+from core.infra.progress.core.paths import resolve_progress_directory
 
 
 def build_path(channel: str, file_key: str) -> Path:
@@ -66,17 +67,7 @@ def clear(channel: str, file_key: str) -> None:
 
 
 def _directory() -> Path:
-    raw = os.environ.get("NTQ_PROGRESS_DIR", "").strip()
-    if raw:
-        return Path(raw)
-    if os.environ.get("PYTEST_CURRENT_TEST"):
-        return Path(tempfile.gettempdir()) / "ntq-progress-pytest"
-    try:
-        from core.infra.project_context import ProjectContext
-
-        return ProjectContext.path.get_userspace_tmp_directory() / "progress"
-    except Exception:
-        return Path(tempfile.gettempdir()) / "ntq-progress"
+    return resolve_progress_directory()
 
 
 __all__ = ["build_path", "write", "read", "clear"]

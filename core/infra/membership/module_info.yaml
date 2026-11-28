@@ -1,5 +1,5 @@
 name: infra.membership
-version: "0.1.0"
+version: "0.1.1"
 compatible_core_versions: ">=0.5.3"
 package: core.infra
 description: "官网会员通用凭证：设置页写入 userspace，后续会员功能只读状态与凭证。"
@@ -9,6 +9,9 @@ site_display_title: "会员凭证的管理 - Membership 模块"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.1.1"
+    changes:
+      - 抽取 membership_constants；补齐 __test__/test_api.py（对齐 module 标准）
   - version: "0.1.0"
     changes:
       - 初始化模块：读写 userspace/system/membership/membership_token.txt

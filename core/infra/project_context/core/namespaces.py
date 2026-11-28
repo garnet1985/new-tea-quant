@@ -302,22 +302,6 @@ class PathNamespace:
         return PathManager.get_llm_provider_directory(provider_id)
 
     @staticmethod
-    def get_ai_root() -> Path:
-        """兼容旧名 → llm_providers。"""
-        from .path_manager import PathManager
-        return PathManager.get_ai_root()
-
-    @staticmethod
-    def get_ai_providers_directory() -> Path:
-        from .path_manager import PathManager
-        return PathManager.get_ai_providers_directory()
-
-    @staticmethod
-    def get_ai_provider_directory(provider_id: str) -> Path:
-        from .path_manager import PathManager
-        return PathManager.get_ai_provider_directory(provider_id)
-
-    @staticmethod
     def get_agent_extensions_directory() -> Path:
         """Agent 用户扩展：userspace/extensions/agent/"""
         from .path_manager import PathManager

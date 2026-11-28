@@ -571,11 +571,9 @@ class DataManager:
     @staticmethod
     def normalize_delist_date(raw: Any) -> Optional[str]:
         """将源数据中的占位退市日（0 / 0.0）视为未退市；跨模块入口。"""
-        from core.modules.data_manager.core.data_services.stock.sub_services.list_service import (
-            ListService,
-        )
+        from core.modules.data_manager.contracts import normalize_delist_date
 
-        return ListService._normalize_delist_date(raw)
+        return normalize_delist_date(raw)
 
     @staticmethod
     def register_calendar_real_world_fetcher(fetcher) -> None:
@@ -647,9 +645,9 @@ class DataManager:
     def ensure_restored_after_worker_pool(cls, data_mgr: Optional[Any] = None) -> Any:
         """ProcessPool / 中断后恢复主进程 DM + DB（应用层入口）。"""
         cls.ensure_duckdb_pool_holder_resolver()
-        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+        from core.infra.db import Db
 
-        return DuckdbWorkerPool.ensure_holder_restored(data_mgr)
+        return Db.duckdb.worker_pool.ensure_holder_restored(data_mgr)
 
     # ------------------------------------------------------------------
     # DataService 属性访问

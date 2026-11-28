@@ -30,9 +30,9 @@ logger = logging.getLogger(__name__)
 
 def _owned_shm():
     """延迟加载，避免与 data_contract → Utils 的导入链缠在一起。"""
-    from core.modules.backtest_engine.core.shared import owned_shared_memory as shm
+    from core.modules.backtest_engine import contracts as be_contracts
 
-    return shm
+    return be_contracts
 
 
 class GlobalEntityCache:

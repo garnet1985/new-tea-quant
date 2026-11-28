@@ -38,7 +38,6 @@ class TraceTrackService:
     def track_setup(event: str, body: Optional[Mapping[str, Any]] = None) -> None:
         """安装事件。只有发送端声明可以跳过同意时才发。"""
         try:
-            TraceEndpointService.ensure()
             if TraceConfigService.should_skip():
                 return
             if not TraceEndpointService.setup_without_consent():
@@ -106,7 +105,6 @@ class TraceTrackService:
 
             if not Membership.read():
                 return
-            TraceEndpointService.ensure()
             cfg = TraceConfigService.load()
             if not str(cfg.target_url or "").strip():
                 return

@@ -1,6 +1,6 @@
 # NtqExternal — 架构
 
-**模块：** `modules.ntq_external` · **版本：** `0.2.0`
+**模块：** `modules.ntq_external` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.6.0`
 
@@ -29,6 +29,7 @@
 
 | 路径 | 层 | 职责 |
 |------|----|------|
+| `ntq_external.py` | Facade | 包根公开面：`site_urls`、`register_trace_endpoint` |
 | `site.py` | 对外 | 页面地址集合，给其他模块调用 |
 | `conf/site_target.py` | 配置 | 官网根地址与派生 URL；全应用唯一来源 |
 | `conf/endpoints.py` | 配置 | 生产默认地址常量 |

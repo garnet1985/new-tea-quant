@@ -146,6 +146,20 @@ class RuntimeNamespace:
         return ensure_cli_install_via_install_py()
 
     @staticmethod
+    def bind_install_progress_dir(userspace_root: str | Path) -> Path:
+        """将进度目录绑定到目标 userspace（UI 向导 / 外置路径安装）。"""
+        from core.infra.setup.core.shared.install_progress import bind_install_progress_dir
+
+        return bind_install_progress_dir(userspace_root)
+
+    @staticmethod
+    def read_import_progress() -> dict:
+        """给安装页/BFF 的导入进度摘要（与 ``install_progress`` 内部格式一致）。"""
+        from core.infra.setup.core.shared.install_progress import read_import_progress
+
+        return read_import_progress()
+
+    @staticmethod
     def import_data_pack(
         *,
         pack_kind: str = "demo",

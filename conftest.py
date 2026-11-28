@@ -37,6 +37,12 @@ def pytest_configure(config: pytest.Config) -> None:
 
 @pytest.fixture(autouse=True)
 def ntq_block_trace_http(monkeypatch: pytest.MonkeyPatch) -> None:
+    try:
+        from core.modules.ntq_external.track import register_trace_endpoint
+
+        register_trace_endpoint()
+    except ImportError:
+        pass
     # Import concrete modules first: dotted-path setattr fails when the
     # ``services`` package is not yet loaded under ``core.infra.trace.core``.
     from core.modules.ntq_external.feedback.core.services import (

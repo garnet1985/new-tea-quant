@@ -53,13 +53,13 @@ def test_validate_strategy_sim_defaults_version_and_transform() -> None:
     sim = settings["series"][0]
     assert sim["source"] == "strategy_sim"
     assert sim["strategy_key"] == "my_strategy_key"
-    assert sim["strategy"] == "my_strategy_key"
+    assert "strategy" not in sim
     assert sim["version"] == "latest"
     assert sim["transform"] == "returns"
     assert settings["series"][1]["transform"] == "none"
 
 
-def test_validate_strategy_alias_still_works() -> None:
+def test_reject_strategy_sim_without_strategy_key() -> None:
     raw = {
         "meta": {"key": "demo"},
         "series": [
@@ -71,10 +71,8 @@ def test_validate_strategy_alias_still_works() -> None:
             }
         ],
     }
-    settings, errors = validate_settings(raw, declaration_lookup=_lookup)
-    assert errors == []
-    assert settings is not None
-    assert settings["series"][0]["strategy_key"] == "path/like/id"
+    _, errors = validate_settings(raw, declaration_lookup=_lookup)
+    assert any("strategy_key" in e for e in errors)
 
 
 def test_reject_portfolio_equity_with_entity_id() -> None:
@@ -151,7 +149,7 @@ def test_load_portfolio_equity_and_price_cum(tmp_path: Path) -> None:
 
     roi_pts, _ = load_strategy_sim_points(
         {
-            "strategy": "demo/x",
+            "strategy_key": "demo/x",
             "version": "3",
             "layer": "price",
             "metric": "cum_exit_roi",
@@ -172,7 +170,7 @@ def test_load_missing_layer_hard_fails(tmp_path: Path) -> None:
     with pytest.raises(StrategySimLoadError):
         load_strategy_sim_points(
             {
-                "strategy": "demo/x",
+                "strategy_key": "demo/x",
                 "version": "latest",
                 "layer": "portfolio",
                 "metric": "equity",

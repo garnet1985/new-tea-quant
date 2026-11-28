@@ -1,5 +1,5 @@
 # Setup 术语表
-# Version: 0.2.0
+# Version: 0.2.1
 # Compatible-Core: >=0.5.0
 #
 # 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
@@ -10,7 +10,7 @@ terms:
   Setup:
     definition: |
       NTQ 安装域 Facade：环境路径/venv、按 profile 跑安装流水线、产物打包、完成态标记、
-      安装期 trace。挂载 env / runtime / artifacts / meta / trace / types。
+      安装期 trace、使用条款。挂载 env / runtime / artifacts / meta / trace / license / types。
       CLI / launcher / BFF 只调本门面；不要跨模块 deep-import NewTeaQuantSetup /
       InstallOrchestrator（内部实现，步骤脚本可引用）。
     in_code: "from core.infra.setup import Setup"
@@ -21,9 +21,9 @@ terms:
 
   InstallOrchestrator:
     definition: |
-      安装外层编排实现：集中调度 CLI / UI / session 安装路径，落在 core/orchestrator/。
+      安装外层编排实现：集中调度 CLI / UI / session 安装路径，落在 core/orchestrator.py。
       产品代码经 Setup.runtime 等入口间接触达；不要当作包根公开 API。
-    in_code: "core/orchestrator/InstallOrchestrator（内部）"
+    in_code: "core/orchestrator.py（install_cli_runtime / install_ui_runtime 等）"
     aliases: []
     avoid:
       - "from core.infra.setup import InstallOrchestrator"

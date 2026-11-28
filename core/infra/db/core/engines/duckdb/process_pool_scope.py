@@ -485,14 +485,10 @@ class DuckdbWorkerPool:
         DuckdbWorkerPool.resume_main_database_with_retry(dm)
         return dm
 
-    # 兼容旧名
-    ensure_data_manager_restored = ensure_holder_restored
-
-
     @staticmethod
     def recover_after_worker_pool_interrupt(data_mgr: Any = None) -> None:
         """CLI / 工作台 Ctrl+C：终止遗留 worker、恢复 auto_init 与主库连接。"""
-        
+
         DuckdbWorkerPool._main_suspend_depth = 0
         DuckdbWorkerPool._suspend_thread_ident = None
         try:
@@ -506,13 +502,12 @@ class DuckdbWorkerPool:
         if not DuckdbWorkerPool.is_duckdb_backend(data_mgr):
             return
         try:
-            dm = DuckdbWorkerPool.ensure_data_manager_restored(data_mgr)
+            dm = DuckdbWorkerPool.ensure_holder_restored(data_mgr)
             db = getattr(dm, "db", None)
             if db is not None and hasattr(db, "checkpoint_duckdb"):
                 db.checkpoint_duckdb()
         except Exception as exc:
             logger.warning("DuckDB 中断恢复未完成: %s", exc)
-
 
     @staticmethod
     def _finalize_worker_pool_main_process(
@@ -521,7 +516,6 @@ class DuckdbWorkerPool:
         resume_main_after: bool,
         wait_children_timeout_sec: float,
     ) -> None:
-        
         DuckdbWorkerPool._main_suspend_depth = 0
         DuckdbWorkerPool._suspend_thread_ident = None
         try:
@@ -531,7 +525,7 @@ class DuckdbWorkerPool:
         if not resume_main_after:
             return
         try:
-            dm = DuckdbWorkerPool.ensure_data_manager_restored(data_mgr)
+            dm = DuckdbWorkerPool.ensure_holder_restored(data_mgr)
             db = getattr(dm, "db", None)
             if db is not None and hasattr(db, "checkpoint_duckdb"):
                 db.checkpoint_duckdb()

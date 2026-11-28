@@ -117,5 +117,10 @@ class Progress:
         """同一个 job 里最新的一份根文件。没有则返回 None。"""
         return _store.latest(job)
 
+    @staticmethod
+    def drain() -> None:
+        """把尚未落盘的进度快照立刻写盘（安装下载等子进程轮询前可主动 flush）。"""
+        _store.drain()
+
 
 __all__ = ["Progress"]

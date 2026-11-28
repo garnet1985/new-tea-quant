@@ -1,6 +1,6 @@
 # Post Process — 设计与决策
 
-**模块：** `modules.post_process` · **版本：** `0.3.2`
+**模块：** `modules.post_process` · **版本：** `0.3.3`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -18,9 +18,9 @@
 **userspace 目录约定**：
 
 ```text
-userspace/extensions/
-├── components/<name>/
-│   ├── adapter.py      # BaseAdapter 子类
+userspace/extensions/post_process/
+├── adapters/<name>/
+│   ├── adapter.py        # BaseAdapter 子类
 │   └── settings.py       # 可选
 └── post_processors/<key>/
     └── post_processor.json

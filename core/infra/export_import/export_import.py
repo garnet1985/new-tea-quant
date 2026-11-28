@@ -35,9 +35,9 @@ class TypesNamespace:
 class ExportImport:
     """New Tea Quant（NTQ）制品导出/导入门面类（Facade）。"""
 
-    archive = ArchiveNamespace
-    install = InstallNamespace
-    types = TypesNamespace
+    archive = ArchiveNamespace()
+    install = InstallNamespace()
+    types = TypesNamespace()
 
 
 __all__ = ["ExportImport"]

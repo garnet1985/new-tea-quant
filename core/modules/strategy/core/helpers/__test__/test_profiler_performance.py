@@ -5,10 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List
 
-from core.modules.backtest_engine.core.performance.profiler import (
-    ENGINE_PERF_KEY,
-    ENUM_PERF_KEY,
-)
+from core.modules.backtest_engine.contracts import ENGINE_PERF_KEY, ENUM_PERF_KEY
 from core.modules.strategy.core.engines.enumerator.common.report_manager import (
     ReportManager,
 )

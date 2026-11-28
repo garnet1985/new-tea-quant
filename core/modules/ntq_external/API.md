@@ -1,6 +1,6 @@
 # NtqExternal API 文档
 
-**模块：** `modules.ntq_external` · **版本：** `0.1.1`
+**模块：** `modules.ntq_external` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.6.0`
 
@@ -120,6 +120,23 @@ profile = member_profile()
 if profile["signed_in"]:
     print(profile["name"], profile["tier"])
 ```
+
+---
+
+### member_channel（AI）
+
+`from core.modules.ntq_external.ai import member_channel`  
+或 `from core.modules.ntq_external.ai.member_channel import complete, fetch_member_quota, fetch_member_usage`
+
+| 符号 | 签名 | 说明 |
+|------|------|------|
+| `complete` | `(messages, *, max_tokens=2048, temperature=0.2, ...) -> CompleteResult` | 官网会员补全；经 `infra.ai.AiChannel.complete_http` |
+| `fetch_member_quota` | `() -> dict \| None` | 猫粮额度快照；无凭证或失败为 `None` |
+| `fetch_member_usage` | `(limit=40) -> dict \| None` | 猫粮流水；无凭证或失败为 `None` |
+| `member_token` | `() -> str \| None` | 本机通用凭证 |
+| `track_prompt` | `(*, kind, question, ...) -> bool` | 上报 OOS 等问题；失败静默 |
+
+`complete` 无凭证时抛 `AiError`。
 
 ---
 

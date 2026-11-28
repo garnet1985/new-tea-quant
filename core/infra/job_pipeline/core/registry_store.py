@@ -14,11 +14,11 @@ from typing import Any, Dict, Optional
 from filelock import FileLock, Timeout
 
 from core.infra.job_pipeline.contracts import JobRunningBusyError, JobStatus, VALID_KINDS
+from core.infra.job_pipeline.core.pipeline_constants import FILE_LOCK_TIMEOUT_SEC
 
 logger = logging.getLogger(__name__)
 
 _THREAD_LOCK = threading.Lock()
-_LOCK_TIMEOUT_SEC = 5.0
 
 
 def _iso_now() -> str:
@@ -100,7 +100,7 @@ def clear_dead_holder() -> Optional[Dict[str, Any]]:
     """若 running 槽 pid 已死则删除；返回被清掉的快照，否则 ``None``。"""
     with _THREAD_LOCK:
         try:
-            lock = FileLock(str(registry_lock_path()), timeout=_LOCK_TIMEOUT_SEC)
+            lock = FileLock(str(registry_lock_path()), timeout=FILE_LOCK_TIMEOUT_SEC)
             with lock:
                 path = registry_path()
                 raw = _read_json(path)
@@ -144,7 +144,7 @@ def read_running() -> Optional[Dict[str, Any]]:
     """读自管 running 槽。"""
     with _THREAD_LOCK:
         try:
-            lock = FileLock(str(registry_lock_path()), timeout=_LOCK_TIMEOUT_SEC)
+            lock = FileLock(str(registry_lock_path()), timeout=FILE_LOCK_TIMEOUT_SEC)
             with lock:
                 live = _live_payload(registry_path())
                 return _to_public_snapshot(live) if live is not None else None
@@ -177,7 +177,7 @@ def acquire_running(row: Dict[str, Any]) -> Dict[str, Any]:
 
     with _THREAD_LOCK:
         try:
-            lock = FileLock(str(registry_lock_path()), timeout=_LOCK_TIMEOUT_SEC)
+            lock = FileLock(str(registry_lock_path()), timeout=FILE_LOCK_TIMEOUT_SEC)
             with lock:
                 existing = _live_payload(registry_path())
                 if existing is not None:
@@ -196,7 +196,7 @@ def release_running(job_id: str) -> bool:
 
     with _THREAD_LOCK:
         try:
-            lock = FileLock(str(registry_lock_path()), timeout=_LOCK_TIMEOUT_SEC)
+            lock = FileLock(str(registry_lock_path()), timeout=FILE_LOCK_TIMEOUT_SEC)
             with lock:
                 path = registry_path()
                 raw = _read_json(path)
@@ -217,7 +217,7 @@ def request_cancel(job_id: str) -> Dict[str, Any]:
 
     with _THREAD_LOCK:
         try:
-            lock = FileLock(str(registry_lock_path()), timeout=_LOCK_TIMEOUT_SEC)
+            lock = FileLock(str(registry_lock_path()), timeout=FILE_LOCK_TIMEOUT_SEC)
             with lock:
                 path = registry_path()
                 live = _live_payload(path)

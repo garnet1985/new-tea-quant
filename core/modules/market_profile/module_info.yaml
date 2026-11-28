@@ -1,5 +1,5 @@
 name: modules.market_profile
-version: "0.2.0"
+version: "0.2.1"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "市场制度规则模块：提供市场制度规则的查询服务，支持查询涨跌停、最小申报单位、板块手数等规则。"
@@ -8,6 +8,10 @@ site_title: "市场模块 (Market Profile)"
 site_display_title: "不同市场提供不同规则 - Market profile 模块"
 dependencies: []
 changelog:
+  - version: "0.2.1"
+    changes:
+      - Facade 迁至模块根 market_profile.py（对齐 CORE 指标 1）
+      - 精简 MarketRulesProxy 冗余 docstring
   - version: "0.2.0"
     changes:
       - 标准化模块，标准化文档以及对外API

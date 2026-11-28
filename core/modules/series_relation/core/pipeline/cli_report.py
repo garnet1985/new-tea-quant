@@ -17,7 +17,7 @@ def format_cli_report(meta: Mapping[str, Any], summary: Mapping[str, Any]) -> st
     for item in meta.get("series") or []:
         extra = ""
         if item.get("source") == "strategy_sim":
-            sk = item.get("strategy_key") or item.get("strategy")
+            sk = item.get("strategy_key")
             extra = (
                 f"  [sim {sk}@"
                 f"{item.get('resolved_version') or item.get('version')} "
@@ -135,7 +135,7 @@ def format_cli_report(meta: Mapping[str, Any], summary: Mapping[str, Any]) -> st
 def _participant_who(item: Mapping[str, Any]) -> str:
     """一句话说明这条序列是谁（策略 key / 数据键等）。"""
     if item.get("source") == "strategy_sim":
-        sk = item.get("strategy_key") or item.get("strategy") or "?"
+        sk = item.get("strategy_key") or "?"
         ver = item.get("resolved_version") or item.get("version") or "latest"
         layer = item.get("layer") or "?"
         metric = item.get("metric") or "?"

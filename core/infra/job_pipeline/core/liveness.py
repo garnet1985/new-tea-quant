@@ -6,11 +6,10 @@ from datetime import datetime, timezone
 from typing import Any, Dict, Optional
 
 from core.infra.job_pipeline.contracts import JobStatus
-
-# 有 Progress 时：多久没写 updated_at 算卡住
-STALE_AFTER_PROGRESS_SEC = 2 * 60 * 60
-# 完全挂不上 Progress 时：仅用墙钟兜底（避免健康长任务被 started_at 误伤）
-STALE_AFTER_NO_PROGRESS_SEC = 12 * 60 * 60
+from core.infra.job_pipeline.core.pipeline_constants import (
+    STALE_AFTER_NO_PROGRESS_SEC,
+    STALE_AFTER_PROGRESS_SEC,
+)
 
 
 def _epoch_seconds(value: Any) -> Optional[float]:

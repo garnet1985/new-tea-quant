@@ -1,6 +1,6 @@
 # Machine Capacity — 架构
 
-**模块：** `infra.machine_capacity` · **版本：** `0.2.1`
+**模块：** `infra.machine_capacity` · **版本：** `0.2.2`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -24,9 +24,10 @@
 
 ```text
 core/infra/machine_capacity/
-├── machine_capacity.py   # 门面 MachineInfo + TypesNamespace
-├── contracts.py          # MachineCapacity
-├── __test__/             # 公开 API + 行为单测 + TEST_CASES.md
+├── machine_capacity.py           # 门面 MachineInfo
+├── machine_capacity_constants.py # 预算/保底默认值
+├── contracts.py                  # MachineCapacity
+├── __test__/                     # 公开 API + 行为单测 + TEST_CASES.md
 └── docs/
 ```
 
@@ -34,19 +35,13 @@ core/infra/machine_capacity/
 
 ## 架构图
 
-```text
-调用方 → MachineInfo
-           ├── get_capacity / resolve_* / get_available_workers / …
-           ├── virtual_memory_mb  (optional psutil)
-           └── types → contracts.MachineCapacity
-```
-
 ```mermaid
 flowchart LR
   Caller --> MachineInfo
   MachineInfo --> Capacity[get_capacity / resolve_*]
   MachineInfo --> Mem[virtual_memory_mb]
-  MachineInfo --> Types[contracts]
+  MachineInfo --> Const[machine_capacity_constants]
+  MachineInfo --> Types[contracts via types]
 ```
 
 ---

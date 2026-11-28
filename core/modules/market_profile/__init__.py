@@ -9,6 +9,6 @@
     from core.modules.market_profile.contracts import MarketBaseRules, LotSizeResolved
 """
 
-from core.modules.market_profile.core.market_profile import MarketRulesProxy
+from core.modules.market_profile.market_profile import MarketRulesProxy
 
 __all__ = ["MarketRulesProxy"]

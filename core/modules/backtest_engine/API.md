@@ -1,6 +1,6 @@
 # Backtest Engine API 文档
 
-**模块：** `modules.backtest_engine` · **版本：** `0.2.0`
+**模块：** `modules.backtest_engine` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -84,6 +84,9 @@ result = BacktestEngine.entity_based.run(
 | `Timeline` / `TimelineInput` | 日历轴发布与读取 |
 | `EntityMonitorStats` / `WorkerTaskPerf` | 调度监控与 worker 性能快照类型 |
 | `ENGINE_PERF_KEY` / `ENUM_PERF_KEY` | performance.json 键名常量 |
+| `attach_round` / `phase_steps` | 多轮回测挂接到 `Progress` 树 |
+| `phase_probe_percent_range` | 探针阶段占用的 0–100 进度区间（CLI 提示） |
+| `create_owned_shared_memory` / `attach_shared_memory` / `close_and_unlink` | 进程间 SharedMemory 生命周期（与 Timeline 同源） |
 
 Job 校验：`BacktestJob.validate_many(jobs, mode=...)` — entity_based 需 `entity_specified`；slice_based 需 `entity_ids` + `timeline_point_count`。
 

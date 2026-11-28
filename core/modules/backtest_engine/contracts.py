@@ -8,6 +8,17 @@ from core.modules.backtest_engine.core.performance.profiler import (
     ENUM_PERF_KEY,
     WorkerTaskPerf,
 )
+from core.modules.backtest_engine.core.shared.owned_shared_memory import (
+    attach_shared_memory,
+    close_and_unlink,
+    create_owned_shared_memory,
+)
+from core.modules.backtest_engine.core.shared.progress import (
+    RunPhase,
+    attach_round,
+    phase_probe_percent_range,
+    phase_steps,
+)
 from core.modules.backtest_engine.core.schedule.entity_based.monitor import (
     EntityMonitorStats,
 )
@@ -41,6 +52,13 @@ __all__ = [
     "ENUM_PERF_KEY",
     "EntityMonitorStats",
     "ExecuteFn",
+    "RunPhase",
+    "attach_round",
+    "attach_shared_memory",
+    "close_and_unlink",
+    "create_owned_shared_memory",
+    "phase_probe_percent_range",
+    "phase_steps",
     "JobContext",
     "JobFailure",
     "JobFailurePhase",

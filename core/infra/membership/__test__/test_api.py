@@ -1,10 +1,22 @@
+"""对齐 API.md 的契约测试。"""
+
+from __future__ import annotations
+
 from pathlib import Path
 
-from core.infra.membership.membership import Membership
+from core.infra.membership import Membership
 from core.infra.project_context.core.path_manager import PathManager
 
 
-def test_save_read_clear(tmp_path: Path, monkeypatch):
+def test_facade_exported_only() -> None:
+    import core.infra.membership as pkg
+
+    assert pkg.__all__ == ["Membership"]
+    for name in ("token_file", "read", "status", "save", "clear"):
+        assert callable(getattr(Membership, name))
+
+
+def test_save_read_clear(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         PathManager,
         "get_membership_token_file",
@@ -31,7 +43,7 @@ def test_save_read_clear(tmp_path: Path, monkeypatch):
     assert Membership.status()["configured"] is False
 
 
-def test_dropped_file_and_invalid_contents(tmp_path: Path, monkeypatch):
+def test_dropped_file_and_invalid_contents(tmp_path: Path, monkeypatch) -> None:
     path = tmp_path / "membership_token.txt"
     monkeypatch.setattr(PathManager, "get_membership_token_file", staticmethod(lambda: path))
 

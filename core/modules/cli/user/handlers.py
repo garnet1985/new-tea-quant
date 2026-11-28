@@ -314,9 +314,9 @@ class UserHandlers:
         force = bool(getattr(args, "force", False))
 
         if getattr(args, "clear_logs", False):
-            from core.modules.data_source.core.service.run_status import clear_finished_runs
+            from core.modules.data_source import DataSourceManager
 
-            removed = clear_finished_runs()
+            removed = DataSourceManager.clear_finished_runs()
             if not removed:
                 print("没有可清理的运行状态。", flush=True)
                 return

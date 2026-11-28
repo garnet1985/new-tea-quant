@@ -102,17 +102,14 @@ def _infer_source(item: Mapping[str, Any]) -> str:
         return explicit
     if str(item.get("data_key") or "").strip():
         return SOURCE_DATA_KEY
-    if (
-        str(item.get("strategy_key") or item.get("strategy") or "").strip()
-        or str(item.get("layer") or "").strip()
-    ):
+    if str(item.get("strategy_key") or "").strip() or str(item.get("layer") or "").strip():
         return SOURCE_STRATEGY_SIM
     return SOURCE_DATA_KEY
 
 
 def _strategy_ref(item: Mapping[str, Any]) -> str:
-    """优先 ``strategy_key``（meta.key），``strategy`` 为别名（key 或相对路径均可）。"""
-    return str(item.get("strategy_key") or item.get("strategy") or "").strip()
+    """策略 ``meta.key`` 或相对路径 id（字段 ``strategy_key``）。"""
+    return str(item.get("strategy_key") or "").strip()
 
 
 def _normalize_transform(
@@ -210,7 +207,7 @@ def _normalize_strategy_sim(
     if not strategy_key:
         errors.append(
             f"series[{index}] strategy_sim 缺少 strategy_key"
-            f"（推荐填策略 meta.key；也可用相对路径，别名字段 strategy）"
+            f"（填策略 meta.key 或相对路径）"
         )
     if not layer:
         errors.append(f"series[{index}] strategy_sim 缺少 layer")
@@ -246,9 +243,7 @@ def _normalize_strategy_sim(
         return None, errors
     return {
         "source": SOURCE_STRATEGY_SIM,
-        # 规范字段；strategy 同步保留，便于旧读写
         "strategy_key": strategy_key,
-        "strategy": strategy_key,
         "version": version,
         "layer": layer,
         "metric": metric,

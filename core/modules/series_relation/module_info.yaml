@@ -1,5 +1,5 @@
 name: modules.series_relation
-version: "0.1.0"
+version: "0.2.0"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "序列关系：多条 time series 并置比较（对齐呈现 + 可选关系摘要）。"
@@ -13,6 +13,10 @@ dependencies:
   - infra.project_context
   - infra.discovery
 changelog:
+  - version: "0.2.0"
+    changes:
+      - 移除 strategy_sim 输入/输出字段 strategy（仅 strategy_key；0.x 不保留兼容）
+      - ARCHITECTURE 校正目录与依赖、数据流改 Mermaid
   - version: "0.1.0"
     changes:
       - Facade：list/find/validate/run；MAX_SERIES=6 为代码常量

@@ -1,6 +1,6 @@
 # NTQ Provider ↔ Website 状态协议
 
-**模块：** `modules.agent` · **版本：** `0.1.0`
+**模块：** `modules.agent` · **版本：** `0.1.2`
 
 **最低支持核心版本：** `>=0.6.0`
 

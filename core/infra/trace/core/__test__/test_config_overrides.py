@@ -72,8 +72,7 @@ def test_registered_endpoint_supplies_target(
     from core.modules.ntq_external.conf.site_target import trace_url
     from core.modules.ntq_external.track import register_trace_endpoint
 
-    # 运行时地址走 site_target.trace_url()（可被 membership.json 改成回环），
-    # 不是 endpoints.TRACE_URL 生产常量。reset 后需重新登记（import 不会重跑）。
+    # 运行时地址走 site_target.trace_url()；reset 后需重新 register_trace_endpoint()。
     TraceEndpointService.reset()
     monkeypatch.delenv("NTQ_TRACE_ENDPOINT", raising=False)
     monkeypatch.setattr(

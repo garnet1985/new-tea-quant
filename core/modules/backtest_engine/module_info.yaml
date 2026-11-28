@@ -1,5 +1,5 @@
 name: modules.backtest_engine
-version: "0.2.0"
+version: "0.2.1"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "回测引擎模块：对上层应用提供的任务进行规划，重组和按时间推进。"
@@ -13,6 +13,11 @@ dependencies:
   - modules.data_manager
   - modules.data_contract
 changelog:
+  - version: "0.2.1"
+    changes:
+      - contracts 导出进度挂接（attach_round / phase_steps / phase_probe_percent_range）与 SharedMemory  helpers，消除 strategy 穿透 import
+      - 删除未使用的 ExecutionBackend、ExecuteMode、DispatchResult 类型
+      - ARCHITECTURE 边界表对齐文档规范（负责/不负责）；修正进度权重描述（2/2/94/2）
   - version: "0.2.0"
     changes:
       - 对切片模块进行重构，进行了真正的读算分离，并且支持每个切片完成后对结果进行评估并用于计划的优化

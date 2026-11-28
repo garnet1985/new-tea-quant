@@ -1,6 +1,6 @@
 # Data Manager API 文档
 
-**模块：** `modules.data_manager` · **版本：** `0.2.3`
+**模块：** `modules.data_manager` · **版本：** `0.2.4`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -134,6 +134,7 @@
 | `macro` | 宏观序列 |
 | `calendar` | 交易日历（CalendarService） |
 | `index` | 指数 |
+| `sw` | 申万行业分类、成分与一级行业日线 |
 | `db_cache` | 仿真/工作台等缓存表 |
 | `backup_restore` | 跨表备份与恢复 |
 | `service` | `DataService` 容器（与上列属性同源） |
@@ -206,3 +207,6 @@ ids = DataManager.sample_universe.ids()
 | 符号 | 说明 |
 |------|------|
 | `BaseTableNames` | 与 `core/tables` schema.name 对齐的 `sys_*` 枚举（运行时以 discovery 为准） |
+| `TagDataService` | Tag 域 DB 服务类；首选 `DataManager().stock.tags`，tag 等模块仅类型/静态方法经此导入 |
+| `TagDbUnavailable` | ProcessPool 期间主库不可用异常（tag flush 延后写入） |
+| `normalize_delist_date` | 退市日占位清洗；`DataManager.normalize_delist_date` 与此同源 |

@@ -1,5 +1,5 @@
 # Strategy 术语表
-# Version: 0.12.2
+# Version: 0.12.3
 # Compatible-Core: >=0.5.0
 #
 # 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
@@ -17,6 +17,18 @@ terms:
       - "策略门面"
     avoid:
       - "deep-import core.engines.* / core.services.*"
+
+  strategy_key:
+    definition: |
+      策略稳定身份：`meta.key` 或 userspace 相对路径（如 `demo/rsi`）。DB、进度落盘、报告 JSON、
+      series_relation `strategy_sim` 等均用此键。与 BFF 路由里的 `strategy_name` 路径段同值，但模块内新代码与
+      磁盘契约优先写 strategy_key，避免与「抽样 strategy: uniform」等 settings 字段混名。
+    in_code: "Strategy.resolve_meta_key / resolve_folder；ctx.strategy_key；扫描进度 JSON 字段 strategy_key"
+    aliases:
+      - "meta.key"
+    avoid:
+      - "用 strategy 单字段指身份（series_relation 已退役）"
+      - "与 sampling.settings.strategy（抽样算法名）混用"
 
   scan:
     definition: |

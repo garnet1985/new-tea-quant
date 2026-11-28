@@ -1,5 +1,5 @@
 name: modules.strategy
-version: "0.12.2"
+version: "0.12.3"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "策略执行模块：Strategy facade 提供 scan / simulate / discovery namespace API。"
@@ -24,6 +24,9 @@ dependencies:
   - infra.trace
   - infra.progress
 changelog:
+  - version: "0.12.3"
+    changes:
+      - "0.x 清理：去掉 post_process / overall_report 旧形状兼容；扫描进度落盘字段统一 strategy_key"
   - version: "0.12.2"
     changes:
       - "Facade 增加进度轮询/登记（get/seed/bind pipeline & scan）与 load_hooks_class，供 agent 等跨模块调用"

@@ -1,6 +1,6 @@
 # 测试用例 — `modules.series_relation`
 
-**模块：** `modules.series_relation` · **版本：** `0.1.0`
+**模块：** `modules.series_relation` · **版本：** `0.2.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -60,7 +60,7 @@
 | Case（pytest 函数名） | 文件 | 说明 |
 |----------------------|------|------|
 | `test_validate_strategy_sim_defaults_version_and_transform` | `test_strategy_sim.py` | 回测产物来源的默认版本与变换 |
-| `test_validate_strategy_alias_still_works` | `test_strategy_sim.py` | 旧别名仍可用 |
+| `test_reject_strategy_sim_without_strategy_key` | `test_strategy_sim.py` | 仅 `strategy` 字段会被拒绝 |
 | `test_reject_portfolio_equity_with_entity_id` | `test_strategy_sim.py` | 组合净值不允许带 `entity_id` |
 | `test_apply_transform_returns` | `test_strategy_sim.py` | 收益率变换正确 |
 | `test_load_portfolio_equity_and_price_cum` | `test_strategy_sim.py` | 读取组合净值与价格累计 |

@@ -1,5 +1,5 @@
 name: infra.progress
-version: 0.2.1
+version: 0.2.3
 compatible_core_versions: ">=0.6.0"
 package: core.infra
 description: "进度模块：按节点 id 写入统一的进度文件，供界面和 PHP 直接读取。"
@@ -9,6 +9,13 @@ site_display_title: "统一管理进度记录 - Progress 模块"
 dependencies:
   - infra.project_context
 changelog:
+  - version: "0.2.3"
+    changes:
+      - 公开 Progress.drain（安装子进程轮询前主动落盘）
+  - version: "0.2.2"
+    changes:
+      - "抽取 progress_constants / paths；树与 channel 共用 resolve_progress_directory"
+      - "ARCHITECTURE Mermaid 补充门面、内存索引与写盘路径"
   - version: "0.2.1"
     changes:
       - "新增 Progress.channel：频道化 job 快照落盘（path/write/read/clear）"

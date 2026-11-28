@@ -1,5 +1,5 @@
 name: modules.data_source
-version: "0.4.0"
+version: "0.4.1"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据源模块：提供配置驱动的数据抓取，支持按照不同模式和不同数据供应商请求并加载数据。"
@@ -14,6 +14,10 @@ dependencies:
   - infra.utils
   - infra.cmd_layout
 changelog:
+  - version: "0.4.1"
+    changes:
+      - Facade 暴露 clear_finished_runs、文档补齐 task_catalog / sources_needing_renew
+      - contracts 导出 ProviderError；CLI renew --clear-logs 改走 DataSourceManager
   - version: "0.4.0"
     changes:
       - 每次运行写入 status.json 任务栏，失败详情另存，页面只读这份状态

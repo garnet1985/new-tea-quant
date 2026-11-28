@@ -1,7 +1,7 @@
 """File Discovery - 批量文件发现工具"""
 from __future__ import annotations
 
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Optional
 from pathlib import Path
 from dataclasses import dataclass, field
 import logging
@@ -91,27 +91,6 @@ class FileDiscovery:
             return []
 
         return results
-
-    def discover_with_metadata(
-        self, *, use_cache: bool = True
-    ) -> Dict[str, Dict[str, Any]]:
-        """批量发现文件并提取元数据"""
-        paths = self.discover(use_cache=use_cache)
-        metadata: Dict[str, Dict[str, Any]] = {}
-
-        for path in paths:
-            try:
-                stat = path.stat()
-                metadata[str(path)] = {
-                    "size": stat.st_size,
-                    "mtime": stat.st_mtime,
-                    "type": "file" if path.is_file() else "dir",
-                    "extension": path.suffix if path.is_file() else None,
-                }
-            except Exception as e:
-                logger.warning("获取文件元数据失败: %s, %s", path, e)
-
-        return metadata
 
     def _should_exclude(self, path: Path) -> bool:
         path_str = str(path)

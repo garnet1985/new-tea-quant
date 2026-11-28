@@ -1,5 +1,5 @@
 name: modules.data_contract
-version: "0.4.3"
+version: "0.4.4"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "数据契约模块：提供一套可扩展的数据声明到数据加载的契约，主要目的是为了实现回测过程中的声明式数据注入。"
@@ -11,6 +11,10 @@ dependencies:
   - infra.project_context
   - infra.utils
 changelog:
+  - version: "0.4.4"
+    changes:
+      - 新增根目录 data_contract.py 作为 Facade 入口；ARCHITECTURE 补架构图 Mermaid
+      - 删除 SystemDataKeys 遗留校验；收敛 ContractIssuer 冗余 docstring
   - version: "0.4.3"
     changes:
       - 申万行业数据键：sw.industry、sw.industry.list、stock.sw_industry、sw.industry.kline.daily

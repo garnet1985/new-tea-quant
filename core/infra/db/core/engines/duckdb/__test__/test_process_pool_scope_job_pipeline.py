@@ -46,7 +46,7 @@ def test_scope_does_not_create_holder_after_suspend():
         with patch.object(DuckdbWorkerPool, "is_duckdb_backend", return_value=True), patch.object(
             DuckdbWorkerPool, "prepare_main_for_worker_pool"
         ), patch.object(DuckdbWorkerPool, "wait_pool_children_done"), patch.object(
-            DuckdbWorkerPool, "ensure_data_manager_restored", return_value=None
+            DuckdbWorkerPool, "ensure_holder_restored", return_value=None
         ), patch.object(
             DuckdbWorkerPool, "resolve_holder", side_effect=_resolve
         ):

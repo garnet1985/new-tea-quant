@@ -17,27 +17,6 @@ class JobFailurePhase(str, Enum):
     REPORT = "report"
 
 
-class ExecutionBackend(str, Enum):
-    """执行后端：process | thread。"""
-
-    PROCESS = "process"
-    THREAD = "thread"
-
-
-class ExecuteMode(str, Enum):
-    """
-    提交节奏（装填/load 由业务的 execute 或 run 前 payload 负责）。
-
-    - QUEUE：有空位就 submit；完成 1 补 1
-    - BATCH：每批 batch_size 个；批内并行、批间串行
-    - ELASTIC：预留，动态 in-flight 门控（未实现）
-    """
-
-    QUEUE = "queue"
-    BATCH = "batch"
-    ELASTIC = "elastic"
-
-
 class JobStatus(str, Enum):
     """任务执行结果状态（strategy 层 aggregate / progress 使用）。"""
 
@@ -156,22 +135,8 @@ class JobFailure:
     error: str
 
 
-@dataclass
-class DispatchResult:
-    """一次 dispatch run 的汇总。"""
-
-    total: int = 0
-    completed: int = 0
-    failed: int = 0
-    failures: List[JobFailure] = field(default_factory=list)
-    elapsed_seconds: float = 0.0
-    task_name: str = ""
-
-
 __all__ = [
     "JobFailurePhase",
-    "ExecutionBackend",
-    "ExecuteMode",
     "JobStatus",
     "Job",
     "RunCallbacks",
@@ -180,7 +145,6 @@ __all__ = [
     "JobResult",
     "RunProgress",
     "JobFailure",
-    "DispatchResult",
     "ExecuteFn",
     "TaskStartFn",
     "TaskCompleteFn",

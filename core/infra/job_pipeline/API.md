@@ -1,6 +1,6 @@
 # Job Pipeline API 文档
 
-**模块：** `infra.job_pipeline` · **版本：** `0.1.0`
+**模块：** `infra.job_pipeline` · **版本：** `0.1.1`
 
 **最低支持核心版本：** `>=0.6.0`
 

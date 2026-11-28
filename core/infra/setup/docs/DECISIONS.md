@@ -1,6 +1,6 @@
 # infra.setup — 设计与决策
 
-**模块：** `infra.setup` · **版本：** `0.2.0`
+**模块：** `infra.setup` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -45,9 +45,18 @@
 
 - `core/steps/<id>/`：步骤实现；产物工厂并入对应步骤（`init_userspace/package.py`、`import_data/export/`），取消独立 `core/scripts/`
 - `core/shared/`：跨步骤共用（env、install_runtime、meta、progress、trace、license…）
-- `core/orchestrator/`：外层编排；`InstallOrchestrator` 集中调度 CLI / UI / session
+- `core/orchestrator.py`：外层编排；`install_*_runtime` 等集中调度 CLI / UI / session
 - userspace 模板从仓库根 `initialization/userspace/` 迁入 `steps/init_userspace/assets/`（演示数据已走 `.ntq/packages`，模板不必再放在仓库根）
 - 禁止 `pip_index` 一类仅转发 infra 的 re-export 空壳；镜像策略走 `Utils.pkg`
+
+---
+
+## DEC-04：穿透引用与门面扩展
+
+- **已收口：** 安装导入进度对 `Progress` 的 flush 只经 `Progress.drain`；BFF / job_pipeline 读导入摘要经 `Setup.runtime.read_import_progress`，绑 progress 目录经 `Setup.runtime.bind_install_progress_dir`
+- **仍允许（步骤内）：** `core/steps/*/install.py` 与 `core/shared/*` 互引；导出工厂被 devcli 脚本 deep-import（维护者路径，非产品门面）
+- **待收口（产品代码勿扩）：** BFF `SetupRuntimeManager` 仍 deep-import `setup_session`、`pipeline_state`、`db_install_config`、`import_plan`、`data_packages` 及安装进度逐步函数（`open_install` / `begin_install_step` 等）— UI 向导与 setup 紧耦合，下一刀宜增 `Setup.runtime` 子命名空间或 BFF 专用薄适配层，而非继续扩散 deep-import
+- **modules 依赖：** `modules.ntq_external`（官网 demo/member 包与条款 URL）、`modules.data_manager`（演示包导表）；须在 `module_info.yaml` 声明，禁止再引其它 `core.modules.*`
 
 ---
 

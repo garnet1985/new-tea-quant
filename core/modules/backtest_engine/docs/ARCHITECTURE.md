@@ -1,6 +1,6 @@
 # Backtest Engine — 架构
 
-**模块：** `modules.backtest_engine` · **版本：** `0.2.0`
+**模块：** `modules.backtest_engine` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -10,8 +10,8 @@
 
 ## 职责与边界（结论）
 
-| In scope | Out of scope |
-|----------|--------------|
+| 负责 | 不负责 |
+|------|--------|
 | 两种执行模式（entity_based / slice_based） | 业务计算与入库 |
 | Job 契约校验、dispatch 规划、探针 | 读取 global `worker.json` dispatch |
 | ProcessPool（entity）/ 主进程 orchestrator（slice） | 数据源任务调度 |
@@ -86,7 +86,7 @@ SliceBasedPerformance.base()
     → SliceBasedPerformance.resolve_for_planning()
 ```
 
-两种模式共用：**validate → plan → monitor setup → execute → RunResult**。有 jobs 时须先就绪 Timeline（`run(start=, end=)` 或 `set_timeline`）。内置进度：prep 5% → plan 10% → execute 80% → finish 5%；始终计算，`enable_progress_display` 仅控制 CMD 日志。
+两种模式共用：**validate → plan → monitor setup → execute → RunResult**。有 jobs 时须先就绪 Timeline（`run(start=, end=)` 或 `set_timeline`）。内置进度权重：prep 2% → plan 2% → execute 94% → finish 2%；始终计算，`enable_progress_display` 仅控制 CMD 日志。
 
 ### entity_based
 

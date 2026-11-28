@@ -1,6 +1,6 @@
 # Setup API 文档
 
-**模块：** `infra.setup` · **版本：** `0.2.0`
+**模块：** `infra.setup` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -18,7 +18,7 @@
 
 ## Setup
 
-**描述：** 安装域门面类（Facade）— 下挂 `env` / `runtime` / `artifacts` / `meta` / `trace` / `types`
+**描述：** 安装域门面类（Facade）— 下挂 `env` / `runtime` / `artifacts` / `meta` / `trace` / `license` / `types`
 
 ### env
 
@@ -113,6 +113,16 @@
 - **引入版本：** `0.1.0`（`userspace` / `db` 参数：`0.1.1`）
 - **描述：** 跑 CLI 安装步骤，不询问 userspace / 数据库。使用条款在 `install.py` 与 `cli.py` 入口询问，不在本方法内。省略 userspace/db 走默认（`<repo>/userspace` + DuckDB）；传入则必须按参数执行，失败即停。默认从官网下载并导入演示包（覆盖同名表）；`import_demo=False`（`install.py --skip-demo-data`）跳过。`deps_only=True` 只跑系统检查和依赖安装。根目录 `python install.py` 显式执行（已就绪也再跑）。`ensure_cli_install` 经 `install.py --if-needed`（user CLI 自动触发）：依赖指纹变化时只更新依赖；完整安装默认仍导入演示包。跳过演示数据时结束提示 `python cli.py id`。完成后写入 `.ntq/setup-runtime.json`（`isReady`），与 UI 向导同一份状态。
 
+#### bind_install_progress_dir / read_import_progress
+
+`Setup.runtime.bind_install_progress_dir(userspace_root: str | Path) -> Path`  
+`Setup.runtime.read_import_progress() -> dict`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.1`
+- **描述：** UI 向导把进度目录绑到外置 userspace；安装页轮询导入阶段的 phase/ratio/表计数。内部仍用 `install_progress`，外部勿 deep-import
+
 #### import_data_pack
 
 `Setup.runtime.import_data_pack(*, pack_kind="demo", force=False, remove_extract=True) -> int`
@@ -195,6 +205,24 @@
 - **状态：** `beta`
 - **引入版本：** `0.1.0`
 - **描述：** 失败不影响安装。`install_complete` 可带 `elapsed_seconds` 与各步 `step_seconds`（如 `resolve_deps` / `resolve_ml_deps`）。`install_step_failed` 带稳定 `error_class`（含 `db_auth` / `db_connect` / `db_config`）与脱敏 `message_safe`（去掉 traceback 栈帧，保留末尾异常行）。CLI 侧 `app_start` 仅对策略/Tag 的 run 类命令上报，并可带 `command`（如 `cli.py sp --strategy …`）
+
+---
+
+### license
+
+**描述：** 使用条款同意（``.ntq/license_acceptance.json``，修订号变化须重问）
+
+#### is_accepted / ensure_accepted / entry_path / apply_trace_consent
+
+`Setup.license.is_accepted() -> bool`  
+`Setup.license.ensure_accepted(*, source: str, assume_accepted: bool = False) -> bool`  
+`Setup.license.entry_path() -> str`  
+`Setup.license.apply_trace_consent() -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.0`
+- **描述：** `install.py` / `cli.py` / `launcher.py` 入口使用；同意后可选同步 trace 采集偏好
 
 ---
 

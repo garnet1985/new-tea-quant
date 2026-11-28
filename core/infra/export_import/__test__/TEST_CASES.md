@@ -1,6 +1,6 @@
 # 测试用例 — `infra.export_import`（模块根）
 
-**模块：** `infra.export_import` · **版本：** `0.2.0`
+**模块：** `infra.export_import` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 

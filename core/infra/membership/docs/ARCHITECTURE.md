@@ -1,6 +1,6 @@
 # Membership — 架构
 
-**模块：** `infra.membership` · **版本：** `0.1.0`
+**模块：** `infra.membership` · **版本：** `0.1.1`
 
 **最低支持核心版本：** `>=0.5.3`
 
@@ -25,11 +25,12 @@
 
 ```text
 infra/membership/
-├── membership.py            # Facade：Membership（5 个静态方法）
+├── membership.py            # Facade：Membership
+├── membership_constants.py  # 路径与格式正则
 ├── __init__.py              # 导出 Membership
-├── API.md                   # 公开调用面
-├── glossary.yaml            # 术语表
-└── __test__/                # 含 test_api.py
+├── API.md
+├── glossary.yaml
+└── __test__/test_api.py
 ```
 
 ## 架构图

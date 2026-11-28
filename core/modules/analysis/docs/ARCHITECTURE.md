@@ -1,10 +1,10 @@
 # Analysis — 架构
 
-**模块：** `modules.analysis` · **版本：** `0.1.0`
+**模块：** `modules.analysis` · **版本：** `0.1.1`
 
 **最低支持核心版本：** `>=0.5.0`
 
-本模块是回测**之后**的解释层：消费 strategy 已落盘产物，解释 inputs 与 outputs 的关系。当前仅有 Facade 占位，无内部组件。
+本模块提供**无 I/O** 的统计/ML 原语：调用方（主要是 `modules.strategy` analyzer）组装对齐列向量后传入，本模块只做数学并返回结构化 `dict`。不读 `simulations/`、不写报告文案。
 
 ---
 
@@ -12,60 +12,45 @@
 
 **负责**
 
-- 作为独立模块存在，避免把归因做进 `modules.strategy`
-- 提供日后归因行为的唯一对外入口 `Analysis`
+- 分桶、Spearman、逻辑回归 / OLS、两次 run 摘要对照、可选 XGBoost+SHAP
+- 经 `Analysis.Classical` / `Analysis.ML` 暴露唯一对外入口形状
 
 **不负责**
 
-- 不调度、不推进 Timeline（`modules.backtest_engine`）
-- 不产生 enumerate / price_factor / portfolio 产物（`modules.strategy`）
-- 不做全市场因子库、滚动验证、因子挖掘（未来 factor 模块）
-- 本版本不读盘、不算数、不写报告
-
----
-
-## 模块结构图
-
-```text
-analysis/
-├── analysis.py          # Facade Analysis（空类）
-├── contracts.py         # 公开类型（当前无符号）
-├── API.md / glossary.yaml / module_info.yaml
-├── __test__/            # 公开契约
-├── core/                # 内部实现（空）
-└── docs/
-    ├── ARCHITECTURE.md
-    ├── DECISIONS.md     # 已定 + 待决设计点
-    └── CONCEPTS.md      # 三个未决问题的思考框架
-```
+- 读策略产物、调度回测（`modules.backtest_engine`）
+- 三层 simulate / 报告编排（`modules.strategy`）
+- 全市场因子库、滚动 IC（未来 factor 模块）
 
 ---
 
 ## 架构图
 
-当前仅 Facade 骨架；下游未实现。
-
 ```mermaid
-flowchart LR
-  Caller[CLI / 工作台] --> Analysis
-  Analysis -.-> Read[读 strategy version 目录]
-  Analysis -.-> Tools[归因工具]
-  Analysis -.-> Report[attribution report]
+flowchart TB
+  Caller[strategy analyzer / 脚本] --> Analysis
+  Analysis --> Classical[Analysis.Classical]
+  Analysis --> ML[Analysis.ML]
+  Classical --> Uni[core/classical/univariate]
+  Classical --> Multi[core/classical/multivariate]
+  Classical --> Cmp[core/classical/run_comparison]
+  Classical --> Prof[core/classical/column_profile]
+  ML --> XGB[core/ml/xgb_*]
 ```
 
-strategy 三步模拟与 BE 调度不经过本模块。
+实现细节留在 `core/`；跨模块禁止 deep-import 上述子模块。
 
 ---
 
-## 数据流（若有）
+## 数据流
 
-未定。候选方向见 [DECISIONS.md](./DECISIONS.md)：只读 `results/simulations/`，不另建结果库。
+无内置读盘。典型路径：analyzer 从已解析的行向量调用 `quantile_buckets` / `spearman_correlation` 等 → 得到 `status` + 载荷 → analyzer 写入 report 节。
 
 ---
 
 ## 依赖（结论）
 
-- 无。日后若读模拟产物，再声明 `modules.strategy`（只经其公开读路径）。
+- 运行时：`numpy`、`pandas`（classical）；ML 子集另需 `xgboost`（及可选 `shap`），缺则 `skipped`
+- NTQ 模块依赖：无
 
 ---
 

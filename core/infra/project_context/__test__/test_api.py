@@ -30,6 +30,11 @@ class TestApi(unittest.TestCase):
         for ns in ("path", "config", "meta", "cache", "discovery", "types"):
             self.assertTrue(hasattr(ProjectContext, ns), f"missing namespace: {ns}")
 
+    def test_path_no_removed_ai_compat_aliases(self):
+        """0.2.2 起不再暴露 get_ai_* 路径兼容别名"""
+        for name in ("get_ai_root", "get_ai_providers_directory", "get_ai_provider_directory"):
+            self.assertFalse(hasattr(ProjectContext.path, name), name)
+
     def test_path_namespace_methods(self):
         """path namespace 包含文档化路径 API"""
         methods = [
@@ -54,9 +59,6 @@ class TestApi(unittest.TestCase):
             "get_llm_providers_directory",
             "get_llm_provider_directory",
             "is_safe_extension_id",
-            "get_ai_root",
-            "get_ai_providers_directory",
-            "get_ai_provider_directory",
             "get_membership_directory",
             "get_membership_token_file",
         ]

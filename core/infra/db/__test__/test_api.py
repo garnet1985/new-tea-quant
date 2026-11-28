@@ -16,16 +16,13 @@ pytestmark = pytest.mark.force_run
 class TestDbApi(unittest.TestCase):
     def test_facade_exported_only(self) -> None:
         import core.infra.db as pkg
-        from core.infra.db import Db, DatabaseManager, DbBaseModel, Field
+        from core.infra.db import Db
 
-        # Db 为主门面；DbBaseModel / Field / DatabaseManager 为 userspace 短导入兼容再导出
-        self.assertEqual(
-            pkg.__all__, ["Db", "DbBaseModel", "Field", "DatabaseManager"]
-        )
+        self.assertEqual(pkg.__all__, ["Db"])
         self.assertIs(pkg.Db, Db)
-        self.assertIs(pkg.DbBaseModel, DbBaseModel)
-        self.assertIs(pkg.Field, Field)
-        self.assertIs(pkg.DatabaseManager, DatabaseManager)
+        self.assertFalse(hasattr(pkg, "DbBaseModel"))
+        self.assertFalse(hasattr(pkg, "Field"))
+        self.assertFalse(hasattr(pkg, "DatabaseManager"))
         self.assertFalse(hasattr(pkg, "create_engine"))
         self.assertFalse(hasattr(pkg, "build_engine_meta"))
         for name in ("manager", "migration", "engine", "duckdb", "sql", "rows"):
@@ -35,6 +32,7 @@ class TestDbApi(unittest.TestCase):
         from core.infra.db import Db
 
         self.assertTrue(callable(Db.manager.get_default))
+        self.assertTrue(callable(Db.manager.peek_default))
         self.assertTrue(callable(Db.manager.create))
         self.assertTrue(callable(Db.manager.set_default))
         self.assertTrue(callable(Db.manager.reset_default))
@@ -98,7 +96,6 @@ class TestDbApi(unittest.TestCase):
             "recover_after_interrupt",
             "set_holder_resolver",
             "ensure_holder_restored",
-            "ensure_data_manager_restored",
             "wait_pool_children_done",
             "wait_for_main_end",
             "is_main_active",
@@ -107,8 +104,10 @@ class TestDbApi(unittest.TestCase):
             "install_config_overlay",
             "release_worker_db_handles",
             "release_all_main_handles",
+            "release_all_process_handles",
         ):
             self.assertTrue(callable(getattr(wp, name)), name)
+        self.assertFalse(hasattr(wp, "ensure_data_manager_restored"))
         self.assertEqual(wp.CONFIG_OVERLAY_ENV, "NTQ_DATABASE_CONFIG_JSON")
         wal = Db.duckdb.wal
         for name in (
@@ -229,6 +228,9 @@ class TestDbApi(unittest.TestCase):
             "EngineConfigMeta",
             "DbEngineAbc",
             "DbTableAbc",
+            "TABLE_KINDS",
+            "TABLE_OWNERS",
+            "validate_table_identity",
         ):
             self.assertTrue(hasattr(contracts, name), name)
         self.assertFalse(hasattr(contracts, "create_engine"))

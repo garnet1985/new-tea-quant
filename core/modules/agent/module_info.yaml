@@ -1,5 +1,5 @@
 name: modules.agent
-version: "0.1.1"
+version: "0.1.2"
 compatible_core_versions: ">=0.6.0"
 package: core.modules
 description: "AI agent：Provider、Navigator、流向、知识拼装与本机工具。"
@@ -12,6 +12,10 @@ dependencies:
   - infra.ai
   - modules.ntq_external
 changelog:
+  - version: "0.1.2"
+    changes:
+      - web_search 会员知识简报改经 member_channel.complete（对齐 infra.ai 出站）
+      - 补 complete_result 路由单测；ARCHITECTURE 架构图与文档版本对齐
   - version: "0.1.1"
     changes:
       - complete_result：ntq 走 ntq_external.member_channel，自备 key 走 infra.ai

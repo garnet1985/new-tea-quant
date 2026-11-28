@@ -1,5 +1,5 @@
 # Data Manager 术语表
-# Version: 0.2.3
+# Version: 0.2.4
 # Compatible-Core: >=0.5.0
 #
 # 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
@@ -25,12 +25,13 @@ terms:
     definition: |
       领域服务容器：按域聚合表访问与查询 API。经 DataManager.service 或
       DataManager.calendar / stock / … 属性访问；生产代码不要 deep-import
-      DataService / TagDataService / ListService。
+      DataService / ListService。Tag 域类型与异常见 contracts（TagDataService / TagDbUnavailable）。
     in_code: "DataManager.calendar / stock / …；DataManager.service"
     aliases:
       - "service 容器"
     avoid:
-      - "生产代码 deep-import DataService / TagDataService / ListService"
+      - "生产代码 deep-import DataService / ListService"
+      - "生产代码 deep-import TagDataService（改 contracts）"
 
   CalendarService:
     definition: |

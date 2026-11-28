@@ -272,11 +272,9 @@ class SetupRuntimeManager:
         }
 
     def get_import_data_progress(self) -> Dict[str, Any]:
-        from core.infra.setup.core.shared.install_progress import read_import_progress
-
         return {
             "status": "ok",
-            "message": read_import_progress(),
+            "message": Setup.runtime.read_import_progress(),
         }
 
     def _run_pipeline(self, state: Dict[str, Any], force_step_id: Optional[str] = None) -> Dict[str, Any]:
@@ -295,7 +293,6 @@ class SetupRuntimeManager:
 
         from core.infra.setup.core.shared.install_progress import (
             begin_install_step,
-            bind_install_progress_dir,
             close_install,
             fail_install,
             finish_install_step,
@@ -308,7 +305,7 @@ class SetupRuntimeManager:
             for step_id in ordered_ids
             if self._get_step_state(state, step_id) == self.STATUS_SUCCESS
         ]
-        bind_install_progress_dir(self._resolve_userspace_root(state))
+        Setup.runtime.bind_install_progress_dir(self._resolve_userspace_root(state))
         open_install(ordered_ids, done_ids=done_ids)
 
         for step_id in next_ids:
@@ -565,9 +562,9 @@ class SetupRuntimeManager:
     def _release_bff_duckdb_for_setup_subprocess(self) -> None:
         """安装子进程写库前，关掉 BFF 进程里已打开的 DuckDB，避免文件锁冲突。"""
         try:
-            from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+            from core.infra.db import Db
 
-            DuckdbWorkerPool.release_all_process_duckdb_handles()
+            Db.duckdb.worker_pool.release_all_process_handles()
         except Exception as exc:
             log_degraded("setup.releaseDuckdbForSubprocess", exc, "")
 

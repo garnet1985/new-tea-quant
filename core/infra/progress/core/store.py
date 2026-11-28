@@ -5,11 +5,13 @@ import atexit
 import copy
 import json
 import os
-import tempfile
 import threading
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple
+
+from core.infra.progress.core import progress_constants as _c
+from core.infra.progress.core.paths import resolve_progress_directory
 
 _LOCK = threading.Lock()
 _BY_ROOT: Dict[str, Dict[str, Any]] = {}
@@ -18,12 +20,6 @@ _DIRTY: Dict[str, Dict[str, Any]] = {}
 # 磁盘 mtime；跨进程写入后 latest/read 靠它决定是否重载。
 _FILE_MTIME: Dict[str, float] = {}
 _WRITER_ALIVE = False
-
-_KEEP_FILES = 20
-_KEEP_DAYS = 14
-_FLUSH_DELAY = 0.2
-_TERMINAL = frozenset({"completed", "failed", "cancelled"})
-_PASSED = frozenset({"completed", "failed"})
 
 
 def reset() -> None:
@@ -294,7 +290,7 @@ def _combine(steps: Sequence[Mapping[str, Any]]) -> Tuple[int, int, float]:
         total += 1
         denominator += weight
         status = str(child.get("status") or "")
-        if status in _PASSED:
+        if status in _c.PASSED_STATUSES:
             numerator += weight
             done += 1
         elif status != "pending":
@@ -411,13 +407,13 @@ def _prune(*, job: str, keep_root: str) -> None:
     for root_id, root in list(_BY_ROOT.items()):
         if root_id == keep_root or str(root.get("job") or "") != job:
             continue
-        if str(root.get("status") or "") not in _TERMINAL:
+        if str(root.get("status") or "") not in _c.TERMINAL_STATUSES:
             continue
         finished.append((_count_loose(root.get("updated_at")), root_id))
     finished.sort(reverse=True)
     for index, (updated_at, root_id) in enumerate(finished):
-        age_days = (now - updated_at) / 86400 if updated_at else _KEEP_DAYS + 1
-        if index < _KEEP_FILES and age_days <= _KEEP_DAYS:
+        age_days = (now - updated_at) / 86400 if updated_at else _c.KEEP_FINISHED_DAYS + 1
+        if index < _c.KEEP_FINISHED_ROOTS and age_days <= _c.KEEP_FINISHED_DAYS:
             continue
         _drop_index(root_id)
         _DIRTY.pop(root_id, None)
@@ -487,27 +483,17 @@ def _read_json(path: Path) -> Optional[Dict[str, Any]]:
 
 
 def _directory() -> Path:
-    raw = os.environ.get("NTQ_PROGRESS_DIR", "").strip()
-    if raw:
-        return Path(raw)
-    if os.environ.get("PYTEST_CURRENT_TEST"):
-        return Path(tempfile.gettempdir()) / "ntq-progress-pytest"
-    try:
-        from core.infra.project_context import ProjectContext
-
-        return ProjectContext.path.get_userspace_tmp_directory() / "progress"
-    except Exception:
-        return Path(tempfile.gettempdir()) / "ntq-progress"
+    return resolve_progress_directory()
 
 
 def _flush_delay() -> float:
-    raw = os.environ.get("NTQ_PROGRESS_FLUSH_DELAY", "").strip()
+    raw = os.environ.get(_c.ENV_FLUSH_DELAY, "").strip()
     if not raw:
-        return _FLUSH_DELAY
+        return _c.DEFAULT_FLUSH_DELAY_SEC
     try:
         return max(0.0, float(raw))
     except ValueError:
-        return _FLUSH_DELAY
+        return _c.DEFAULT_FLUSH_DELAY_SEC
 
 
 def _print_tick(node: Mapping[str, Any], detail: Optional[str]) -> None:

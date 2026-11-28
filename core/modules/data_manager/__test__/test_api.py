@@ -28,6 +28,7 @@ class TestDataManagerApi(unittest.TestCase):
             "macro",
             "calendar",
             "index",
+            "sw",
             "db_cache",
             "backup_restore",
             "service",
@@ -110,6 +111,13 @@ class TestDataManagerApi(unittest.TestCase):
         self.assertIs(dm.service, svc)
         self.assertTrue(hasattr(svc, "stock"))
 
+    def test_contracts_exports(self):
+        from core.modules.data_manager import contracts
+
+        self.assertIn("TagDataService", contracts.__all__)
+        self.assertIn("TagDbUnavailable", contracts.__all__)
+        self.assertIn("normalize_delist_date", contracts.__all__)
+
     def test_contracts_base_table_names(self):
         from core.modules.data_manager.contracts import BaseTableNames
 
@@ -131,14 +139,17 @@ class TestDataManagerApi(unittest.TestCase):
         self.assertIsNone(DataManager.get_instance())
 
     def test_duckdb_pool_holder_resolver_and_restore_api(self):
-        from core.infra.db.core.engines.duckdb.process_pool_scope import DuckdbWorkerPool
+        from core.infra.db import Db
         from core.modules.data_manager import DataManager
 
         DataManager.ensure_duckdb_pool_holder_resolver()
-        self.assertTrue(callable(DuckdbWorkerPool._holder_resolver))
+        DataManager.reset_instance()
+        dm = DataManager(is_verbose=False)
+        self.assertIs(Db.duckdb.worker_pool.ensure_holder_restored(None), dm)
         self.assertTrue(callable(DataManager.ensure_restored_after_worker_pool))
         self.assertTrue(callable(DataManager.bind_as_default_instance))
         self.assertTrue(callable(DataManager.bind_prepared_database))
+        DataManager.reset_instance()
 
     def test_bind_prepared_database_skips_initialize(self):
         from unittest.mock import MagicMock, patch

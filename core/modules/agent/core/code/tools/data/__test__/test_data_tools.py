@@ -31,7 +31,7 @@ def tables_root(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
         encoding="utf-8",
     )
     (template / "model.py").write_text(
-        "from core.infra.db import DbBaseModel\n"
+        "from core.infra.db.contracts import DbBaseModel\n"
         "from .schema import schema as _schema\n"
         "class EmptyTableModel(DbBaseModel):\n"
         "    def load_schema(self):\n"

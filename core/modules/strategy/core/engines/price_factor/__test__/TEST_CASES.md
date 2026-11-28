@@ -1,6 +1,6 @@
 # price_factor 测试索引
 
-**模块：** `modules.strategy` · **版本：** `0.12.2`
+**模块：** `modules.strategy` · **版本：** `0.12.3`
 
 **最低支持核心版本：** `>=0.5.0`
 

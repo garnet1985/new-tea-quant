@@ -1,6 +1,6 @@
 # 测试用例 — `infra.db`（模块根）
 
-**模块：** `infra.db` · **版本：** `0.3.2`
+**模块：** `infra.db` · **版本：** `0.4.0`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -43,7 +43,8 @@
 | `test_worker_pool_install_config_overlay` | `test_api.py` | overlay env → RO 配置 |
 | `test_wal_checkpoint_defaults` | `test_api.py` | WAL checkpoint 默认与覆盖 |
 | `test_sql_and_rows_namespaces` | `test_api.py` | sql / rows |
-| `test_contracts_symbols` | `test_api.py` | contracts 无游离工厂 |
+| `test_contracts_symbols` | `test_api.py` | contracts 含类型面，无游离工厂 |
+| `test_facade_exported_only` | `test_api.py` | 包根仅 `Db` |
 
 ## Scenario：integration
 

@@ -1,5 +1,5 @@
 name: modules.tag
-version: "0.4.2"
+version: "0.4.3"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
 description: "标签资产层：按 data.base 路由；per_entity 经 BacktestEngine；global / non_time_series 主进程推进器。execute 同步；异步壳在 BFF/agent。"
@@ -9,14 +9,19 @@ site_display_title: "给任何对象打个标签 - Tag 模块"
 dependencies:
   - modules.data_manager
   - modules.data_contract
+  - modules.data_source
   - modules.backtest_engine
   - modules.strategy
+  - modules.indicator
   - infra.project_context
   - infra.discovery
   - infra.utils
   - infra.trace
   - infra.progress
 changelog:
+  - version: "0.4.3"
+    changes:
+      - "module_info 补全 data_source / indicator 依赖；可视化日期归一化改 Utils.date；移除包内 TagDataService.rebind 单测（归属 data_manager）"
   - version: "0.4.2"
     changes:
       - "Facade 增加 list_tag_infos / get_tag_info / resolve_* / load_hooks_class 与进度 IO；异步编排在 BFF/agent"

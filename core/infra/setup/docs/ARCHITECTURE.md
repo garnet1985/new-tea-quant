@@ -1,6 +1,6 @@
 # Setup 架构文档
 
-**模块：** `infra.setup` · **版本：** `0.2.0`
+**模块：** `infra.setup` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -26,30 +26,72 @@ core/infra/setup/
 
 userspace/.ntq/packages/{demo|member|full}/  # 演示包（导出/下载）
 .ntq/setup-runtime.json                      # CLI 与 UI 向导共用的完成态（isReady）
+.ntq/install-state.json                      # 依赖指纹 / cliRuntime / uiRuntime
 ```
 
 ```text
 Setup
   ├── env        → shared.env.NewTeaQuantSetup
-  ├── runtime    → orchestrator + shared.install_runtime / setup_session
+  ├── runtime    → orchestrator + shared.install_runtime / setup_session / install_progress
   ├── artifacts  → steps.init_userspace.package / steps.import_data.export
   ├── meta       → shared.meta_loader
   ├── trace      → shared.trace_events.SetupTrace
+  ├── license    → shared.license_acceptance
   └── types      → contracts
 ```
 
 ```mermaid
 flowchart TB
-  SetupFacade[Setup]
-  Orch[orchestrator]
-  Shared[shared]
-  Steps[steps]
-  SetupFacade --> Orch
-  SetupFacade --> Shared
-  SetupFacade --> Steps
+  subgraph callers [Callers]
+    InstallPy[install.py / launcher.py]
+    CliBff[CLI / BFF platform/setup]
+  end
+
+  subgraph facade [Setup Facade]
+    Env[env]
+    Runtime[runtime]
+    Artifacts[artifacts]
+    Meta[meta]
+    Trace[trace]
+    License[license]
+  end
+
+  subgraph core [core/]
+    Orch[orchestrator.py]
+    Shared[shared/]
+    Steps[steps/]
+  end
+
+  subgraph infra [infra deps]
+    PC[project_context]
+    Prog[progress]
+    Tr[trace]
+    Ut[utils]
+  end
+
+  subgraph modules [modules deps]
+    DM[data_manager]
+    Ext[ntq_external]
+  end
+
+  InstallPy --> facade
+  CliBff --> facade
+  Env --> Shared
+  Runtime --> Orch
+  Runtime --> Shared
+  Artifacts --> Steps
+  Meta --> Shared
+  Trace --> Shared
+  License --> Shared
   Orch --> Shared
   Orch --> Steps
   Steps --> Shared
+  Shared --> Prog
+  Shared --> PC
+  Steps --> DM
+  Steps --> Ext
+  Shared --> Tr
+  Steps --> Ut
 ```
 
 ## 相关文档

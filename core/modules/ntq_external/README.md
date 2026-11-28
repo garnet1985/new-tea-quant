@@ -1,6 +1,6 @@
 # NtqExternal（`modules.ntq_external`）
 
-**模块：** `modules.ntq_external` · **版本：** `0.1.1`
+**模块：** `modules.ntq_external` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.6.0`
 

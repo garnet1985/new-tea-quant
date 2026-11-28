@@ -498,10 +498,9 @@ class ListService(BaseDataService):
     @staticmethod
     def _normalize_delist_date(raw: Any) -> Optional[str]:
         """将源数据中的占位退市日（0 / 0.0）视为未退市。"""
-        s = str(raw or "").strip()
-        if not s or s.lower() in ("none", "nan", "0", "0.0"):
-            return None
-        return s
+        from core.modules.data_manager.contracts import normalize_delist_date
+
+        return normalize_delist_date(raw)
 
     @staticmethod
     def is_tradable_on(stock: Dict[str, Any], trade_date: str) -> bool:

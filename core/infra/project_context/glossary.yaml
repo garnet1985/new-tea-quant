@@ -1,5 +1,5 @@
 # Project Context 术语表
-# Version: 0.2.1
+# Version: 0.2.2
 # Compatible-Core: >=0.5.0
 #
 # 目的：解释本模块代码 / API 中出现的英文概念（是什么、为何存在、代码对应、关键对比）。
@@ -116,6 +116,18 @@ terms:
       - "get_tag_scenario_directory（PathManager 内部名）"
     avoid:
       - "ProjectContext.path.get_tag_scenario_directory（门面已移除）"
+
+  llm_providers_directory:
+    definition: |
+      大模型用户扩展根：userspace/extensions/llm_providers/；单供应商为 get_llm_provider_directory(id)。
+      供 infra.ai 等发现 config.py。旧路径 extensions/ai 与 get_ai_* 别名已在 0.2.2 移除。
+    in_code: "ProjectContext.path.get_llm_providers_directory；get_llm_provider_directory"
+    aliases:
+      - "get_llm_providers_directory"
+    avoid:
+      - "get_ai_root"
+      - "get_ai_providers_directory"
+      - "get_ai_provider_directory"
 
   default_start_date:
     definition: |

@@ -1,6 +1,6 @@
 # Market Profile — 架构
 
-**模块：** `modules.market_profile` · **版本：** `0.2.0`
+**模块：** `modules.market_profile` · **版本：** `0.2.1`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -28,12 +28,12 @@
 
 ```text
 market_profile/
+├── market_profile.py        # Facade：MarketRulesProxy
 ├── __init__.py              # 导出 MarketRulesProxy
 ├── contracts.py             # MarketBaseRules, LotSizeResolved
 ├── API.md / glossary.yaml
 ├── __test__/test_api.py
 └── core/
-    ├── market_profile.py    # Facade 实现
     ├── base/                # MarketBaseRules
     ├── markets/             # 各市场 rules + settings + 注册表（内部）
     └── services/            # Matching / Amplitude / Lot / Settlement

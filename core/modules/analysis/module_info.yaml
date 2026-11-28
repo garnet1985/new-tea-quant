@@ -1,13 +1,17 @@
 name: modules.analysis
-version: "0.1.0"
+version: "0.1.1"
 compatible_core_versions: ">=0.5.0"
 package: core.modules
-description: "分析模块：回测完成后，解释策略 inputs 与 outputs 的关系（骨架，行为 API 未定）。"
+description: "分析模块：无 I/O 的统计/ML 原语（分桶、相关、回归、run 对照、可选 XGBoost），供 strategy analyzer 等调用。"
 # 站点文档（可选；Drupal title / display title）
 site_title: "分析模块 (Analysis)"
 site_display_title: "分析工具箱 - Analysis模块"
 dependencies: []
 changelog:
+  - version: "0.1.1"
+    changes:
+      - 对齐 API.md / ARCHITECTURE / USER_GUIDE 与现行 Classical·ML namespace
+      - 包根仅导出 Analysis（经 Analysis.Classical / Analysis.ML 访问原语）
   - version: "0.1.0"
     changes:
       - 建立空模块骨架（Facade / 文档 / 公开 API 契约测）

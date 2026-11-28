@@ -9,6 +9,7 @@ import pytest
 from core.infra.job_pipeline import JobPipeline
 from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.infra.job_pipeline.core import queue_store, registry_store
+from core.infra.job_pipeline.core.store_io import atomic_write_json
 
 
 @pytest.fixture
@@ -162,7 +163,7 @@ def test_recover_dead_pid_and_advance(pipeline_runtime) -> None:
         "pid": 1_000_000_009,
         "started_at": "2020-01-01T00:00:00+00:00",
     }
-    registry_store._atomic_write(pipeline_runtime / "job_pipeline_running.json", dead)
+    atomic_write_json(pipeline_runtime / "job_pipeline_running.json", dead)
     JobPipeline.enqueue(
         {
             "kind": "tag_run",
@@ -223,7 +224,7 @@ def test_get_running_job_not_stale_within_wall_clock(pipeline_runtime) -> None:
     path = pipeline_runtime / "job_pipeline_running.json"
     raw = registry_store._read_json(path)
     raw["started_at"] = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
-    registry_store._atomic_write(path, raw)
+    atomic_write_json(path, raw)
     job = JobPipeline.get_running_job()
     assert job is not None
     assert job.get("status") == "running"

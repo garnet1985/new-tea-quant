@@ -32,12 +32,8 @@ from core.modules.data_source.core.reserved_dependencies import (
 logger = logging.getLogger(__name__)
 
 
-def _safe_id(value: str) -> str:
-    return str(value or "").replace("/", "-").replace("\\", "-").replace("\x00", "")
-
-
 def _progress_root_id(progress_id: Optional[str]) -> str:
-    cleaned = _safe_id(progress_id or "")
+    cleaned = Progress.tree.safe_id(progress_id or "")
     if cleaned and cleaned not in {".", ".."}:
         return cleaned
     return f"renew-{time.strftime('%Y%m%dT%H%M%S')}"
@@ -165,7 +161,7 @@ class DataSourceExecutionScheduler:
             key = str(handler.get_key() or "")
             if not key or key in nodes:
                 continue
-            node_id = f"{root}:{_safe_id(key)}"
+            node_id = Progress.tree.child_id(root, key)
             nodes[key] = node_id
             steps.append({"id": node_id, "label": key})
         self._progress_nodes = nodes

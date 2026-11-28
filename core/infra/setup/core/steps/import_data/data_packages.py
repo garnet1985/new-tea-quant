@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional
 
 from core.infra.project_context.contracts import DATA_PACKAGE_KINDS
+from core.infra.setup.core.shared.size_format import format_size_label
 
 # 与官网 / 导出约定一致；各类型独立目录，避免混包。
 PACKAGE_ZIP_BY_KIND = {
@@ -193,7 +194,7 @@ def describe_data_packages(
                 "fileName": parts[0].name if parts else package_zip_name(key),
                 "path": str(data_dir),
                 "sizeBytes": size_bytes,
-                "sizeLabel": _size_label(size_bytes) if present else "",
+                "sizeLabel": format_size_label(size_bytes) if present else "",
                 "partCount": len(parts),
             }
             continue
@@ -206,7 +207,7 @@ def describe_data_packages(
             "fileName": path.name if present else package_zip_name(key),
             "path": str(path) if present else str(data_dir / package_zip_name(key)),
             "sizeBytes": size_bytes,
-            "sizeLabel": _size_label(size_bytes) if present else "",
+            "sizeLabel": format_size_label(size_bytes) if present else "",
         }
     any_present = any(bool(item.get("present")) for item in packages.values())
     return {
@@ -233,15 +234,3 @@ def clear_static_data_packages() -> int:
             path.unlink(missing_ok=True)
         removed += 1
     return removed
-
-
-def _size_label(size_bytes: int) -> str:
-    mb = size_bytes / (1024 * 1024)
-    if mb >= 100:
-        return f"{mb:.0f} MB"
-    if mb >= 1:
-        return f"{mb:.1f} MB"
-    kb = size_bytes / 1024
-    if kb >= 1:
-        return f"{kb:.0f} KB"
-    return f"{size_bytes} B"

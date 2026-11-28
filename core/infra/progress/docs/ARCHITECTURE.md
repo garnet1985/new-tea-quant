@@ -36,11 +36,12 @@
 
 ```text
 core/infra/progress/
-├── progress.py              # Facade Progress + Progress.channel
+├── progress.py              # Facade Progress + channel + tree
 ├── contracts.py             # ProgressNode
 ├── core/
 │   ├── store.py             # 树形进度：内存索引 + 延迟写盘
 │   ├── channel_store.py     # 频道快照：即时原子写
+│   ├── tree_util.py         # safe_id / child_id / deepest
 │   ├── progress_constants.py
 │   └── paths.py
 ├── __test__/
@@ -61,22 +62,26 @@ flowchart TB
   subgraph facade [progress.py]
     P[Progress]
     CH[Progress.channel]
+    TR[Progress.tree]
     T[Progress.types.Node]
   end
 
   subgraph core [core/]
     ST[store.py]
     CS[channel_store.py]
+    TU[tree_util.py]
     PC[progress_constants.py]
     PD[paths.resolve_progress_directory]
   end
 
   Biz -->|start tick finish| P
   Biz -->|write read| CH
+  Biz -->|safe_id deepest| TR
   Poll -->|read latest| P
   Poll -->|channel.read| CH
   P --> ST
   CH --> CS
+  TR --> TU
   ST --> PD
   CS --> PD
   ST --> PC

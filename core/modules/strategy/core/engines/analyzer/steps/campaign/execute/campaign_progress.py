@@ -116,6 +116,6 @@ class CampaignProgress:
 
 
 def _root_id(strategy_key: str, layer: str) -> str:
-    raw = f"attribute-{strategy_key}-{layer}"
-    safe = raw.replace("/", "-").replace("\\", "-").replace("\x00", "").strip()
-    return safe or "attribute"
+    from core.infra.progress import Progress
+
+    return Progress.tree.safe_id(f"attribute-{strategy_key}-{layer}") or "attribute"

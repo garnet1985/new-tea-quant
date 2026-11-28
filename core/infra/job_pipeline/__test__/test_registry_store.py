@@ -5,6 +5,7 @@ from __future__ import annotations
 from core.infra.job_pipeline import JobPipeline
 from core.infra.job_pipeline.contracts import JobRunningBusyError
 from core.infra.job_pipeline.core import registry_store
+from core.infra.job_pipeline.core.store_io import atomic_write_json
 
 
 def test_acquire_release_roundtrip(tmp_path, monkeypatch):
@@ -56,7 +57,7 @@ def test_stale_pid_is_cleared(tmp_path, monkeypatch):
         "pid": 1_000_000_007,
         "started_at": "2020-01-01T00:00:00+00:00",
     }
-    registry_store._atomic_write(runtime / "job_pipeline_running.json", dead)
+    atomic_write_json(runtime / "job_pipeline_running.json", dead)
     assert JobPipeline.get_running_job() is None
 
 
@@ -95,7 +96,7 @@ def test_recover_dead_pid_advances_queue(tmp_path, monkeypatch):
         "pid": 1_000_000_008,
         "started_at": "2020-01-01T00:00:00+00:00",
     }
-    registry_store._atomic_write(runtime / "job_pipeline_running.json", dead)
+    atomic_write_json(runtime / "job_pipeline_running.json", dead)
     JobPipeline.enqueue(
         {
             "kind": "tag_run",
@@ -135,7 +136,7 @@ def test_old_started_at_alone_is_not_stale_within_12h(tmp_path, monkeypatch):
     from datetime import datetime, timedelta, timezone
 
     raw["started_at"] = (datetime.now(timezone.utc) - timedelta(hours=2)).isoformat()
-    registry_store._atomic_write(path, raw)
+    atomic_write_json(path, raw)
 
     job = JobPipeline.get_running_job()
     assert job is not None

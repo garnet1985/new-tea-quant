@@ -8,6 +8,7 @@ site_display_title: "长任务排队与进度 - Job Pipeline 模块"
 dependencies:
   - infra.project_context
   - infra.progress
+  - infra.utils
 changelog:
   - version: "0.1.1"
     changes:

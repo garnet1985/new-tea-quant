@@ -225,6 +225,11 @@
 | CLI renew 深导入 data_source.run_status | 已走 Facade |
 | project_context `get_ai_*` | 已删 |
 | series_relation `strategy`↔`strategy_key` 兼容 | 已删 |
+| install_demo / install_member HTTP 双份 | `ntq_external.install_http` 共用 |
+| progress safe-id / deepest 多处复制 | `Progress.tree`（DEC-06） |
+| job_pipeline `_atomic_write` 双份透传 | 直调 `store_io.atomic_write_json` |
+| setup 体积文案 / db JSON 读 | `size_format` + `load_json_dict` |
+| 多处原子 JSON/字节写盘 | `Utils.io.atomic_write_*`（progress / pipeline / install_http） |
 
 ---
 

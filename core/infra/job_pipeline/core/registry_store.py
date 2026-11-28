@@ -31,9 +31,6 @@ def registry_lock_path() -> Path:
     return _runtime_dir() / "job_pipeline_running.lock"
 
 
-def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
-    atomic_write_json(path, payload)
-
 
 def _holder_alive(payload: Dict[str, Any]) -> bool:
     try:
@@ -165,7 +162,7 @@ def acquire_running(row: Dict[str, Any]) -> Dict[str, Any]:
                 existing = _live_payload(registry_path())
                 if existing is not None:
                     raise JobRunningBusyError(_to_public_snapshot(existing))
-                _atomic_write(registry_path(), payload)
+                atomic_write_json(registry_path(), payload)
                 return _to_public_snapshot(payload)
         except Timeout as exc:
             raise JobRunningBusyError({"kind": kind, "job_id": jid}) from exc
@@ -207,7 +204,7 @@ def request_cancel(job_id: str) -> Dict[str, Any]:
                 if live is None or str(live.get("job_id") or "") != needle:
                     return {"ok": False, "reason": "任务不在运行或不匹配"}
                 live["cancel_requested"] = True
-                _atomic_write(path, live)
+                atomic_write_json(path, live)
                 return {"ok": True, "job": _to_public_snapshot(live)}
         except Timeout:
             return {"ok": False, "reason": "取消请求超时，请重试"}

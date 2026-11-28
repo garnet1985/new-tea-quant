@@ -240,9 +240,9 @@ _TERMINAL = frozenset({"completed", "failed", "cancelled"})
 
 
 def _root_id(strategy_key: str, job_id: str) -> str:
-    raw = f"scan-{strategy_key}-{job_id}"
-    safe = raw.replace("/", "-").replace("\\", "-").replace("\x00", "").strip()
-    return safe or "scan"
+    from core.infra.progress import Progress
+
+    return Progress.tree.safe_id(f"scan-{strategy_key}-{job_id}") or "scan"
 
 
 def _shared_percent(strategy_key: str, job_id: str) -> Optional[float]:

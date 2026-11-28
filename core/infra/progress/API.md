@@ -281,6 +281,45 @@ current = Progress.latest("renew")
 
 **描述：** `ProgressNode`
 
+### tree
+
+**描述：** 进度树 id 清洗与遍历小工具（无业务语义）。
+
+#### tree.safe_id
+
+`Progress.tree.safe_id(raw: str) -> str`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.3`
+- **描述：** 去掉路径分隔与空字符，供根/子节点 id 与文件名片段使用
+
+#### tree.child_id
+
+`Progress.tree.child_id(root: str, name: str) -> str`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.3`
+- **描述：** 返回 ``{root}:{safe_name}``
+
+#### tree.deepest
+
+`Progress.tree.deepest(node: dict, statuses: frozenset | set) -> dict | None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.3`
+- **描述：** 深度优先，返回 status 落在 ``statuses`` 的最深节点
+
+**举例：**
+
+```python
+Progress.tree.safe_id("scan/a/b")  # "scan-a-b"
+Progress.tree.child_id("import", "download")  # "import:download"
+leaf = Progress.tree.deepest(snap, frozenset({"running", "paused"}))
+```
+
 ### channel
 
 **描述：** 频道化 job 快照（与树形节点互补）。包根仍只导出 `Progress`；业务 channel 名由调用方自定，本模块不识别 strategy / tag 等业务语义。

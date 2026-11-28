@@ -7,6 +7,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 from core.infra.progress.contracts import ProgressNode
 from core.infra.progress.core import channel_store as _channel
 from core.infra.progress.core import store as _store
+from core.infra.progress.core import tree_util as _tree
 
 
 class _Types:
@@ -37,11 +38,33 @@ class _ChannelNamespace:
         _channel.clear(channel, file_key)
 
 
+class _TreeNamespace:
+    """进度树 id / 遍历小工具（无业务语义）。"""
+
+    @staticmethod
+    def safe_id(raw: str) -> str:
+        """清洗节点 id / 文件名片段（去路径分隔与空字符）。"""
+        return _tree.safe_progress_id(raw)
+
+    @staticmethod
+    def child_id(root: str, name: str) -> str:
+        """``{root}:{safe_name}``。"""
+        return _tree.child_progress_id(root, name)
+
+    @staticmethod
+    def deepest(
+        node: Dict[str, Any], statuses: frozenset | set
+    ) -> Optional[Dict[str, Any]]:
+        """返回 status 落在 ``statuses`` 的最深节点。"""
+        return _tree.deepest_matching(node, statuses)
+
+
 class Progress:
     """按节点 id 更新进度文件。没有实例。"""
 
     types = _Types
     channel = _ChannelNamespace()
+    tree = _TreeNamespace()
 
     @staticmethod
     def start(

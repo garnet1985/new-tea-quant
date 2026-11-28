@@ -181,8 +181,9 @@ class RunProgressReporter:
         print(line, flush=True)
 
     def _progress_root(self) -> str:
-        raw = self._task_name or "backtest"
-        safe = raw.replace("/", "-").replace("\\", "-").strip() or "backtest"
+        from core.infra.progress import Progress
+
+        safe = Progress.tree.safe_id(self._task_name or "backtest") or "backtest"
         return f"backtest-{safe}"
 
     def _scope_id(self) -> str:

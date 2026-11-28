@@ -6,28 +6,28 @@ import hashlib
 import json
 import logging
 import os
-import tempfile
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional
-from urllib.error import HTTPError, URLError
-from urllib.request import Request
+from typing import Any, Callable, Dict, Optional
+from urllib.error import HTTPError
 
 from core.infra.setup.core.steps.import_data.data_packages import (
     MEMBER_MANIFEST_NAME,
-    list_member_part_files,
     member_parts_complete,
 )
-from core.infra.utils import Utils
 from core.modules.ntq_external.conf.site_target import (
     install_member_meta_url,
     install_member_part_url,
+)
+from core.modules.ntq_external.install_http import (
+    atomic_write,
+    ensure_zip_payload,
+    http_get_bytes,
 )
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_TIMEOUT_SEC = 180
 _USER_AGENT = "NTQ/install-member"
-_CHUNK_SIZE = 64 * 1024
 
 # on_progress(done_bytes, total_bytes, *, parts_done=0, parts_total=0)
 ProgressCallback = Callable[..., None]
@@ -53,7 +53,7 @@ def fetch_install_member_meta(*, timeout_sec: float = 30.0) -> Dict[str, Any]:
     """拉取会员包 manifest；401/失败抛 ``InstallMemberError``。"""
     url = resolve_install_member_meta_url()
     try:
-        raw = _http_get_bytes(url, timeout_sec=timeout_sec, auth=True)
+        raw = _get(url, timeout_sec=timeout_sec)
     except InstallMemberError:
         raise
     except Exception as exc:
@@ -88,7 +88,7 @@ def download_install_member(
 
     meta = fetch_install_member_meta(timeout_sec=min(30.0, timeout_sec))
     manifest_path = dest_dir / MEMBER_MANIFEST_NAME
-    _atomic_write(
+    atomic_write(
         manifest_path,
         (json.dumps(meta, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
     )
@@ -162,10 +162,9 @@ def download_install_member(
             _emit(base + read, total_bytes or None, completed)
 
         try:
-            payload = _http_get_bytes(
+            payload = _get(
                 url,
                 timeout_sec=timeout_sec,
-                auth=True,
                 on_progress=_part_progress,
                 content_length_hint=expected_size or None,
             )
@@ -174,15 +173,14 @@ def download_install_member(
         except Exception as exc:
             raise InstallMemberError(f"下载会员分卷失败: {url}") from exc
 
-        if not payload.startswith(b"PK"):
-            raise InstallMemberError(f"会员分卷不是 zip: {name}")
-        if expected_sha:
-            actual = hashlib.sha256(payload).hexdigest()
-            if actual != expected_sha:
-                raise InstallMemberError(
-                    f"会员分卷校验失败（sha256）: {name}"
-                )
-        _atomic_write(target, payload)
+        ensure_zip_payload(
+            payload,
+            error_cls=InstallMemberError,
+            not_zip_message=f"会员分卷不是 zip: {name}",
+            expected_sha=expected_sha,
+            sha_mismatch_message=f"会员分卷校验失败（sha256）: {name}",
+        )
+        atomic_write(target, payload)
         done_bytes += len(payload)
         parts_done += 1
         _emit(done_bytes, total_bytes or None, parts_done)
@@ -207,63 +205,31 @@ def _auth_headers() -> Dict[str, str]:
     }
 
 
-def _http_get_bytes(
+def _map_http_error(exc: HTTPError, url: str) -> Optional[Exception]:
+    if exc.code == 401:
+        return InstallMemberError(
+            "会员凭证无效或已过期。请到「设置 → 会员」重新装载官网通用凭证。"
+        )
+    if exc.code == 404:
+        return InstallMemberError("会员数据包尚未在官网部署，请稍后再试。")
+    if exc.code == 429:
+        return InstallMemberError("请求过于频繁，请稍后再试。")
+    return InstallMemberError(f"HTTP {exc.code}: {url}")
+
+
+def _get(
     url: str,
     *,
     timeout_sec: float,
-    auth: bool = False,
-    on_progress: Optional[ProgressCallback] = None,
+    on_progress: Optional[Callable[[int, Optional[int]], None]] = None,
     content_length_hint: Optional[int] = None,
 ) -> bytes:
-    headers = _auth_headers() if auth else {"User-Agent": _USER_AGENT}
-    req = Request(url, headers=headers)
-    try:
-        with Utils.net.urlopen_https(req, timeout=timeout_sec) as resp:
-            status = getattr(resp, "status", None) or resp.getcode()
-            if int(status) != 200:
-                raise InstallMemberError(f"HTTP {status}: {url}")
-            header_len = resp.headers.get("Content-Length")
-            total: Optional[int] = None
-            if header_len and str(header_len).isdigit():
-                total = int(header_len)
-            elif content_length_hint and content_length_hint > 0:
-                total = int(content_length_hint)
-
-            chunks: list[bytes] = []
-            read = 0
-            while True:
-                chunk = resp.read(_CHUNK_SIZE)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                read += len(chunk)
-                if on_progress is not None:
-                    on_progress(read, total)
-            if on_progress is not None and read == 0:
-                on_progress(0, total)
-            return b"".join(chunks)
-    except HTTPError as exc:
-        if exc.code == 401:
-            raise InstallMemberError(
-                "会员凭证无效或已过期。请到「设置 → 会员」重新装载官网通用凭证。"
-            ) from exc
-        if exc.code == 404:
-            raise InstallMemberError("会员数据包尚未在官网部署，请稍后再试。") from exc
-        if exc.code == 429:
-            raise InstallMemberError("请求过于频繁，请稍后再试。") from exc
-        raise InstallMemberError(f"HTTP {exc.code}: {url}") from exc
-    except URLError as exc:
-        raise InstallMemberError(f"网络不可达: {url} ({exc.reason})") from exc
-
-
-def _atomic_write(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
-    tmp_path = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(data)
-        tmp_path.replace(path)
-    finally:
-        if tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)
+    return http_get_bytes(
+        url,
+        timeout_sec=timeout_sec,
+        headers=_auth_headers(),
+        on_progress=on_progress,
+        content_length_hint=content_length_hint,
+        error_cls=InstallMemberError,
+        map_http_error=_map_http_error,
+    )

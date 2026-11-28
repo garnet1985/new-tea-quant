@@ -82,9 +82,9 @@ _TERMINAL = frozenset({"completed", "failed", "cancelled"})
 
 
 def _progress_root_id(strategy_key: str, pipeline_id: str) -> str:
-    raw = f"pipeline-{strategy_key}-{pipeline_id}"
-    safe = raw.replace("/", "-").replace("\\", "-").replace("\x00", "").strip()
-    return safe or "pipeline"
+    from core.infra.progress import Progress
+
+    return Progress.tree.safe_id(f"pipeline-{strategy_key}-{pipeline_id}") or "pipeline"
 
 
 class PipelineProgress:

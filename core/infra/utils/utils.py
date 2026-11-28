@@ -16,7 +16,7 @@ from core.infra.utils.core.type_utils import TypeUtils
 
 
 class Io:
-    """CSV / 归档 IO（挂载 ``CsvIo`` / ``FileIo``）。"""
+    """CSV / 归档 / 原子写盘（挂载 ``CsvIo`` / ``FileIo``）。"""
 
     write_dicts_to_csv = staticmethod(CsvIo.write_dicts_to_csv)
     read_csv_to_dicts = staticmethod(CsvIo.read_csv_to_dicts)
@@ -24,6 +24,8 @@ class Io:
     csv_bytes_to_dicts = staticmethod(CsvIo.csv_bytes_to_dicts)
     write_archive = staticmethod(FileIo.write_archive)
     read_archive_files = staticmethod(FileIo.read_archive_files)
+    atomic_write_bytes = staticmethod(FileIo.atomic_write_bytes)
+    atomic_write_json = staticmethod(FileIo.atomic_write_json)
 
 
 class Math:

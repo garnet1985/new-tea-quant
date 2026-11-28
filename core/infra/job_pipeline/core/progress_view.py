@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Callable, Dict, List, Optional
 
+from core.infra.progress import Progress
+
 ImportProgressReader = Callable[[], Optional[Dict[str, Any]]]
 
 # 可选：由 BFF / setup 注入，避免 job_pipeline → setup 硬依赖
@@ -16,16 +18,6 @@ def set_import_progress_reader(reader: Optional[ImportProgressReader]) -> None:
     _import_progress_reader = reader
 
 
-def _safe_id(raw: str) -> str:
-    return (
-        str(raw or "")
-        .replace("/", "-")
-        .replace("\\", "-")
-        .replace("\x00", "")
-        .strip()
-    )
-
-
 def progress_root_candidates(job: Dict[str, Any]) -> List[str]:
     """按 kind 推断 Progress 根 id（与业务侧命名对齐）。"""
     jid = str(job.get("job_id") or "").strip()
@@ -36,7 +28,7 @@ def progress_root_candidates(job: Dict[str, Any]) -> List[str]:
     out: List[str] = []
 
     def add(value: str) -> None:
-        text = _safe_id(value)
+        text = Progress.tree.safe_id(value)
         if text and text not in out:
             out.append(text)
 
@@ -61,41 +53,56 @@ def progress_root_candidates(job: Dict[str, Any]) -> List[str]:
 
 def _leaf_detail(snap: Dict[str, Any]) -> str:
     """根节点 detail 常为空；取最深 running/paused 叶子的文案。"""
-    active = frozenset({"running", "paused"})
-    found: Optional[Dict[str, Any]] = None
-
-    def walk(node: Dict[str, Any]) -> None:
-        nonlocal found
-        if str(node.get("status") or "") in active:
-            found = node
-        for child in node.get("steps") or []:
-            if isinstance(child, dict):
-                walk(child)
-
-    walk(snap)
+    found = Progress.tree.deepest(snap, frozenset({"running", "paused"}))
     if found is None:
         return ""
     return str(found.get("detail") or "").strip()
 
 
-def _snapshot_from_progress_node(raw: Dict[str, Any], *, root_id: str) -> Dict[str, Any]:
+def _clamp_ratio(raw: Any) -> float:
     try:
-        ratio = float(raw.get("ratio") or 0.0)
+        ratio = float(raw or 0.0)
     except (TypeError, ValueError):
         ratio = 0.0
-    status = str(raw.get("status") or "").strip().lower()
-    label = str(raw.get("label") or "").strip()
-    detail = str(raw.get("detail") or "").strip() or _leaf_detail(raw)
+    return max(0.0, min(1.0, ratio))
+
+
+def _progress_fields(
+    *,
+    ratio: float,
+    status: Optional[str],
+    label: Optional[str],
+    detail: Optional[str],
+    root_id: str,
+    updated_at: Any = None,
+    started_at: Any = None,
+) -> Dict[str, Any]:
+    clamped = _clamp_ratio(ratio)
     return {
-        "ratio": max(0.0, min(1.0, ratio)),
-        "percent": int(round(max(0.0, min(1.0, ratio)) * 100)),
+        "ratio": clamped,
+        "percent": int(round(clamped * 100)),
         "status": status or None,
         "label": label or None,
         "detail": detail or None,
-        "updated_at": raw.get("updated_at"),
-        "started_at": raw.get("started_at"),
+        "updated_at": updated_at,
+        "started_at": started_at,
         "root_id": root_id,
     }
+
+
+def _snapshot_from_progress_node(raw: Dict[str, Any], *, root_id: str) -> Dict[str, Any]:
+    status = str(raw.get("status") or "").strip().lower()
+    label = str(raw.get("label") or "").strip()
+    detail = str(raw.get("detail") or "").strip() or _leaf_detail(raw)
+    return _progress_fields(
+        ratio=_clamp_ratio(raw.get("ratio")),
+        status=status,
+        label=label,
+        detail=detail,
+        root_id=root_id,
+        updated_at=raw.get("updated_at"),
+        started_at=raw.get("started_at"),
+    )
 
 
 def _snapshot_from_import_progress() -> Optional[Dict[str, Any]]:
@@ -109,10 +116,6 @@ def _snapshot_from_import_progress() -> Optional[Dict[str, Any]]:
         return None
     if not isinstance(ip, dict) or not ip.get("running"):
         return None
-    try:
-        ratio = float(ip.get("ratio") or 0.0)
-    except (TypeError, ValueError):
-        ratio = 0.0
     phase = str(ip.get("phase") or "").strip()
     detail = str(ip.get("statusText") or "").strip()
     if not detail:
@@ -129,16 +132,13 @@ def _snapshot_from_import_progress() -> Optional[Dict[str, Any]]:
             )
         else:
             detail = "正在导入数据…"
-    return {
-        "ratio": max(0.0, min(1.0, ratio)),
-        "percent": int(round(max(0.0, min(1.0, ratio)) * 100)),
-        "status": "running",
-        "label": "导入数据",
-        "detail": detail or None,
-        "updated_at": None,
-        "started_at": None,
-        "root_id": "import",
-    }
+    return _progress_fields(
+        ratio=_clamp_ratio(ip.get("ratio")),
+        status="running",
+        label="导入数据",
+        detail=detail,
+        root_id="import",
+    )
 
 
 def read_progress_snapshot_for_job(job: Dict[str, Any]) -> Optional[Dict[str, Any]]:

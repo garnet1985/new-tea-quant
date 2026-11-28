@@ -42,6 +42,33 @@ def test_package_exports_only_progress() -> None:
     assert callable(Progress.channel.write)
     assert callable(Progress.channel.read)
     assert callable(Progress.channel.clear)
+    assert callable(Progress.tree.safe_id)
+    assert callable(Progress.tree.child_id)
+    assert callable(Progress.tree.deepest)
+
+
+def test_tree_safe_id_and_deepest() -> None:
+    assert Progress.tree.safe_id("a/b\\c\x00") == "a-b-c"
+    assert Progress.tree.child_id("import", "down/load") == "import:down-load"
+    snap = {
+        "id": "root",
+        "status": "running",
+        "steps": [
+            {"id": "root:a", "status": "completed", "steps": []},
+            {
+                "id": "root:b",
+                "status": "running",
+                "detail": "leaf",
+                "steps": [
+                    {"id": "root:b:c", "status": "running", "detail": "deep"},
+                ],
+            },
+        ],
+    }
+    leaf = Progress.tree.deepest(snap, frozenset({"running"}))
+    assert leaf is not None
+    assert leaf["id"] == "root:b:c"
+    assert leaf["detail"] == "deep"
 
 
 def test_channel_write_read_clear(progress_dir) -> None:

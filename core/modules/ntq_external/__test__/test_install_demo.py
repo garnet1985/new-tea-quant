@@ -35,7 +35,7 @@ def test_download_install_demo_skips_when_present(tmp_path: Path, monkeypatch) -
     def _boom(*_a, **_k):
         raise AssertionError("should not download")
 
-    monkeypatch.setattr(install_demo, "_http_get_bytes", _boom)
+    monkeypatch.setattr(install_demo, "http_get_bytes", _boom)
     out = install_demo.download_install_demo(tmp_path, force=False)
     assert out == zip_path
     assert zip_path.read_bytes() == b"PK\x03\x04existing"
@@ -53,7 +53,7 @@ def test_download_install_demo_writes_and_checks_sha(tmp_path: Path, monkeypatch
             return json.dumps(meta).encode("utf-8")
         return payload
 
-    monkeypatch.setattr(install_demo, "_http_get_bytes", _fake_get)
+    monkeypatch.setattr(install_demo, "http_get_bytes", _fake_get)
     monkeypatch.setattr(
         install_demo,
         "resolve_install_demo_url",

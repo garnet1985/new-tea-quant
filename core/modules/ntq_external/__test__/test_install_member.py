@@ -65,7 +65,7 @@ def test_member_parts_complete_and_skip_download(tmp_path: Path, token_file, mon
     def _boom(*_a, **_k):
         raise AssertionError("should not download")
 
-    monkeypatch.setattr(install_member, "_http_get_bytes", _boom)
+    monkeypatch.setattr(install_member, "_get", _boom)
     monkeypatch.setattr(install_member, "fetch_install_member_meta", lambda **_k: meta)
     out = install_member.download_install_member(dest, force=False)
     assert out == dest
@@ -88,7 +88,7 @@ def test_download_writes_parts(tmp_path: Path, token_file, monkeypatch):
                 return body
         raise install_member.InstallMemberError(f"unexpected url {url}")
 
-    monkeypatch.setattr(install_member, "_http_get_bytes", _fake_get)
+    monkeypatch.setattr(install_member, "_get", _fake_get)
     monkeypatch.setattr(
         install_member,
         "resolve_install_member_meta_url",

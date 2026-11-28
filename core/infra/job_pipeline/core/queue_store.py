@@ -29,10 +29,6 @@ def queue_lock_path() -> Path:
     return queue_path().with_suffix(".lock")
 
 
-def _atomic_write(path: Path, payload: Dict[str, Any]) -> None:
-    atomic_write_json(path, payload)
-
-
 def _read_unlocked(path: Path) -> Dict[str, Any]:
     if not path.is_file():
         return {"pending": []}
@@ -113,7 +109,7 @@ def enqueue(
         entry["status"] = "pending"
         entry.setdefault("enqueued_at", iso_now())
         pending.append(entry)
-        _atomic_write(path, {"pending": pending})
+        atomic_write_json(path, {"pending": pending})
         return {"ok": True, "job": dict(entry)}
 
     return _with_locks(_inner)
@@ -129,7 +125,7 @@ def pop_next() -> Optional[Dict[str, Any]]:
         if not pending:
             return None
         head = dict(pending[0])
-        _atomic_write(path, {"pending": pending[1:]})
+        atomic_write_json(path, {"pending": pending[1:]})
         return head
 
     return _with_locks(_inner)
@@ -154,7 +150,7 @@ def remove_pending(job_id: str) -> Dict[str, Any]:
             keep.append(row)
         if removed is None:
             return {"ok": False, "reason": "队列中无此任务（可能已开始执行）"}
-        _atomic_write(path, {"pending": keep})
+        atomic_write_json(path, {"pending": keep})
         return {"ok": True, "job": removed}
 
     return _with_locks(_inner)

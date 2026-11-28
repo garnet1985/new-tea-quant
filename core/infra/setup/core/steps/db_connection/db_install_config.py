@@ -11,7 +11,8 @@ _VALID_DB_TYPES = frozenset({"duckdb", "postgresql", "mysql"})
 DEFAULT_DB_PORTS = {"postgresql": 5432, "mysql": 3306}
 
 
-def _load_json(path: Path) -> dict:
+def load_json_dict(path: Path) -> dict:
+    """读 JSON 对象；缺文件 / 损坏 / 非 dict 时返回 ``{}``。"""
     if not path.is_file():
         return {}
     try:
@@ -49,7 +50,7 @@ def write_database_install_config(userspace_root: Path, inputs: Mapping[str, Any
     db_dir.mkdir(parents=True, exist_ok=True)
 
     common_json = db_dir / "common.json"
-    common_payload = _load_json(common_json)
+    common_payload = load_json_dict(common_json)
     common_payload["database_type"] = db_type
     _dump_json(common_json, common_payload)
 

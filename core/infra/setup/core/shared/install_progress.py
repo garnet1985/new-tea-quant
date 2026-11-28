@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Iterable, Optional, Union
 
 from core.infra.progress import Progress
+from core.infra.setup.core.shared.size_format import format_mb_fraction
 
 INSTALL_ID = "install"
 IMPORT_ID = "import"
@@ -54,7 +55,7 @@ def open_install(step_ids: Iterable[str], *, done_ids: Iterable[str] = ()) -> No
     ordered = []
     for step_id in step_ids:
         name = str(step_id or "")
-        node_id = _child_id(INSTALL_ID, name)
+        node_id = Progress.tree.child_id(INSTALL_ID, name)
         if not name or node_id in seen:
             continue
         seen.add(node_id)
@@ -65,19 +66,19 @@ def open_install(step_ids: Iterable[str], *, done_ids: Iterable[str] = ()) -> No
     Progress.start(INSTALL_ID, job="install", label="安装", steps=steps)
     for name in ordered:
         if name in done:
-            Progress.finish(_child_id(INSTALL_ID, name))
+            Progress.finish(Progress.tree.child_id(INSTALL_ID, name))
 
 
 def begin_install_step(step_id: str) -> None:
-    Progress.tick(_child_id(INSTALL_ID, step_id), 0, 1, source=step_id, log=False)
+    Progress.tick(Progress.tree.child_id(INSTALL_ID, step_id), 0, 1, source=step_id, log=False)
 
 
 def finish_install_step(step_id: str) -> None:
-    Progress.finish(_child_id(INSTALL_ID, step_id))
+    Progress.finish(Progress.tree.child_id(INSTALL_ID, step_id))
 
 
 def pause_install_step(step_id: str) -> None:
-    Progress.pause(_child_id(INSTALL_ID, step_id))
+    Progress.pause(Progress.tree.child_id(INSTALL_ID, step_id))
 
 
 def close_install() -> None:
@@ -87,7 +88,7 @@ def close_install() -> None:
 def fail_install(step_id: str, detail: str = "") -> None:
     message = _first_line(detail)
     if step_id:
-        _quiet(lambda: Progress.fail(_child_id(INSTALL_ID, step_id), detail=message))
+        _quiet(lambda: Progress.fail(Progress.tree.child_id(INSTALL_ID, step_id), detail=message))
     _quiet(lambda: Progress.fail(INSTALL_ID, detail=message))
 
 
@@ -98,7 +99,7 @@ def clear_import_progress() -> None:
 
 def begin_import_prepare(*, detail: str = "准备导入…") -> None:
     """解压 / 建连之前的占位，避免步骤已开始却长时间无文案。"""
-    node = _child_id(IMPORT_ID, PREPARE_STEP)
+    node = Progress.tree.child_id(IMPORT_ID, PREPARE_STEP)
     Progress.start(
         IMPORT_ID,
         job="import",
@@ -121,7 +122,7 @@ def begin_import_download(*, total_bytes: Optional[int] = None) -> None:
     global _last_download_tick_at, _last_download_parts_done
     _last_download_tick_at = 0.0
     _last_download_parts_done = -1
-    node = _child_id(IMPORT_ID, DOWNLOAD_STEP)
+    node = Progress.tree.child_id(IMPORT_ID, DOWNLOAD_STEP)
     total = max(0, int(total_bytes or 0))
     Progress.start(
         IMPORT_ID,
@@ -170,7 +171,7 @@ def tick_import_download(
     _last_download_tick_at = now
     _last_download_parts_done = done_parts
     Progress.tick(
-        _child_id(IMPORT_ID, DOWNLOAD_STEP),
+        Progress.tree.child_id(IMPORT_ID, DOWNLOAD_STEP),
         read,
         total,
         source=DOWNLOAD_STEP,
@@ -185,7 +186,7 @@ def tick_import_download(
 
 
 def finish_import_download() -> None:
-    _quiet(lambda: Progress.finish(_child_id(IMPORT_ID, DOWNLOAD_STEP)))
+    _quiet(lambda: Progress.finish(Progress.tree.child_id(IMPORT_ID, DOWNLOAD_STEP)))
     Progress.drain()
 
 
@@ -197,7 +198,7 @@ def open_import(table_names: Iterable[str], *, done_names: Iterable[str] = ()) -
     ordered = []
     for table_name in table_names:
         name = str(table_name or "")
-        node_id = _child_id(IMPORT_ID, name)
+        node_id = Progress.tree.child_id(IMPORT_ID, name)
         if not name or node_id in seen:
             continue
         seen.add(node_id)
@@ -208,24 +209,24 @@ def open_import(table_names: Iterable[str], *, done_names: Iterable[str] = ()) -
     Progress.start(IMPORT_ID, job="import", label="导入数据", steps=steps)
     for name in ordered:
         if name in done:
-            Progress.finish(_child_id(IMPORT_ID, name))
+            Progress.finish(Progress.tree.child_id(IMPORT_ID, name))
     Progress.drain()
 
 
 def begin_import_table(table_name: str) -> None:
-    Progress.tick(_child_id(IMPORT_ID, table_name), 0, 1, source=table_name, log=False)
+    Progress.tick(Progress.tree.child_id(IMPORT_ID, table_name), 0, 1, source=table_name, log=False)
 
 
 def finish_import_table(table_name: str) -> None:
-    Progress.finish(_child_id(IMPORT_ID, table_name))
+    Progress.finish(Progress.tree.child_id(IMPORT_ID, table_name))
 
 
 def fail_import_table(table_name: str, detail: str = "") -> None:
-    Progress.fail(_child_id(IMPORT_ID, table_name), detail=_first_line(detail))
+    Progress.fail(Progress.tree.child_id(IMPORT_ID, table_name), detail=_first_line(detail))
 
 
 def cancel_import_table(table_name: str, detail: str = "") -> None:
-    Progress.cancel(_child_id(IMPORT_ID, table_name), detail=_first_line(detail))
+    Progress.cancel(Progress.tree.child_id(IMPORT_ID, table_name), detail=_first_line(detail))
 
 
 def close_import() -> None:
@@ -247,7 +248,7 @@ def read_import_progress() -> dict:
         return _empty_import_progress()
     status = str(snap.get("status") or "")
     running = status in _ACTIVE
-    current = _deepest(snap, _ACTIVE) if running else None
+    current = Progress.tree.deepest(snap, _ACTIVE) if running else None
     leaf = current if current and current.get("id") != snap.get("id") else None
     source = str((leaf or {}).get("source") or "") if running else ""
     # 仅含 download/prepare 的树（含刚下载完、子步已 completed）都算准备/下载，勿当成导表 1/1。
@@ -332,22 +333,22 @@ def _download_detail(
         base = f"数据下载中… {done_parts}/{total_parts} 包"
         if total > 0:
             pct = min(100, int(read * 100 / total))
-            return f"{base} · {_format_mb(read)}/{_format_mb(total)} MB（{pct}%）"
+            return (
+                f"{base} · {format_mb_fraction(read)}/"
+                f"{format_mb_fraction(total)} MB（{pct}%）"
+            )
         if read > 0:
-            return f"{base} · 已下载 {_format_mb(read)} MB"
+            return f"{base} · 已下载 {format_mb_fraction(read)} MB"
         return base
     if total > 0:
         pct = min(100, int(read * 100 / total))
         return (
-            f"数据下载中… {_format_mb(read)}/{_format_mb(total)} MB（{pct}%）"
+            f"数据下载中… {format_mb_fraction(read)}/"
+            f"{format_mb_fraction(total)} MB（{pct}%）"
         )
     if read > 0:
-        return f"数据下载中… 已下载 {_format_mb(read)} MB"
+        return f"数据下载中… 已下载 {format_mb_fraction(read)} MB"
     return "数据下载中…"
-
-
-def _format_mb(size_bytes: int) -> str:
-    return f"{max(0, int(size_bytes or 0)) / (1024 * 1024):.1f}"
 
 
 def _completed_count(node: dict) -> int:
@@ -355,22 +356,6 @@ def _completed_count(node: dict) -> int:
     if not steps:
         return 1 if str(node.get("status") or "") == "completed" else 0
     return sum(_completed_count(child) for child in steps)
-
-
-def _deepest(node: dict, statuses: frozenset) -> Optional[dict]:
-    found = node if str(node.get("status") or "") in statuses else None
-    for child in node.get("steps") or []:
-        if not isinstance(child, dict):
-            continue
-        deeper = _deepest(child, statuses)
-        if deeper is not None:
-            found = deeper
-    return found
-
-
-def _child_id(root: str, name: str) -> str:
-    safe = str(name or "").replace("/", "-").replace("\\", "-").replace("\x00", "")
-    return f"{root}:{safe}"
 
 
 def _first_line(detail: str) -> str:

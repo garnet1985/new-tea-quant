@@ -8,10 +8,13 @@ site_title: "进度模块 (Progress)"
 site_display_title: "统一管理进度记录 - Progress 模块"
 dependencies:
   - infra.project_context
+  - infra.utils
 changelog:
   - version: "0.2.3"
     changes:
       - 公开 Progress.drain（安装子进程轮询前主动落盘）
+      - 公开 Progress.tree（safe_id / child_id / deepest；消除多处复制）
+      - channel 写盘改走 Utils.io.atomic_write_json
   - version: "0.2.2"
     changes:
       - "抽取 progress_constants / paths；树与 channel 共用 resolve_progress_directory"

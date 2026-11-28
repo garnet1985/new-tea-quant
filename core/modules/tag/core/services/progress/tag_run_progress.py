@@ -207,9 +207,7 @@ _TERMINAL = frozenset({"completed", "failed", "cancelled"})
 
 
 def _root_id(tag_key: str, job_id: str) -> str:
-    raw = f"tag-{tag_key}-{job_id}"
-    safe = raw.replace("/", "-").replace("\\", "-").replace("\x00", "").strip()
-    return safe or "tag"
+    return Progress.tree.safe_id(f"tag-{tag_key}-{job_id}") or "tag"
 
 
 def _shared_percent(tag_key: str, job_id: str) -> Optional[float]:

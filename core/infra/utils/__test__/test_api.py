@@ -34,6 +34,8 @@ class TestUtilsApi(unittest.TestCase):
         self.assertTrue(callable(Utils.pkg.npm_env))
         self.assertTrue(callable(Utils.net.urlopen_https))
         self.assertTrue(callable(Utils.net.https_context))
+        self.assertTrue(callable(Utils.io.atomic_write_bytes))
+        self.assertTrue(callable(Utils.io.atomic_write_json))
         self.assertTrue(callable(Utils.is_china))
         self.assertIsInstance(Utils.locale.is_china(), bool)
         self.assertEqual(Utils.is_china(), Utils.locale.is_china())
@@ -61,6 +63,17 @@ class TestUtilsApi(unittest.TestCase):
             rows = Utils.io.read_csv_to_dicts(path)
         self.assertEqual(len(rows), 1)
         self.assertEqual(rows[0]["a"], "1")
+
+    def test_io_atomic_write_json_and_bytes(self):
+        with tempfile.TemporaryDirectory() as td:
+            root = Path(td)
+            json_path = root / "sub" / "a.json"
+            Utils.io.atomic_write_json(json_path, {"k": 1}, trailing_newline=True)
+            self.assertTrue(json_path.is_file())
+            self.assertIn('"k": 1', json_path.read_text(encoding="utf-8"))
+            bin_path = root / "b.bin"
+            Utils.io.atomic_write_bytes(bin_path, b"PK\x03\x04")
+            self.assertEqual(bin_path.read_bytes(), b"PK\x03\x04")
 
     def test_math_deterministic(self):
         a = Utils.math.deterministic_unit_float("x", 1)

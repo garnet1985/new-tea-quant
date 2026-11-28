@@ -2,29 +2,28 @@
 
 from __future__ import annotations
 
-import hashlib
 import json
 import logging
 import os
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
-from urllib.error import HTTPError, URLError
-from urllib.request import Request
 
 from core.modules.ntq_external.conf.site_target import (
     install_demo_meta_url,
     install_demo_url,
 )
-from core.infra.utils import Utils
+from core.modules.ntq_external.install_http import (
+    atomic_write,
+    ensure_zip_payload,
+    http_get_bytes,
+)
 
 logger = logging.getLogger(__name__)
 
 GIT_DATA_ZIP_NAME = "data_demo.zip"
 _DEFAULT_TIMEOUT_SEC = 120
 _USER_AGENT = "NTQ/install-demo"
-_CHUNK_SIZE = 64 * 1024
 
 ProgressCallback = Callable[[int, Optional[int]], None]
 
@@ -48,7 +47,12 @@ def fetch_install_demo_meta(*, timeout_sec: float = 30.0) -> Dict[str, Any]:
     """拉取 meta JSON；失败抛 ``InstallDemoError``。"""
     url = resolve_install_demo_meta_url()
     try:
-        raw = _http_get_bytes(url, timeout_sec=timeout_sec)
+        raw = http_get_bytes(
+            url,
+            timeout_sec=timeout_sec,
+            headers={"User-Agent": _USER_AGENT},
+            error_cls=InstallDemoError,
+        )
     except InstallDemoError:
         raise
     except Exception as exc:
@@ -127,11 +131,13 @@ def download_install_demo(
         emit(0, expected_bytes)
 
     try:
-        payload = _http_get_bytes(
+        payload = http_get_bytes(
             url,
             timeout_sec=timeout_sec,
+            headers={"User-Agent": _USER_AGENT},
             on_progress=emit,
             content_length_hint=expected_bytes,
+            error_cls=InstallDemoError,
         )
     except InstallDemoError:
         if show_progress:
@@ -145,20 +151,17 @@ def download_install_demo(
     if show_progress:
         print(flush=True)
 
-    if not payload.startswith(b"PK"):
-        raise InstallDemoError(f"演示安装包不是 zip: {url}")
+    ensure_zip_payload(
+        payload,
+        error_cls=InstallDemoError,
+        not_zip_message=f"演示安装包不是 zip: {url}",
+        expected_sha=expected_sha,
+    )
 
-    if expected_sha:
-        actual = hashlib.sha256(payload).hexdigest()
-        if actual != expected_sha:
-            raise InstallDemoError(
-                f"演示安装包校验失败（sha256 不匹配）: expected={expected_sha} actual={actual}"
-            )
-
-    _atomic_write(target, payload)
+    atomic_write(target, payload)
     if isinstance(meta, dict):
         meta_path = dest_dir / "data_demo.meta.json"
-        _atomic_write(
+        atomic_write(
             meta_path,
             (json.dumps(meta, ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
         )
@@ -175,55 +178,3 @@ def _print_download_progress(read: int, total: Optional[int]) -> None:
         line = f"\r  下载进度: {mb:.1f} MB"
     sys.stdout.write(line)
     sys.stdout.flush()
-
-
-def _http_get_bytes(
-    url: str,
-    *,
-    timeout_sec: float,
-    on_progress: Optional[ProgressCallback] = None,
-    content_length_hint: Optional[int] = None,
-) -> bytes:
-    req = Request(url, headers={"User-Agent": _USER_AGENT})
-    try:
-        with Utils.net.urlopen_https(req, timeout=timeout_sec) as resp:
-            status = getattr(resp, "status", None) or resp.getcode()
-            if int(status) != 200:
-                raise InstallDemoError(f"HTTP {status}: {url}")
-            header_len = resp.headers.get("Content-Length")
-            total: Optional[int] = None
-            if header_len and str(header_len).isdigit():
-                total = int(header_len)
-            elif content_length_hint and content_length_hint > 0:
-                total = int(content_length_hint)
-
-            chunks: list[bytes] = []
-            read = 0
-            while True:
-                chunk = resp.read(_CHUNK_SIZE)
-                if not chunk:
-                    break
-                chunks.append(chunk)
-                read += len(chunk)
-                if on_progress is not None:
-                    on_progress(read, total)
-            if on_progress is not None and read == 0:
-                on_progress(0, total)
-            return b"".join(chunks)
-    except HTTPError as exc:
-        raise InstallDemoError(f"HTTP {exc.code}: {url}") from exc
-    except URLError as exc:
-        raise InstallDemoError(f"网络不可达: {url} ({exc.reason})") from exc
-
-
-def _atomic_write(path: Path, data: bytes) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    fd, tmp_name = tempfile.mkstemp(prefix=path.name + ".", dir=str(path.parent))
-    tmp_path = Path(tmp_name)
-    try:
-        with os.fdopen(fd, "wb") as fh:
-            fh.write(data)
-        tmp_path.replace(path)
-    finally:
-        if tmp_path.exists():
-            tmp_path.unlink(missing_ok=True)

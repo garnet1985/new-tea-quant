@@ -78,11 +78,6 @@ def _empty_progress() -> Dict[str, Any]:
 
 
 def _deepest_running(node: dict) -> Optional[dict]:
-    found = node if str(node.get("status") or "") == "running" else None
-    for child in node.get("steps") or []:
-        if not isinstance(child, dict):
-            continue
-        deeper = _deepest_running(child)
-        if deeper is not None:
-            found = deeper
-    return found
+    from core.infra.progress import Progress
+
+    return Progress.tree.deepest(node, frozenset({"running"}))

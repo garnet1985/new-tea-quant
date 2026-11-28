@@ -60,8 +60,10 @@ Utils.date.diff_days("20240101", "20240116")
 | `write_dicts_to_csv` / `read_csv_to_dicts` | List[dict] ↔ CSV |
 | `dicts_to_csv_bytes` / `csv_bytes_to_dicts` | 内存 CSV |
 | `write_archive` / `read_archive_files` | zip / tar.gz / csv |
+| `atomic_write_bytes` / `atomic_write_json` | 同目录临时文件 + replace |
 
 - **状态：** `beta`
+- **引入版本（原子写）：** `0.2.3`
 
 ### math
 

@@ -3,16 +3,50 @@
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Dict, Literal, Optional
 import io
+import json
+import os
 import tarfile
+import tempfile
 import time
 import zipfile
+from pathlib import Path
+from typing import Any, Dict, Literal, Mapping, Optional, Union
 
 
 class FileIo:
-    """zip / tar.gz / 单文件 CSV 读写。"""
+    """zip / tar.gz / 单文件 CSV 读写；原子写盘。"""
+
+    @staticmethod
+    def atomic_write_bytes(path: Union[str, Path], data: bytes) -> Path:
+        """原子写入字节；临时文件在同目录后 ``replace``。"""
+        target = Path(path)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        fd, tmp_name = tempfile.mkstemp(prefix=target.name + ".", dir=str(target.parent))
+        tmp_path = Path(tmp_name)
+        try:
+            with os.fdopen(fd, "wb") as fh:
+                fh.write(data)
+            tmp_path.replace(target)
+        finally:
+            if tmp_path.exists():
+                tmp_path.unlink(missing_ok=True)
+        return target
+
+    @staticmethod
+    def atomic_write_json(
+        path: Union[str, Path],
+        payload: Mapping[str, Any],
+        *,
+        indent: int = 2,
+        ensure_ascii: bool = False,
+        trailing_newline: bool = False,
+    ) -> Path:
+        """原子写入 JSON 对象（UTF-8）。"""
+        text = json.dumps(payload, ensure_ascii=ensure_ascii, indent=indent)
+        if trailing_newline:
+            text += "\n"
+        return FileIo.atomic_write_bytes(path, text.encode("utf-8"))
 
     @staticmethod
     def write_archive(

@@ -8,13 +8,12 @@
 from __future__ import annotations
 
 import json
-import os
 from datetime import datetime, timezone
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import Any, Dict, Optional
 
 from core.infra.progress.core.paths import resolve_progress_directory
+from core.infra.utils import Utils
 
 
 def build_path(channel: str, file_key: str) -> Path:
@@ -34,16 +33,7 @@ def write(channel: str, file_key: str, payload: Dict[str, Any]) -> Path:
     path = build_path(channel, file_key)
     body = dict(payload or {})
     body["updated_at"] = datetime.now(timezone.utc).isoformat()
-    path.parent.mkdir(parents=True, exist_ok=True)
-    with NamedTemporaryFile(
-        "w",
-        encoding="utf-8",
-        dir=path.parent,
-        delete=False,
-    ) as tmp:
-        tmp.write(json.dumps(body, ensure_ascii=False, indent=2))
-        tmp_path = Path(tmp.name)
-    os.replace(str(tmp_path), str(path))
+    Utils.io.atomic_write_json(path, body)
     return path
 
 

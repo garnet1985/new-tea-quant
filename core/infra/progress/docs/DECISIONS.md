@@ -100,6 +100,14 @@
 
 ---
 
+## DEC-06：树 id / 最深节点走 `Progress.tree`
+
+- **采用：** `Progress.tree.safe_id` / `child_id` / `deepest`；实现落在 `core/tree_util.py`。
+- **理由：** setup / job_pipeline / data_source / strategy / tag 曾各自复制「去路径分隔」与「最深 running」；抽到门面避免再分叉，且不导出第二入口。
+- **影响：** 调用方改经 Facade；本分支版本已在 `0.2.3`，不另升号。
+
+---
+
 ## 相关文档
 
 - [架构](./ARCHITECTURE.md)

@@ -18,6 +18,7 @@
 
 - `Progress.start`、`tick`、`finish`、`fail`、`cancel`、`pause`、`resume`、`clear`、`read`、`latest`、`drain`、`reset_for_tests`
 - `Progress.channel.path` / `write` / `read` / `clear`
+- `Progress.tree.safe_id` / `child_id` / `deepest`
 - 有子节点时按 weight 汇总 ratio
 - 包根只导出 `Progress`
 

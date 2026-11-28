@@ -39,11 +39,9 @@ def _mask_password(cfg: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def _load_json_dict(path: Path) -> Dict[str, Any]:
-    import json
+    from core.infra.setup.core.steps.db_connection.db_install_config import load_json_dict
 
-    with open(path, "r", encoding="utf-8") as f:
-        v = json.load(f)
-    return v if isinstance(v, dict) else {}
+    return load_json_dict(path)
 
 def _postgres_database_exists(db_cfg: Dict[str, Any]) -> bool:
     import psycopg2

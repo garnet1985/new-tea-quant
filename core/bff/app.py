@@ -84,6 +84,8 @@ def create_app():
                 "endpoints": {"health": "/api/health"},
             }
 
+    # WSGI / create_app 与 ``python -m core.bff.app`` 同一套：登记 ingest + 后台 drain
+    _start_trace_drain()
     return app
 
 
@@ -127,7 +129,6 @@ if __name__ == "__main__":
     install_interrupt_force_exit()
     _register_shutdown_hooks()
     app = create_app()
-    _start_trace_drain()
     app.run(
         host=str(conf["HOST"]),
         port=int(conf["PORT"]),

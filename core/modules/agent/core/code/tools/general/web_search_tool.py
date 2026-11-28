@@ -8,7 +8,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional
 
 from core.infra.ai import AiChannel
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 from core.modules.agent.core.code.conf.conf import (
     WEB_SEARCH_COUNT_DEFAULT,
     WEB_SEARCH_COUNT_MAX,
@@ -131,7 +131,7 @@ def _via_local_deepseek(query: str, count: int) -> Dict[str, Any]:
         method="POST",
     )
     try:
-        with urlopen_https(
+        with Utils.net.urlopen_https(
             request, timeout=float(WEB_SEARCH_TIMEOUT_SECONDS)
         ) as resp:
             raw = resp.read().decode("utf-8", errors="replace")

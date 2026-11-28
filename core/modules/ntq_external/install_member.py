@@ -17,7 +17,7 @@ from core.infra.setup.core.steps.import_data.data_packages import (
     list_member_part_files,
     member_parts_complete,
 )
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 from core.modules.ntq_external.conf.site_target import (
     install_member_meta_url,
     install_member_part_url,
@@ -218,7 +218,7 @@ def _http_get_bytes(
     headers = _auth_headers() if auth else {"User-Agent": _USER_AGENT}
     req = Request(url, headers=headers)
     try:
-        with urlopen_https(req, timeout=timeout_sec) as resp:
+        with Utils.net.urlopen_https(req, timeout=timeout_sec) as resp:
             status = getattr(resp, "status", None) or resp.getcode()
             if int(status) != 200:
                 raise InstallMemberError(f"HTTP {status}: {url}")

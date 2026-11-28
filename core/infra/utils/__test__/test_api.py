@@ -32,6 +32,8 @@ class TestUtilsApi(unittest.TestCase):
         self.assertTrue(callable(Utils.pkg.pip_args))
         self.assertTrue(callable(Utils.pkg.run_pip))
         self.assertTrue(callable(Utils.pkg.npm_env))
+        self.assertTrue(callable(Utils.net.urlopen_https))
+        self.assertTrue(callable(Utils.net.https_context))
         self.assertTrue(callable(Utils.is_china))
         self.assertIsInstance(Utils.locale.is_china(), bool)
         self.assertEqual(Utils.is_china(), Utils.locale.is_china())

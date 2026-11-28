@@ -46,13 +46,13 @@
 
 ## DEC-02：发送端登记与依赖方向
 
-**是什么：** `TraceEndpointService.register` 由 `modules.ntq_external` 在进程启动时调用；trace 内不再 lazy-import `ntq_external`。
+**是什么：** 发送端 URL 经 `Trace.register_endpoint` 登记；`modules.ntq_external.track.register_trace_endpoint` 只调门面。trace 内不 lazy-import `ntq_external`。
 
-**为什么选它：** 符合 infra 不引用 modules；「模块不在则不发送」保持为显式契约。
+**为什么选它：** 符合 infra 不引用 modules；「模块不在则不发送」保持为显式契约；官网层不深导入 `TraceEndpointService`。
 
 **放弃了什么：** 在 `Trace.config.load` 内自动拉起 `ntq_external`（隐式耦合、反向依赖）。
 
-**影响：** BFF / 用户 CLI 入口须 `import core.modules.ntq_external`（或调用 `register_trace_endpoint`）；Setup 安装事件在 `SetupTrace` 内登记后再 `track_setup`。
+**影响：** BFF `create_app` / 用户 CLI 入口须 `import core.modules.ntq_external`（或 `register_trace_endpoint`）并 `Trace.start_background_drain`；`SetupTrace` 只发事件，不负责登记。
 
 ---
 

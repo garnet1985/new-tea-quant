@@ -9,7 +9,7 @@ from typing import Any, Dict
 from urllib.parse import urlparse
 
 from core.infra.ai import AiChannel
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 from core.modules.agent.core.code.conf.conf import (
     READ_URL_MAX_CHARS,
     WEB_SEARCH_PROVIDER_ID,
@@ -66,7 +66,7 @@ def read_url(arguments: Dict[str, Any] | None = None) -> Dict[str, Any]:
         method="POST",
     )
     try:
-        with urlopen_https(
+        with Utils.net.urlopen_https(
             request, timeout=float(WEB_SEARCH_TIMEOUT_SECONDS)
         ) as resp:
             raw = resp.read().decode("utf-8", errors="replace")

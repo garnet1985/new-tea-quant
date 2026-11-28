@@ -33,7 +33,7 @@
 
 ```text
 core/infra/utils/
-├── utils.py                  # Facade Utils + Io / Math 命名空间
+├── utils.py                  # Facade Utils + Io / Math / Net 命名空间
 ├── contracts.py              # PERIOD_* / PeriodType / ArchiveFormat
 ├── core/
 │   ├── date/                 # DateUtils + parser / calculator / period
@@ -42,7 +42,8 @@ core/infra/utils/
 │   ├── math/deterministic_random.py
 │   ├── markdown/
 │   ├── locale/
-│   └── pkg_index/
+│   ├── pkg_index/
+│   └── net/                  # HTTPS + certifi（Utils.net）
 ├── __test__/
 └── docs/
 ```
@@ -61,6 +62,7 @@ flowchart TB
   U --> MD[markdown MarkdownMgr]
   U --> L[locale LocaleUtils]
   U --> P[pkg PkgIndex]
+  U --> N[net urlopen_https]
 ```
 
 ---

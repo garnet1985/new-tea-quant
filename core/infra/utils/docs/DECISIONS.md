@@ -28,11 +28,19 @@
 |------|------|------|
 | 入口 | 仅 `Utils` Facade | 消除 deep-import |
 | 实现位置 | `core/` 子包 | 与其它 infra 一致 |
-| 命名空间 | date / types / io / math / markdown / locale / pkg | 对应原子包职责 |
+| 命名空间 | date / types / io / math / markdown / locale / pkg / net | 对应原子包职责 |
 | 原 `Utils` 类 | 改名 `TypeUtils` → `Utils.types` | 避免与 Facade 同名 |
 | 原 `DateUtils` | 实现类保留，公开为 `Utils.date` | 迁移成本最低 |
 | IO / math | 类静态方法 | 不导出自由函数 |
 | 公开稳定性 | 最高 `beta` | core `0.x` |
+
+---
+
+## DEC-02：HTTPS 经 `Utils.net`
+
+**是什么：** `urlopen_https` / `https_context` 挂在 `Utils.net`；实现仍在 `core/net/ssl_context.py`。
+
+**为什么选它：** 消除对 `core.net.ssl_context` 的深导入；与 DEC-01「消除 deep-import」一致。
 
 ---
 

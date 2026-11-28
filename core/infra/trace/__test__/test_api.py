@@ -25,6 +25,7 @@ class TestTraceApi(unittest.TestCase):
         self.assertTrue(callable(Trace.queue))
         self.assertTrue(callable(Trace.send))
         self.assertTrue(callable(Trace.start_background_drain))
+        self.assertTrue(callable(Trace.register_endpoint))
         self.assertTrue(callable(Trace.ask_permission))
         self.assertFalse(hasattr(Trace, "flush"))
         self.assertTrue(hasattr(Trace, "config"))

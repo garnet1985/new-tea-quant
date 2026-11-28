@@ -8,7 +8,7 @@ import urllib.request
 from typing import Any, Dict, List, Optional, Tuple
 
 from core.infra.ai.contracts import AiError
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 
 _DEFAULT_TIMEOUT_SECONDS = 25.0
 _DEFAULT_MAX_TOKENS = 2048
@@ -55,7 +55,7 @@ class OpenAICompatibleClient:
             method="POST",
         )
         try:
-            with urlopen_https(request, timeout=float(timeout_seconds)) as resp:
+            with Utils.net.urlopen_https(request, timeout=float(timeout_seconds)) as resp:
                 raw = resp.read().decode("utf-8", errors="replace")
         except urllib.error.HTTPError as exc:
             raise AiError(_message_from_http_error(exc)) from None

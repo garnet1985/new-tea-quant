@@ -82,6 +82,15 @@
 - **引入版本：** `0.1.0`
 - **描述：** BFF/长进程后台 drain（幂等）
 
+#### register_endpoint
+
+`Trace.register_endpoint(url: str, *, setup_without_consent: bool = False) -> None`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.1.4`
+- **描述：** 登记发送端 URL。由入口 / `ntq_external` 调用；trace 不内置官网地址。`setup_without_consent=True` 时安装类事件可不经使用统计同意
+
 ### config
 
 `Trace.config.is_enabled() -> bool`  

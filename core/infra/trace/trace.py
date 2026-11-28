@@ -88,5 +88,14 @@ class Trace:
         """Start BFF/long-process background drain (idempotent)."""
         TraceDrainService.start()
 
+    @staticmethod
+    def register_endpoint(url: str, *, setup_without_consent: bool = False) -> None:
+        """登记发送端 URL（由入口 / 官网层调用；trace 不内置官网地址）。"""
+        from core.infra.trace.core.services.endpoint_service import TraceEndpointService
+
+        TraceEndpointService.register(
+            url, setup_without_consent=setup_without_consent
+        )
+
 
 __all__ = ["Trace"]

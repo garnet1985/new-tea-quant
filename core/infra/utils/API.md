@@ -1,6 +1,6 @@
 # Utils API 文档
 
-**模块：** `infra.utils` · **版本：** `0.2.2`
+**模块：** `infra.utils` · **版本：** `0.2.3`
 
 **最低支持核心版本：** `>=0.5.0`
 
@@ -17,7 +17,7 @@
 
 ## Utils
 
-**描述：** 通用无业务工具门面 — `date` / `types` / `io` / `math` / `markdown` / `locale`
+**描述：** 通用无业务工具门面 — `date` / `types` / `io` / `math` / `markdown` / `locale` / `pkg` / `net`
 
 ### date
 
@@ -131,6 +131,25 @@ from core.infra.utils import Utils
 Utils.pkg.announce()
 code = Utils.pkg.run_pip(["install", "-r", "requirements.txt"])
 npm_env = Utils.pkg.npm_env()
+```
+
+### net
+
+`Utils.net.https_context() -> ssl.SSLContext`  
+`Utils.net.urlopen_https(req, *, timeout=None, **kwargs)`
+
+- **类型：** `static`
+- **状态：** `beta`
+- **引入版本：** `0.2.3`
+- **描述：** HTTPS 优先用 certifi CA（规避 macOS 官方 Python 缺系统证书）。调用方经门面使用，勿深导入 `core/net/ssl_context`
+- **举例：**
+
+```python
+from core.infra.utils import Utils
+from urllib.request import Request
+
+with Utils.net.urlopen_https(Request("https://example.com"), timeout=10) as resp:
+    ...
 ```
 
 ---

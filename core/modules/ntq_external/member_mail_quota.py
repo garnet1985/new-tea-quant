@@ -8,7 +8,7 @@ import urllib.request
 from typing import Any, Optional
 
 from core.modules.ntq_external.conf.site_target import member_mail_quota_url
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 
 # 与官网 ntq_mail 默认对齐（展示用；真实额度以 quota 接口为准）
 DEFAULT_LIMIT = 30
@@ -42,7 +42,7 @@ def member_mail_quota() -> dict:
         method="GET",
     )
     try:
-        with urlopen_https(request, timeout=8) as response:
+        with Utils.net.urlopen_https(request, timeout=8) as response:
             status = getattr(response, "status", 200)
             raw = response.read().decode("utf-8", errors="replace")
     except urllib.error.HTTPError as exc:

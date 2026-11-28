@@ -104,11 +104,11 @@ def test_apply_grants_only_after_userspace_and_license(acceptance_file, tmp_path
     decided = {"value": False}
 
     monkeypatch.setattr(
-        "core.infra.trace.core.services.consent_service.TraceConsentService.is_decided",
+        "core.infra.trace.Trace.consent.is_decided",
         lambda: decided["value"],
     )
     monkeypatch.setattr(
-        "core.infra.trace.core.services.consent_service.TraceConsentService.grant",
+        "core.infra.trace.Trace.consent.grant",
         lambda *, source="": granted.append(source) or True,
     )
 

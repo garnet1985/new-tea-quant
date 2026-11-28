@@ -13,7 +13,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
 
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 from core.modules.ntq_external.ai.member_channel import member_base_url, member_token
 
 # 短时缓存：仅加速重复 resolve；过期后必须重拉，失败不降级用旧包
@@ -104,7 +104,7 @@ def fetch_agent_policy(*, token: Optional[str] = None) -> Dict[str, Any]:
         method="GET",
     )
     try:
-        with urlopen_https(request, timeout=8) as resp:
+        with Utils.net.urlopen_https(request, timeout=8) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             data = json.loads(raw)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:

@@ -10,7 +10,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict, Optional
 
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 from core.modules.ntq_external.ai.member_channel import member_base_url, member_token
 
 _CACHE_TTL_SEC = 300.0
@@ -56,7 +56,7 @@ def fetch_framework_index(*, force_refresh: bool = False) -> Dict[str, Any]:
         method="GET",
     )
     try:
-        with urlopen_https(request, timeout=8) as resp:
+        with Utils.net.urlopen_https(request, timeout=8) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
             data = json.loads(raw)
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError) as exc:

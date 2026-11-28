@@ -70,11 +70,11 @@ def apply_trace_consent() -> None:
         )
         if not marker.is_file():
             return
-        from core.infra.trace.core.services.consent_service import TraceConsentService
+        from core.infra.trace import Trace
 
-        if TraceConsentService.is_decided():
+        if Trace.consent.is_decided():
             return
-        TraceConsentService.grant(source="license")
+        Trace.consent.grant(source="license")
     except Exception:
         return
 

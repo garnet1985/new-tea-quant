@@ -17,7 +17,7 @@ from core.modules.ntq_external.conf.site_target import (
     install_demo_meta_url,
     install_demo_url,
 )
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 
 logger = logging.getLogger(__name__)
 
@@ -186,7 +186,7 @@ def _http_get_bytes(
 ) -> bytes:
     req = Request(url, headers={"User-Agent": _USER_AGENT})
     try:
-        with urlopen_https(req, timeout=timeout_sec) as resp:
+        with Utils.net.urlopen_https(req, timeout=timeout_sec) as resp:
             status = getattr(resp, "status", None) or resp.getcode()
             if int(status) != 200:
                 raise InstallDemoError(f"HTTP {status}: {url}")

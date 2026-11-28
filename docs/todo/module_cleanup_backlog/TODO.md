@@ -59,15 +59,13 @@
 
 ### infra.trace · `ntq_external` 深导入 `TraceEndpointService`
 
-- **现象：** `register_trace_endpoint` 仍直连 `trace.core.services.endpoint_service`；无 `Trace.register_*` 门面钩子。
-- **方向：** Facade 增加 register；官网层只调门面。
-- **状态：** [ ]
+- **已修：** `Trace.register_endpoint`；`ntq_external.track` 只调门面。
+- **状态：** [x]
 
 ### infra.trace · BFF WSGI 路径可能漏注册 ingest
 
-- **现象：** `python -m core.bff.app` 已显式 import / 注册；纯 WSGI 部署若未走同一入口，可能缺 ingest URL。
-- **方向：** 与 `__main__` 对齐的统一注册点。
-- **状态：** [ ]
+- **已修：** `create_app()` 内调用 `_start_trace_drain()`（与 `__main__` 对齐）。
+- **状态：** [x]
 
 ### infra.project_context · 多处深导入 `PathManager`
 
@@ -222,6 +220,8 @@
 | membership token 文件名双写 | contracts.MEMBERSHIP_TOKEN_FILE_NAME |
 | setup 单测 PathManager 深 mock | `NTQ_USERSPACE_ROOT` + ProjectContext |
 | setup → ntq_external 硬依赖 | PackageFetcher 注入（DEC-06） |
+| Trace.register_endpoint + BFF create_app drain | 已修 |
+| Utils.net 门面；urlopen 深导入 | 已迁 Utils.net |
 | CLI renew 深导入 data_source.run_status | 已走 Facade |
 | project_context `get_ai_*` | 已删 |
 | series_relation `strategy`↔`strategy_key` 兼容 | 已删 |

@@ -10,7 +10,7 @@ from typing import Any, Dict, Mapping, Optional, Sequence
 
 from core.infra.ai import AiChannel
 from core.infra.ai.contracts import AiError, CompleteResult
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 from core.modules.ntq_external.conf.site_target import ai_base_url
 
 PROVIDER_ID = "ntq"
@@ -110,7 +110,7 @@ def fetch_member_quota() -> Optional[dict]:
         method="GET",
     )
     try:
-        with urlopen_https(request, timeout=8) as resp:
+        with Utils.net.urlopen_https(request, timeout=8) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
         return None
@@ -161,7 +161,7 @@ def fetch_member_usage(limit: int = 40) -> Optional[dict]:
         method="GET",
     )
     try:
-        with urlopen_https(request, timeout=8) as resp:
+        with Utils.net.urlopen_https(request, timeout=8) as resp:
             data = json.loads(resp.read().decode("utf-8", errors="replace"))
     except (urllib.error.URLError, TimeoutError, json.JSONDecodeError, OSError):
         return None
@@ -221,7 +221,7 @@ def track_prompt(
         method="POST",
     )
     try:
-        with urlopen_https(request, timeout=3) as resp:
+        with Utils.net.urlopen_https(request, timeout=3) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
     except (urllib.error.URLError, TimeoutError, OSError):
         return False

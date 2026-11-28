@@ -1,4 +1,4 @@
-"""Utils 门面 — date / types / io / math / markdown / locale / pkg。"""
+"""Utils 门面 — date / types / io / math / markdown / locale / pkg / net。"""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from core.infra.utils.core.date.date_utils import DateUtils
 from core.infra.utils.core.io.csv_io import CsvIo
 from core.infra.utils.core.io.file_io import FileIo
 from core.infra.utils.core.locale.locale_utils import LocaleUtils
+from core.infra.utils.core.net.ssl_context import https_context, urlopen_https
 from core.infra.utils.core.pkg_index import PkgIndex
 from core.infra.utils.core.markdown import MarkdownMgr
 from core.infra.utils.core.math.deterministic_random import DeterministicRandom
@@ -33,6 +34,13 @@ class Math:
         return DeterministicRandom.unit_float(*key_parts)
 
 
+class Net:
+    """HTTPS 辅助（certifi CA）。"""
+
+    https_context = staticmethod(https_context)
+    urlopen_https = staticmethod(urlopen_https)
+
+
 class Utils:
     """通用无业务工具门面（Facade）。"""
 
@@ -43,6 +51,7 @@ class Utils:
     markdown = MarkdownMgr
     locale = LocaleUtils
     pkg = PkgIndex
+    net = Net
 
     @staticmethod
     def is_china() -> bool:

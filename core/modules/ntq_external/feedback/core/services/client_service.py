@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 from typing import Any, Dict
 
-from core.infra.utils.core.net.ssl_context import urlopen_https
+from core.infra.utils import Utils
 
 logger = logging.getLogger(__name__)
 
@@ -40,7 +40,7 @@ class FeedbackClientService:
                 },
                 method="POST",
             )
-            with urlopen_https(req, timeout=float(timeout_sec)) as resp:
+            with Utils.net.urlopen_https(req, timeout=float(timeout_sec)) as resp:
                 code = getattr(resp, "status", None) or resp.getcode()
                 return 200 <= int(code) < 300
         except urllib.error.HTTPError as exc:
